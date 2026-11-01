@@ -123,6 +123,11 @@ namespace clad {
     /// loop. Defined in lib/Differentiator/LoopScope.h.
     struct LoopScope;
     LoopScope* m_CurrentLoop = nullptr;
+    /// Whether the reverse pass computes the initial value of \p VD again
+    /// when it enters an iteration, instead of storing it on a tape. The
+    /// analysis decides (see DiffRequest::isRecomputableInLoop); this switches
+    /// on the slots of the loops whose index the initializer reads.
+    bool canRecomputeInLoop(const clang::VarDecl* VD);
     /// Whether a store in the statement being visited happens once per
     /// iteration of a loop, and so has to go on a tape. False in a loop that
     /// recomputes instead of taping.

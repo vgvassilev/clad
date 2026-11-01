@@ -3,6 +3,7 @@
 #include "Analyses.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -26,6 +27,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <set>
 #include <unordered_map>
 
@@ -1336,6 +1338,85 @@ void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out) {
   const FunctionDecl* Def = R.Function->getDefinition();
   if (Def && Def->hasBody())
     collectCountedLoops(R, Out.Loops);
+}
+
+void findRecomputableLocals(const DiffRequest& R,
+                            llvm::SmallPtrSetImpl<const VarDecl*>& Out) {
+  const FunctionDecl* Fn = R.Function ? R.Function->getDefinition() : nullptr;
+  // The initializer loads the same values as in the forward pass only if the
+  // function stores to nothing but its own locals.
+  if (!Fn || !Fn->hasBody() || R.Mode == DiffMode::reverse_mode_forward_pass ||
+      !R.writesOnlyLocals())
+    return;
+  // The counted loops around the statement being looked at, innermost last.
+  llvm::SmallVector<const LoopFacts*, 4> Loops;
+  // An unwritten parameter, or the index of an enclosing loop that the
+  // reverse pass restores before it enters the body: by the reverse of the
+  // increment, or else from the loop's slots, which need a literal count.
+  auto holds = [&](const VarDecl* Read) {
+    if (!R.writesVariable(Read))
+      return isa<ParmVarDecl>(Read);
+    for (const LoopFacts* F : llvm::reverse(Loops))
+      if (F->IndVar == Read)
+        return F->Step && (R.shouldBeRecorded(F->Step->getSubExpr()) ||
+                           (F->Count >= 0 && F->OwnsIndVar));
+    return false;
+  };
+  // A few operations on such values and on elements they point to are
+  // cheaper to recompute than to store.
+  unsigned Ops = 0;
+  std::function<bool(const Expr*)> ok = [&](const Expr* E) -> bool {
+    E = E->IgnoreParens();
+    if (!isa<CastExpr>(E) && ++Ops > 8)
+      return false;
+    if (isa<IntegerLiteral, FloatingLiteral>(E))
+      return true;
+    if (const auto* CE = dyn_cast<CastExpr>(E)) {
+      if (CE->getCastKind() != CK_LValueToRValue)
+        return ok(CE->getSubExpr());
+      const Expr* Sub = CE->getSubExpr()->IgnoreParens();
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(Sub))
+        return ok(ASE->getBase()) && ok(ASE->getIdx());
+      const auto* DRE = dyn_cast<DeclRefExpr>(Sub);
+      const auto* Read = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      return Read && holds(Read);
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return UO->getOpcode() == UO_Minus && ok(UO->getSubExpr());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      return (BO->isAdditiveOp() || BO->isMultiplicativeOp()) &&
+             ok(BO->getLHS()) && ok(BO->getRHS());
+    return false;
+  };
+  // Every iteration the reverse pass enters ran the declaration: it is
+  // directly in the body of a counted loop, which no statement leaves early.
+  std::function<void(const Stmt*)> walk = [&](const Stmt* S) {
+    if (!S)
+      return;
+    const auto* FS = dyn_cast<ForStmt>(S);
+    const LoopFacts* F = FS ? &R.getLoopFacts(FS) : nullptr;
+    if (!F || !F->IndVar || !F->BoundsAreStable) {
+      for (const Stmt* Child : S->children())
+        walk(Child);
+      return;
+    }
+    Loops.push_back(F);
+    if (const auto* Body = dyn_cast<CompoundStmt>(FS->getBody()))
+      for (const Stmt* B : Body->body())
+        if (const auto* DS = dyn_cast<DeclStmt>(B))
+          for (const Decl* D : DS->decls()) {
+            const auto* VD = dyn_cast<VarDecl>(D);
+            // A local written after its declaration no longer holds the
+            // initial value at the end of the iteration.
+            Ops = 0;
+            if (VD && VD->getInit() && VD->getType()->isArithmeticType() &&
+                !R.writesVariable(VD) && ok(VD->getInit()))
+              Out.insert(VD);
+          }
+    walk(FS->getBody());
+    Loops.pop_back();
+  };
+  walk(Fn->getBody());
 }
 
 } // namespace clad

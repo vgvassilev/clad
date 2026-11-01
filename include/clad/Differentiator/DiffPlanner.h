@@ -20,6 +20,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Casting.h"
@@ -211,7 +212,16 @@ private:
   mutable struct WrittenVarInfo {
     std::set<const clang::VarDecl*> Written;
     bool HasAnalysisRun = false;
+    /// Cached result of writesOnlyLocals(), computed on first use.
+    std::optional<bool> OnlyLocals;
   } m_WrittenVarInfo;
+
+  /// The locals of the primal's loops the reverse pass can compute again
+  /// instead of storing. A property of the Function, so worked out once.
+  mutable struct RecomputeInfo {
+    llvm::SmallPtrSet<const clang::VarDecl*, 8> Locals;
+    bool HasAnalysisRun = false;
+  } m_RecomputeInfo;
 
   /// The calls of the primal's body whose results nothing reads. A property
   /// of the Function, so worked out once and kept.
@@ -307,6 +317,14 @@ public:
   /// expression has the same value anywhere in the body. Globals do not
   /// qualify: a callee can write them without the body showing it.
   bool readsOnlyUnwrittenParams(const clang::Expr* E) const;
+  /// Whether the function stores only to its own locals and makes no call,
+  /// construction or allocation that could store elsewhere. If so, memory it
+  /// loads from is not changed by the function.
+  bool writesOnlyLocals() const;
+  /// Whether the reverse pass can compute the initial value of \p VD, a local
+  /// declared in the body of a loop, again when it enters an iteration,
+  /// instead of storing it (see findRecomputableLocals).
+  bool isRecomputableInLoop(const clang::VarDecl* VD) const;
 
   /// Whether \p S, a statement of the primal's body, is a call whose results
   /// nothing reads, so the forward sweep need not run it. False where the

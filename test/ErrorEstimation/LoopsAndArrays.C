@@ -56,24 +56,24 @@ float func2(float x) {
 //CHECK: void func2_grad(float x, float *_d_x, double &_final_error) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     float _t1[9];
 //CHECK-NEXT:     float _d_m = 0.F;
 //CHECK-NEXT:     float m = 0.F;
-//CHECK-NEXT:     float _t2[9];
+//CHECK-NEXT:     float _t1[9];
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     unsigned int _t0;
 //CHECK-NEXT:     for (i = 0; i < 9; i++) {
-//CHECK-NEXT:         _t1[i] = m , m = x * x;
-//CHECK-NEXT:         _t2[i] = z;
+//CHECK-NEXT:         m = x * x;
+//CHECK-NEXT:         _t1[i] = z;
 //CHECK-NEXT:         z = m + m;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     for (_t0 = 9{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         i--;
+//CHECK-NEXT:         m = x * x;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
-//CHECK-NEXT:             z = _t2[i];
+//CHECK-NEXT:             z = _t1[i];
 //CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_z = 0.F;
@@ -83,7 +83,6 @@ float func2(float x) {
 //CHECK-NEXT:             *_d_x += _d_m * x;
 //CHECK-NEXT:             *_d_x += x * _d_m;
 //CHECK-NEXT:             _d_m = 0.F;
-//CHECK-NEXT:             m = _t1[i];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
