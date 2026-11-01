@@ -1156,10 +1156,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // this ensures we can differentiate conditions that affect the derivatives
     // as well as declarations inside the condition:
     beginBlock(direction::reverse);
-    if (const auto* condDeclStmt = If->getConditionVariableDeclStmt())
+    if (const auto* condDeclStmt = If->getConditionVariableDeclStmt()) {
       condDiff = Visit(condDeclStmt);
-    else
+      // A reverse_forw declares the variable where it was rather than
+      // promoting it, and gives no expression for it: the condition is the
+      // variable itself.
+      auto Clone = m_DeclReplacements.find(If->getConditionVariable());
+      if (!condDiff.getExpr() && Clone != m_DeclReplacements.end())
+        condDiff = StmtDiff(BuildDeclRef(Clone->second));
+    } else {
       condDiff = Visit(If->getCond());
+    }
     CompoundStmt* RCS = endBlock(direction::reverse);
     if (!RCS->body_empty()) {
       std::reverse(
