@@ -2586,6 +2586,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           forwPassRequest.PullbackStateParam.isNull() &&
           !utils::allocatesIntoRecordParam(request.Function))
         Saved.get()->ReplayableCalls.insert(E);
+      // A custom pullback without a custom reverse_forw does not restore the
+      // memory the call wrote.
+      if (!nonDiff && Saved.get() && hasCustomPullback && !hasCustomReverseForw)
+        Saved.get()->NonReplayingCalls.insert(E);
     }
 
     // The call, the stores around it and its pullback each use an argument.

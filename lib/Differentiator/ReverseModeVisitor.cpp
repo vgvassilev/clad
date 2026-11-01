@@ -3471,20 +3471,33 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     };
     llvm::SmallVector<RecordedRange, 4> recordedRanges;
     bool useRangeRecords = false;
-    if (usingRestoreTracker && !m_RestoreTracker && hasStoredParams &&
-        !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall &&
-        !callerRestoresWrites) {
+    // The pullback of such a call does not re-execute the callee, so these
+    // range records are the only restore.
+    bool nonReplaying = m_DiffReq.NonReplayingCalls.count(CE) != 0;
+    if ((usingRestoreTracker || nonReplaying) && !m_RestoreTracker &&
+        hasStoredParams && !needsForwPass && pullbackStateType.isNull() &&
+        !isMethodOperatorCall && !callerRestoresWrites) {
       llvm::ArrayRef<WrittenExtent> extents =
           pullbackRequest.getWrittenExtents();
       // Empty where the loop analysis did not run, and there is then nothing
-      // to record from: the tracker stays.
-      useRangeRecords = extents.size() == FD->getNumParams();
+      // to record from: the tracker stays. For a non-replaying call, treat
+      // every pointer-to-non-const argument as written, with unknown extent.
+      bool haveExtents = extents.size() == FD->getNumParams();
+      useRangeRecords = haveExtents || nonReplaying;
       for (std::size_t i = 0, e = FD->getNumParams(); i != e && useRangeRecords;
            ++i) {
-        const WrittenExtent& W = extents[i];
+        QualType parTy = FD->getParamDecl(i)->getType();
+        WrittenExtent Unbounded;
+        Unbounded.K = parTy->isPointerType() &&
+                              !parTy->getPointeeType().isConstQualified()
+                          ? WrittenExtent::Kind::Unknown
+                          : WrittenExtent::Kind::None;
+        // A copy: GCC 13 takes a reference into the ArrayRef temporary for a
+        // dangling one.
+        const WrittenExtent W =
+            haveExtents ? extents.drop_front(i).front() : Unbounded;
         if (W.K == WrittenExtent::Kind::None)
           continue;
-        QualType parTy = FD->getParamDecl(i)->getType();
         if (i >= CE->getNumArgs() || !parTy->isPointerType() ||
             parTy->getPointeeType().isConstQualified()) {
           useRangeRecords = false;
@@ -3513,6 +3526,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             bound = ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy,
                                                       m_Context, W.BoundConst);
         }
+        // Unknown extent: save the whole local array passed as the argument.
+        const auto* arr =
+            nonReplaying
+                ? dyn_cast<DeclRefExpr>(CE->getArg(i)->IgnoreImpCasts())
+                : nullptr;
+        const auto* arrTy =
+            arr ? m_Context.getAsConstantArrayType(arr->getType()) : nullptr;
+        if (!bound && arrTy && arrTy->getElementType()->isArithmeticType())
+          bound = ConstantFolder::synthesizeLiteral(
+              m_Context.UnsignedLongTy, m_Context,
+              arrTy->getSize().getZExtValue());
         if (!bound) {
           useRangeRecords = false;
           break;
