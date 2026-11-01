@@ -337,6 +337,14 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     bool RHSIsStored =
         !utils::ShouldRecompute(R, m_AnalysisDC->getASTContext());
+    // A factor is read only by the adjoint of the other one, which a factor
+    // that does not vary does not have -- unless what the product sits in
+    // reads its value as well, as a call reads its arguments again for its
+    // pullback.
+    if (!(m_ModeStack.back() & Mode::kNonLinearMode)) {
+      LHSIsStored = LHSIsStored || m_Request->isInactiveLocal(R);
+      RHSIsStored = RHSIsStored || m_Request->isInactiveLocal(L);
+    }
     if (nonLinear)
       startNonLinearMode();
 

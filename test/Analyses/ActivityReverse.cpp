@@ -2,6 +2,8 @@
 // RUN: ./Activity.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oActivity.out 2>&1 | %filecheck --check-prefix=CHECK-TBR %s
+// RUN: ./Activity.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -657,6 +659,56 @@ double f24(double x) {
   return v + p + q;
 }
 
+// f28 calls h28 with a constant s, f29 with a varied one, and the two share
+// h28's pullback. k varies at neither call: q, read only for the adjoint of
+// k, is not put back after it is overwritten. r varies at f29's call alone,
+// so p, read for the adjoint of r, is put back for f29's sake.
+double h28(double& p, double& q, double s) {
+  double k = 2;
+  double r = s * 1.0;
+  double v = k * q + r * p;
+  p = 0;
+  q = 0;
+  return v;
+}
+double f28(double x) {
+  double p = x, q = 3;
+  double v = h28(p, q, 2.0);
+  return v + p + q;
+}
+double f29(double x) {
+  double p = 3, q = 1;
+  double v = h28(p, q, x);
+  return v + p + q;
+}
+
+// CHECK-TBR: void h28_pullback(double &p, double &q, double s, double _d_y, double *_d_p, double *_d_q, double *_d_s) {
+// CHECK-TBR-NEXT:     double k = 2;
+// CHECK-TBR-NEXT:     double _d_r = 0.;
+// CHECK-TBR-NEXT:     double r = s * 1.;
+// CHECK-TBR-NEXT:     double _d_v = 0.;
+// CHECK-TBR-NEXT:     double v = k * q + r * p;
+// CHECK-TBR-NEXT:     double _t0 = p;
+// CHECK-TBR-NEXT:     p = 0;
+// CHECK-TBR-NEXT:     q = 0;
+// CHECK-TBR-NEXT:     _d_v += _d_y;
+// CHECK-TBR-NEXT:     {
+// CHECK-TBR-NEXT:         double _r_d1 = *_d_q;
+// CHECK-TBR-NEXT:         *_d_q = 0.;
+// CHECK-TBR-NEXT:     }
+// CHECK-TBR-NEXT:     {
+// CHECK-TBR-NEXT:         p = _t0;
+// CHECK-TBR-NEXT:         double _r_d0 = *_d_p;
+// CHECK-TBR-NEXT:         *_d_p = 0.;
+// CHECK-TBR-NEXT:     }
+// CHECK-TBR-NEXT:     {
+// CHECK-TBR-NEXT:         *_d_q += k * _d_v;
+// CHECK-TBR-NEXT:         _d_r += _d_v * p;
+// CHECK-TBR-NEXT:         *_d_p += r * _d_v;
+// CHECK-TBR-NEXT:     }
+// CHECK-TBR-NEXT:     *_d_s += _d_r * 1.;
+// CHECK-TBR-NEXT: }
+
 double f16(double x) {
   double y = 0;
   double* p = &y;
@@ -715,6 +767,8 @@ int main(){
     TEST1(f22, 3);// CHECK-EXEC: {2.00}
     TEST1(f23, 3);// CHECK-EXEC: {3.00}
     TEST1(f24, 3);// CHECK-EXEC: {5.00}
+    TEST1(f28, 3);// CHECK-EXEC: {2.00}
+    TEST1(f29, 3);// CHECK-EXEC: {3.00}
     TEST2(f12, 3, 1);// CHECK-EXEC: {-0.27, 0.27}
     dx = 0;
     auto grad13 = clad::gradient<clad::opts::enable_va>(f13, "x");

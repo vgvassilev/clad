@@ -1087,6 +1087,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
   }
+  bool DiffRequest::isInactiveLocal(const Expr* E) const {
+    const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    return VD && EnableVariedAnalysis && VD->hasLocalStorage() &&
+           !isa<ParmVarDecl>(VD) && !VD->getType()->isReferenceType() &&
+           !shouldHaveAdjoint(VD);
+  }
   bool DiffRequest::shouldHavePushforward(const CallExpr* CE) const {
     auto found = m_ActivityRunInfo.VariedCalls.find(CE);
     return found == m_ActivityRunInfo.VariedCalls.end() || found->second;

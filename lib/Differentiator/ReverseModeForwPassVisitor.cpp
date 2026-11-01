@@ -324,7 +324,8 @@ StmtDiff ReverseModeForwPassVisitor::VisitUnaryOperator(
 ReverseModeForwPassVisitor::DelayedStoreResult
 ReverseModeForwPassVisitor::DelayedGlobalStoreAndRef(Expr* E,
                                                      llvm::StringRef prefix,
-                                                     bool forceStore) {
+                                                     bool forceStore,
+                                                     bool isNeeded) {
   assert(E && "must be provided");
   StmtDiff Ediff = Visit(E);
   return DelayedStoreResult{*this, Ediff,

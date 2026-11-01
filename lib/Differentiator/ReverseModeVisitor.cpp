@@ -4057,14 +4057,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // to reduce cloning complexity and only clones once. Storing it in a
       // global variable allows to save current result and make it accessible
       // in the reverse pass.
-      DelayedStoreResult RDelayed = DelayedGlobalStoreAndRef(R);
+      // A factor that does not vary has no adjoint, and the other factor is
+      // read only by that adjoint: it is stored only for a varied factor.
+      bool diffL = !m_DiffReq.isInactiveLocal(L);
+      bool diffR = !m_DiffReq.isInactiveLocal(R);
+      DelayedStoreResult RDelayed = DelayedGlobalStoreAndRef(
+          R, /*prefix=*/"_t", /*forceStore=*/false, /*isNeeded=*/diffL);
       StmtDiff& RResult = RDelayed.Result;
 
       // dl = df/dxi * xr (for L), built lazily so a constant L builds nothing.
       // dl and dr claim the shared seed -- one takes it raw, the other clones
       // -- so it is never orphaned nor doubly parented.
       SeedClaim seed(*this, dfdx());
-      Ldiff = seed
+      Ldiff = seed && diffL
                   ? Visit(L,
                           [this, &seed,
                            rp = RResult.getRevSweepAsExpr()]() -> Expr* {
@@ -4082,13 +4087,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // in the reverse sweep and in RMV::VisitBinaryOperator
       // the order is not reversed.
       beginBlock(direction::reverse);
-      if (!utils::ShouldRecompute(LStored.getExpr(), m_Context))
+      if (diffR && !utils::ShouldRecompute(LStored.getExpr(), m_Context))
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
       // dr = xl * df/dxi (for R), built lazily; claims the shared seed (a clone
       // if dl already took it raw).
-      Rdiff = seed
+      Rdiff = seed && diffR
                   ? Visit(R,
                           [this, &seed,
                            lp = LStored.getRevSweepAsExpr()]() -> Expr* {
@@ -5697,7 +5702,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   ReverseModeVisitor::DelayedStoreResult
   ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
-                                               bool forceStore) {
+                                               bool forceStore, bool isNeeded) {
     assert(E && "must be provided");
     if (!utils::UsefulToStore(E)) {
       StmtDiff Ediff = Visit(E);
@@ -5707,7 +5712,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                 /*isInsideLoop=*/false,
                                 /*isFnScope=*/false};
     }
-    if (!forceStore && utils::ShouldRecompute(E, m_Context)) {
+    if (!forceStore && (!isNeeded || utils::ShouldRecompute(E, m_Context))) {
       // A cheap, side-effect-free operand is recomputed inline rather than
       // stored. Return a sentinel placeholder now; Finalize splices in the
       // VISITED forward value at every occurrence -- so a stored condition
