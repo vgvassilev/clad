@@ -97,6 +97,7 @@ public:
   StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
+  StmtDiff VisitCallExpr(const clang::CallExpr* CE) override;
   void matchBranchTangents(StmtDiff& TrueDiff, StmtDiff& FalseDiff,
                            clang::QualType T) override;
   clang::Expr* castTangent(clang::Expr* Dx,
@@ -107,6 +108,18 @@ public:
   clang::Expr* asTangentVector(clang::Expr* Dx, clang::QualType T);
   /// \p Value, after evaluating \p E for what it changes.
   clang::Expr* keepEffects(clang::Expr* E, clang::Expr* Value);
+  clang::Expr* memberTangent(clang::Expr* BaseDx,
+                             const clang::MemberExpr* ME) override;
+  clang::Expr* thisTangentArgument(const clang::CXXMethodDecl* MD,
+                                   const clang::Expr* Base,
+                                   clang::Expr* BaseDx) override;
+  /// The tangents of a variable of the class \p T initialized with \p Init,
+  /// whose tangent is \p InitDx: a vector of objects of \p T. Zero ones,
+  /// with an error, for an initializer it cannot follow yet.
+  clang::Expr* objectTangents(clang::QualType T, const clang::Expr* Init,
+                              clang::Expr* InitDx);
+  /// The vector of zero objects of the class \p T.
+  clang::Expr* zeroObjects(clang::QualType T);
   // Decl is not Stmt, so it cannot be visited directly.
   DeclDiff<clang::VarDecl>
   DifferentiateVarDecl(const clang::VarDecl* VD) override;
