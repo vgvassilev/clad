@@ -9,6 +9,7 @@
 
 #include "clang/Basic/SourceLocation.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
@@ -170,6 +171,16 @@ struct FunctionLoopFacts {
 /// extent, so a caller stays conservative as the whitelist grows. Called
 /// through DiffRequest::getLoopFacts, which runs it once per function.
 void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out);
+
+/// Adds to \p Out the locals of \p R's function whose initial value the
+/// reverse pass can compute again when it enters an iteration, instead of
+/// storing it: arithmetic locals declared directly in the body of a counted
+/// loop, never written after, and initialized with a few additions,
+/// subtractions and multiplications of literals, unwritten parameters,
+/// indices of enclosing loops the reverse pass restores, and elements they
+/// point to. None when the function stores to anything but its own locals.
+void findRecomputableLocals(const DiffRequest& R,
+                            llvm::SmallPtrSetImpl<const clang::VarDecl*>& Out);
 
 } // namespace clad
 

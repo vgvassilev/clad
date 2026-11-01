@@ -60,6 +60,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -727,6 +728,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
              readsOnlyUnwrittenParams(BO->getLHS()) &&
              readsOnlyUnwrittenParams(BO->getRHS());
     return false;
+  }
+
+  bool DiffRequest::isRecomputableInLoop(const VarDecl* VD) const {
+    if (!m_RecomputeInfo.HasAnalysisRun) {
+      findRecomputableLocals(*this, m_RecomputeInfo.Locals);
+      m_RecomputeInfo.HasAnalysisRun = true;
+    }
+    return m_RecomputeInfo.Locals.contains(VD);
+  }
+
+  bool DiffRequest::writesOnlyLocals() const {
+    if (m_WrittenVarInfo.OnlyLocals)
+      return *m_WrittenVarInfo.OnlyLocals;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    auto local = [](const Expr* E) {
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+      const auto* V = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      return V && V->isLocalVarDecl() && !V->getType()->isReferenceType();
+    };
+    std::function<bool(const Stmt*)> writes = [&](const Stmt* S) {
+      if (!S)
+        return false;
+      if (isa<CallExpr, CXXConstructExpr, CXXNewExpr, CXXDeleteExpr, AsmStmt>(
+              S))
+        return true;
+      const Expr* Target = nullptr;
+      if (const auto* BO = dyn_cast<BinaryOperator>(S);
+          BO && BO->isAssignmentOp())
+        Target = BO->getLHS();
+      if (const auto* UO = dyn_cast<UnaryOperator>(S);
+          UO && UO->isIncrementDecrementOp())
+        Target = UO->getSubExpr();
+      return (Target && !local(Target)) || llvm::any_of(S->children(), writes);
+    };
+    m_WrittenVarInfo.OnlyLocals =
+        Def && Def->hasBody() && !writes(Def->getBody());
+    return *m_WrittenVarInfo.OnlyLocals;
   }
 
   bool DiffRequest::isUnreadCall(const Stmt* S) const {

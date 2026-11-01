@@ -5046,7 +5046,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             else
               assignment = BuildOp(BO_Assign, declRef, init);
             if (isInsideLoop() && VD != m_UnsavedLoopIndex) {
-              if (m_DiffReq.shouldBeRecorded(DS)) {
+              if (m_DiffReq.shouldBeRecorded(DS) && canRecomputeInLoop(VD)) {
+                // Recomputed when the reverse pass enters the iteration,
+                // instead of stored on a tape.
+                m_LoopBlock.back().push_back(
+                    BuildOp(BO_Assign, BuildDeclRef(decl), CloneNode(init)));
+              } else if (m_DiffReq.shouldBeRecorded(DS)) {
                 auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
                                                /*moveToTape=*/true);
                 if (pushPop.getExpr() != declRef)
@@ -5601,6 +5606,35 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         utils::getNonConstType(clad_compat::stripPredefinedSugar(E->getType()),
                                m_Sema),
         prefix, force, zeroInit);
+  }
+
+  /// Whether \p S names \p VD.
+  static bool names(const Stmt* S, const VarDecl* VD) {
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+      return DRE->getDecl() == VD;
+    return llvm::any_of(S->children(), [VD](const Stmt* Child) {
+      return Child && names(Child, VD);
+    });
+  }
+
+  bool ReverseModeVisitor::canRecomputeInLoop(const VarDecl* VD) {
+    if (!m_DiffReq.isRecomputableInLoop(VD))
+      return false;
+    // The initializer reads the index of an enclosing loop. Where the reverse
+    // of the increment does not restore it, the loop's slots must.
+    llvm::SmallVector<LoopScope*, 2> Slots;
+    for (LoopScope* L = m_CurrentLoop; L; L = L->m_Enclosing) {
+      const LoopFacts* F = L->Facts;
+      if (!F || !F->IndVar || !F->Step || !names(VD->getInit(), F->IndVar) ||
+          m_DiffReq.shouldBeRecorded(F->Step->getSubExpr()))
+        continue;
+      if (!L->Index)
+        return false;
+      Slots.push_back(L);
+    }
+    for (LoopScope* L : Slots)
+      L->UsesSlots = true;
+    return true;
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(
