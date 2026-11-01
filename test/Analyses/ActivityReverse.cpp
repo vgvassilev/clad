@@ -595,6 +595,17 @@ double f15_1(double x, int (*f)(double)) { return x * x; }
 
 double f15(double x) { return f15_1(x, pick); }
 
+// A buffer from new that holds only constants has no adjoint: neither its
+// new nor its delete has one to build.
+double f21(double x) {
+  double* w = new double[2];
+  w[0] = 1;
+  w[1] = 2;
+  double r = x * w[1];
+  delete[] w;
+  return r;
+}
+
 // CHECK: void f15_grad(double x, double *_d_x) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     _tracker0.clear();
@@ -662,6 +673,7 @@ int main(){
     printf("{%.2f}\n", dx); // CHECK-EXEC: {0.00}
     TEST1(f14, 3);// CHECK-EXEC: {1.00}
     TEST1(f15, 3);// CHECK-EXEC: {6.00}
+    TEST1(f21, 3);// CHECK-EXEC: {2.00}
     TEST1(f16, 3);// CHECK-EXEC: {6.00}
     TEST1(f17, 3);// CHECK-EXEC: {27.00}
     TEST1(f18, 3);// CHECK-EXEC: {6.00}

@@ -4657,7 +4657,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* derivedE = nullptr;
       if (VDDerived && !isRefType && !isPointerType)
         derivedE = BuildDeclRef(VDDerived);
-      else if (isa<CXXNewExpr>(init))
+      else if (VDDerived && isa<CXXNewExpr>(init))
         derivedE =
             BuildOp(UnaryOperatorKind::UO_Deref, BuildDeclRef(VDDerived));
       llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
@@ -6638,14 +6638,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
                             argDiff.getExpr())
             .get();
-    Expr* derivedDeleteE =
-        m_Sema
-            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
-                            argDiff.getExpr_dx())
-            .get();
-    // create a compound statement containing both the cloned and the derived
-    // delete expressions.
-    CompoundStmt* CS = MakeCompoundStmt({clonedDeleteE, derivedDeleteE});
+    // An inactive pointer has no adjoint to delete.
+    Stmts Deletes{clonedDeleteE};
+    if (Expr* dx = argDiff.getExpr_dx())
+      Deletes.push_back(m_Sema
+                            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(),
+                                            CDE->isArrayForm(), dx)
+                            .get());
+    CompoundStmt* CS = MakeCompoundStmt(Deletes);
     m_DeallocExprs.push_back(CS);
     return {nullptr, nullptr};
   }
