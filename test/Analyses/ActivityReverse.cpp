@@ -666,6 +666,28 @@ double f16(double x) {
 
 // The same through an array element and one more level of indirection, so a
 // pointee reached transitively is not left behind either.
+// p starts as null and is pointed at a afterwards: writing through it writes
+// a, which is then varied, and has an adjoint.
+double f25(double x) {
+  double a[2] = {0, 0};
+  double* p = nullptr;
+  p = a;
+  p[0] = x;
+  return a[0] * a[0];
+}
+
+// The same through a field assigned after its record is declared.
+struct Buf25 {
+  double* p;
+};
+double f26(double x) {
+  double s[2] = {0, 0};
+  Buf25 b{nullptr};
+  b.p = s;
+  b.p[0] = x;
+  return s[0] * s[0] * 3;
+}
+
 double f17(double x) {
   double y[2] = {0, 0};
   double* p = &y[1];
@@ -706,6 +728,8 @@ int main(){
     TEST1(f6, 3);// CHECK-EXEC: {0.00}
     TEST1(f7, 3);// CHECK-EXEC: {1.00}
     TEST1(f8, 3);// CHECK-EXEC: {1.00}
+    TEST1(f25, 3);// CHECK-EXEC: {6.00}
+    TEST1(f26, 3);// CHECK-EXEC: {18.00}
                  
     auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
     grad9.execute(3, arr, &dx, darr);
