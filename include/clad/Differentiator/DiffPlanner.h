@@ -649,6 +649,25 @@ public:
   /// another direction -- as the hessian reuses one forward request per row --
   /// has to be analyzed from scratch.
   void resetActivityInfo() const { m_ActivityRunInfo = ActivityRunInfo(); }
+
+  /// Widens what the analyses found of this request with what they found of
+  /// \p other, an equal request planned for another call. The two compare
+  /// equal and share one derivative, but each call seeds what varies in the
+  /// callee: the derivative has to be right for all of them. Every analysis
+  /// errs on the side of more, so the union is right for each.
+  void mergeAnalyses(const DiffRequest& other) const {
+    const ActivityRunInfo& A = other.m_ActivityRunInfo;
+    m_ActivityRunInfo.VariedDecls.insert(A.VariedDecls.begin(),
+                                         A.VariedDecls.end());
+    m_ActivityRunInfo.VariedS.insert(A.VariedS.begin(), A.VariedS.end());
+    // VariedCalls is filled only for a forward request clad::differentiate
+    // asks for, seeded from its DVI alone: equal ones agree on it.
+    m_ActivityRunInfo.HasAnalysisRun |= A.HasAnalysisRun;
+    const std::set<const clang::VarDecl*>& U =
+        other.m_UsefulRunInfo.UsefulDecls;
+    m_UsefulRunInfo.UsefulDecls.insert(U.begin(), U.end());
+    m_UsefulRunInfo.HasAnalysisRun |= other.m_UsefulRunInfo.HasAnalysisRun;
+  }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }
