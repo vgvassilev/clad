@@ -3,6 +3,7 @@
 #include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -200,11 +201,12 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
         }
         if (refData->m_Type == VarData::REF_TYPE) {
           std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
-          if (vars.size() == 1) {
+          // A null target is `this`, which only a method has: elsewhere what
+          // the reference reaches is not known.
+          const auto* MD = dyn_cast_or_null<CXXMethodDecl>(m_Function);
+          if (vars.size() == 1 && (*vars.begin() || MD)) {
             VD = *vars.begin();
-            QualType VDType =
-                VD ? VD->getType()
-                   : cast<CXXMethodDecl>(m_Function)->getThisType();
+            QualType VDType = VD ? VD->getType() : MD->getThisType();
             if (utils::isSameCanonicalType(VDType, E->getType()))
               break;
           }
