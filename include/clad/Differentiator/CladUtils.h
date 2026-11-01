@@ -570,6 +570,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns type clad::Tag\<T\>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 
+    /// The type of the derivative of `this` in a derivative of \p MD: in
+    /// vector mode, the tangents of the object, a clad::array of it, rather
+    /// than a pointer; otherwise as for a parameter of the type of `this`.
+    clang::QualType GetThisDerivativeType(clang::Sema& S, DiffMode Mode,
+                                          const clang::CXXMethodDecl* MD);
+
+    /// Whether vector mode gives a value of type \p T tangents of its own
+    /// type, one per independent variable: a number, or an aggregate of them
+    /// without bases, which it builds member by member.
+    bool hasObjectTangents(clang::QualType T);
+
+    /// Whether \p FD is the trivial copy or move assignment of a class vector
+    /// mode gives tangents of its own type: it copies them.
+    bool isObjectTangentsAssignment(const clang::FunctionDecl* FD);
+
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 

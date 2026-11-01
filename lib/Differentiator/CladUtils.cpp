@@ -1918,6 +1918,40 @@ namespace clad {
       return Type;
     }
 
+    bool hasObjectTangents(QualType T) {
+      T = T.getCanonicalType();
+      if (T->isArithmeticType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      if (!RD || !RD->hasDefinition() || RD->isUnion() || !RD->isAggregate() ||
+          RD->getNumBases())
+        return false;
+      return std::all_of(
+          RD->field_begin(), RD->field_end(), [](const FieldDecl* FD) {
+            return !FD->isBitField() && hasObjectTangents(FD->getType());
+          });
+    }
+
+    bool isObjectTangentsAssignment(const FunctionDecl* FD) {
+      const auto* MD = dyn_cast_or_null<CXXMethodDecl>(FD);
+      return MD && MD->isTrivial() &&
+             (MD->isCopyAssignmentOperator() ||
+              MD->isMoveAssignmentOperator()) &&
+             hasObjectTangents(
+                 MD->getThisType()->getPointeeType().getUnqualifiedType());
+    }
+
+    QualType GetThisDerivativeType(Sema& S, DiffMode Mode,
+                                   const CXXMethodDecl* MD) {
+      if (Mode != DiffMode::vector_pushforward)
+        return GetParameterDerivativeType(S, Mode, MD->getThisType());
+      QualType ObjTy = MD->getThisType()->getPointeeType();
+      QualType dThisTy = GetCladArrayOfType(S, ObjTy.getUnqualifiedType());
+      if (ObjTy.isConstQualified())
+        dThisTy.addConst();
+      return S.getASTContext().getLValueReferenceType(dThisTy);
+    }
+
     static bool isNAT(QualType T) {
       T = GetValueType(T);
       if (const auto* RT = T->getAs<RecordType>()) {
@@ -2024,7 +2058,7 @@ namespace clad {
         if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian &&
             !isa<CXXConstructorDecl>(MD)) {
           thisTy = MD->getThisType();
-          QualType dthisTy = utils::GetParameterDerivativeType(S, mode, thisTy);
+          QualType dthisTy = utils::GetThisDerivativeType(S, mode, MD);
           FnTypes.push_back(dthisTy);
           if (MD->isConst()) {
             QualType constObjTy = C.getConstType(thisTy->getPointeeType());

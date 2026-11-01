@@ -87,6 +87,20 @@ public:
     return nullptr;
   }
 
+  /// The tangent of the member \p ME of an object whose tangent is \p BaseDx:
+  /// the same member of the tangent. Vector mode gathers the member out of
+  /// each of the object's tangents instead.
+  virtual clang::Expr* memberTangent(clang::Expr* BaseDx,
+                                     const clang::MemberExpr* ME);
+
+  /// What a call to the method \p MD passes as the tangent of its object
+  /// \p Base, whose tangent is \p BaseDx, or null where it has none: a
+  /// pointer to the tangent, or to a zero one. Vector mode passes the vector
+  /// of tangents.
+  virtual clang::Expr* thisTangentArgument(const clang::CXXMethodDecl* MD,
+                                           const clang::Expr* Base,
+                                           clang::Expr* BaseDx);
+
   /// \returns \p read, the derivative expression dereferencing \p tangent,
   /// wrapped so that it evaluates to \p zero instead of dereferencing a null
   /// \p tangent. \p ptr is the primal pointer expression \p tangent is the
@@ -120,7 +134,7 @@ public:
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
-  StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+  virtual StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
