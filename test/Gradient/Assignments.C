@@ -742,10 +742,7 @@ double constVal(double y, const double x) {
 //CHECK-NEXT:    const double z = y;
 //CHECK-NEXT:    double _t0 = y;
 //CHECK-NEXT:    y *= z;
-//CHECK-NEXT:    {
-//CHECK-NEXT:       *_d_y += 1 * x;
-//CHECK-NEXT:       _d_x += y * 1;
-//CHECK-NEXT:    }
+//CHECK-NEXT:     *_d_y += 1 * x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        y = _t0;
 //CHECK-NEXT:        double _r_d0 = *_d_y;
@@ -802,7 +799,6 @@ double f24(double x, double y) {
 //CHECK-NEXT:    double zero{};
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _d_sum += 1;
-//CHECK-NEXT:        _d_zero += 1 * x;
 //CHECK-NEXT:        *_d_x += zero * 1;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
