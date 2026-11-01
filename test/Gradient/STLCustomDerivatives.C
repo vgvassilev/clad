@@ -2,6 +2,9 @@
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
 // RUN: ./STLCustomDerivativesWithTBR.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fenable-analysis=activity \
+// RUN:   %s -I%S/../../include -oSTLCustomDerivatives.out
+// RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -376,6 +379,7 @@ int main() {
     double ds = 0;
     clad::gradient(fn26).execute(v26, 2, &dv26, &ds);
     printf("{%.2f, %.2f, %.2f}\n", dv26[0].y, dv26[1].x, ds);  // CHECK-EXEC: {4.00, 2.00, 11.00}
+
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
