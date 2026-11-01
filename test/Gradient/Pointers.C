@@ -349,6 +349,41 @@ double placementNewPointer(double x) {
 // CHECK-NEXT:     *_d_x += _d_buf[0];
 // CHECK-NEXT: }
 
+// The reverse sweep puts back the null p held before it was assigned, and
+// the delete runs after the sweep: it deletes the value p was deleted with.
+double assignedNewPointer(double x) {
+  double* p = nullptr;
+  p = new double[2]();
+  p[0] = x * x;
+  double r = p[0];
+  delete[] p;
+  return r;
+}
+
+// CHECK: void assignedNewPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double *_d_p = nullptr;
+// CHECK-NEXT:     double *p = nullptr;
+// CHECK-NEXT:     double *_t0 = _d_p;
+// CHECK-NEXT:     _d_p = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
+// CHECK-NEXT:     p = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
+// CHECK-NEXT:     p[0] = x * x;
+// CHECK-NEXT:     double _d_r = 0.;
+// CHECK-NEXT:     double r = p[0];
+// CHECK-NEXT:     double *_t1 = p;
+// CHECK-NEXT:     double *_t2 = _d_p;
+// CHECK-NEXT:     _d_r += 1;
+// CHECK-NEXT:     _d_p[0] += _d_r;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_p[0];
+// CHECK-NEXT:         _d_p[0] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += x * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t0;
+// CHECK-NEXT:     delete [] _t1;
+// CHECK-NEXT:     delete [] _t2;
+// CHECK-NEXT: }
+
 double condPointerToPointer(double x, int c) {
   double y = 0;
   double* p = &y;
@@ -691,6 +726,11 @@ int main() {
   d_x = 0;
   d_placementNewPointer.execute(3, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 27.00
+
+  auto d_assignedNewPointer = clad::gradient(assignedNewPointer);
+  d_x = 0;
+  d_assignedNewPointer.execute(5, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 10.00
 
   auto d_condPointerToPointer = clad::gradient(condPointerToPointer, "x");
   d_x = 0;

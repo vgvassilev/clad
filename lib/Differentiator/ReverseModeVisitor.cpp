@@ -6684,14 +6684,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (!holdsOnlyOwnAllocations(VD, m_DiffReq->getBody(), m_Context, Seen))
           return {nullptr, nullptr};
       }
-    Expr* clonedDeleteE =
-        m_Sema
-            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
-                            argDiff.getExpr())
-            .get();
+    // The delete runs after the whole reverse sweep, which puts back what
+    // the pointer held before each assignment to it: where the body assigns
+    // it, keep the value it is deleted with.
+    Expr* ptr = argDiff.getExpr();
+    Expr* dPtr = argDiff.getExpr_dx();
+    const auto* ptrRef = dyn_cast<DeclRefExpr>(arg->IgnoreParenImpCasts());
+    const auto* ptrVD = ptrRef ? dyn_cast<VarDecl>(ptrRef->getDecl()) : nullptr;
+    if (ptrVD && !isInsideLoop() && m_DiffReq.writesVariable(ptrVD)) {
+      ptr = GlobalStoreAndRef(ptr, "_t", /*force=*/true);
+      if (dPtr)
+        dPtr = GlobalStoreAndRef(dPtr, "_t", /*force=*/true);
+    }
+    Expr* clonedDeleteE = m_Sema
+                              .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(),
+                                              CDE->isArrayForm(), ptr)
+                              .get();
     // An inactive pointer has no adjoint to delete.
     Stmts Deletes{clonedDeleteE};
-    if (Expr* dx = argDiff.getExpr_dx())
+    if (Expr* dx = dPtr)
       Deletes.push_back(m_Sema
                             .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(),
                                             CDE->isArrayForm(), dx)
