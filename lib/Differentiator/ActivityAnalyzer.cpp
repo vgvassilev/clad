@@ -528,6 +528,17 @@ bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
   if (VarData* data = getVarDataFromDecl(VD))
     if (findReq(*data))
       m_Varied = true;
+  // A read through it reads what it reaches, `b.p[0]` the s of `Buf b{s}`,
+  // and its adjoint is how the derivative gets back there.
+  auto Reached = m_ReachedThrough.find(VD);
+  if (Reached != m_ReachedThrough.end())
+    for (const VarDecl* Target : Reached->second) {
+      VarData* data = getVarDataFromDecl(Target);
+      if (data && findReq(*data)) {
+        m_Varied = true;
+        m_DiffReq.addVariedDecl(VD);
+      }
+    }
   return false;
 }
 } // namespace clad
