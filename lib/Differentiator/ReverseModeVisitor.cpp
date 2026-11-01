@@ -4780,6 +4780,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       isConstructInit = true;
     }
 
+    // A call that returns an object by value gives no adjoint to start from:
+    // start at zero, as any other adjoint does, rather than with what an
+    // implicit default constructor leaves.
+    if (VDDerived && !isRefType && !isPointerType && !dummyInit &&
+        !initDiff.getExpr_dx()) {
+      initDiff.updateStmtDx(getZeroInit(VDDerivedType));
+      isDirectInit = false;
+    }
+
     // Update the initializer
     if (VDDerived)
       SetDeclInit(VDDerived, initDiff.getExpr_dx(), isDirectInit);
