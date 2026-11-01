@@ -594,6 +594,9 @@ public:
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
+  /// Whether \p E names a local variable that is given no adjoint because it
+  /// does not vary.
+  bool isInactiveLocal(const clang::Expr* E) const;
   /// Whether forward mode has to differentiate through the call \p CE. False
   /// only when varied analysis proved that no argument of the call depends on
   /// the direction this request differentiates along. A call the analysis
@@ -667,6 +670,21 @@ public:
         other.m_UsefulRunInfo.UsefulDecls;
     m_UsefulRunInfo.UsefulDecls.insert(U.begin(), U.end());
     m_UsefulRunInfo.HasAnalysisRun |= other.m_UsefulRunInfo.HasAnalysisRun;
+    // TBR keeps a factor of a product for the adjoint of the other only if
+    // that one varies: what the union of what varies needs kept is what
+    // either call's analysis kept.
+    const TbrRunInfo& T = other.m_TbrRunInfo;
+    if (!T.HasAnalysisRun)
+      return;
+    m_TbrRunInfo.ToBeRecorded.insert(T.ToBeRecorded.begin(),
+                                     T.ToBeRecorded.end());
+    for (const auto& Params : T.m_ModifiedParams)
+      m_TbrRunInfo.m_ModifiedParams[Params.first].insert(Params.second.begin(),
+                                                         Params.second.end());
+    for (const auto& Params : T.m_UsedParams)
+      m_TbrRunInfo.m_UsedParams[Params.first].insert(Params.second.begin(),
+                                                     Params.second.end());
+    m_TbrRunInfo.HasAnalysisRun = true;
   }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
