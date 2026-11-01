@@ -2,6 +2,10 @@
 // RUN: ./TBR.out | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -oTBR.out
 // RUN: ./TBR.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr \
+// RUN:   -Xclang -plugin-arg-clad -Xclang -fenable-analysis=activity %s \
+// RUN:   -I%S/../../include -oTBR.out
+// RUN: ./TBR.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 
