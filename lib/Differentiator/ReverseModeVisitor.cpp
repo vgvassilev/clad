@@ -4291,8 +4291,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
 
+      // A left side without an adjoint, which the activity analysis leaves a
+      // local nothing varies, differentiates nothing; the assignment is
+      // rebuilt from its visited sides rather than cloned, since a reference
+      // promoted to a pointer is read through `*` only once it is visited.
       if (!ResultRef)
-        return Clone(BinOp);
+        return BuildOp(opCode, LCloned, Visit(R).getExpr());
       // We need to store values of derivative pointer variables in forward pass
       // and restore them in reverse pass (except across a realloc, see above).
       if (isPointerOp && !isReallocAssignment) {
