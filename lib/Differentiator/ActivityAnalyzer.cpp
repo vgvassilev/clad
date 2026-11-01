@@ -7,6 +7,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
@@ -191,6 +192,25 @@ bool VariedAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     m_Marking = true;
     TraverseStmt(L);
     m_Marking = false;
+    // `p = a` and `b.p = a` make p and b reach a, as an initializer does:
+    // writing through them then writes a. What they reached before, they
+    // may still.
+    const Expr* Root = L->IgnoreParenImpCasts();
+    while (const auto* ME = dyn_cast<MemberExpr>(Root))
+      Root = ME->getBase()->IgnoreParenImpCasts();
+    const auto* RootRef = dyn_cast<DeclRefExpr>(Root);
+    const auto* RootVD =
+        RootRef ? dyn_cast<VarDecl>(RootRef->getDecl()) : nullptr;
+    QualType LTy = L->getType();
+    if (opCode == BO_Assign && RootVD &&
+        (LTy->isPointerType() || LTy->isArrayType())) {
+      std::set<const VarDecl*> Named;
+      getDependencySet(R, Named);
+      for (const VarDecl* N : Named)
+        if (N && N != RootVD &&
+            (N->getType()->isArrayType() || N->getType()->isPointerType()))
+          m_ReachedThrough[RootVD].insert(N);
+    }
   } else if (opCode == BO_Add || opCode == BO_Sub || opCode == BO_Mul ||
              opCode == BO_Div) {
     TraverseStmt(L);
