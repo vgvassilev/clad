@@ -448,6 +448,8 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // it. Therefore, we don't have to produce the error.
     if (const auto* DT = dyn_cast<DecayedType>(dParamType))
       dParamType = DT->getOriginalType();
+    if (dParamType->isRecordType())
+      dParamType = dParamType.getUnqualifiedType();
     if (dParamType->isConstantArrayType()) {
       if (param == m_IndependentVar)
         continue;
