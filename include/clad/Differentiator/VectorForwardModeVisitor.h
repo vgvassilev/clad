@@ -4,6 +4,7 @@
 #include "BaseForwardModeVisitor.h"
 #include "DerivativeBuilder.h"
 
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 
 #include <cstddef>

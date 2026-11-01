@@ -287,9 +287,9 @@ CUDA_HOST_DEVICE array<T> aggregate_vector(std::size_t n,
 // copy, const so that a write to them does not compile instead of being lost.
 template <typename T, typename M>
 // NOLINTNEXTLINE(readability-const-return-type)
-CUDA_HOST_DEVICE const array<typename std::remove_cv<M>::type>
+CUDA_HOST_DEVICE const array<std::remove_cv_t<M>>
 member_vector(const array<T>& v, M T::*m) {
-  array<typename std::remove_cv<M>::type> res(v.size());
+  array<std::remove_cv_t<M>> res(v.size());
   for (std::size_t i = 0; i < v.size(); ++i)
     res[i] = v[i].*m;
   return res;
