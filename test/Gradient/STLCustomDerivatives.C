@@ -840,7 +840,6 @@ int main() {
 // CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc{};
 // CHECK-NEXT:      std::vector<double> ls({u, v}, alloc);
 // CHECK-NEXT:      std::vector<double> _d_ls({0., 0.}, _d_alloc);
-// CHECK-NEXT:      {{.*}}value_type _t0 = ls[0];
 // CHECK-NEXT:      {
 // CHECK-NEXT:          ls[1] += 1;
 // CHECK-NEXT:          ls[0] += 2 * -1;

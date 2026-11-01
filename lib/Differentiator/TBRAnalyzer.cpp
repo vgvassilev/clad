@@ -363,8 +363,8 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // reads its value as well, as a call reads its arguments again for its
     // pullback.
     if (!(m_ModeStack.back() & Mode::kNonLinearMode)) {
-      LHSIsStored = LHSIsStored || m_Request->isInactiveLocal(R);
-      RHSIsStored = RHSIsStored || m_Request->isInactiveLocal(L);
+      LHSIsStored = LHSIsStored || m_Request->carriesNoDerivative(R);
+      RHSIsStored = RHSIsStored || m_Request->carriesNoDerivative(L);
     }
     if (nonLinear)
       startNonLinearMode();

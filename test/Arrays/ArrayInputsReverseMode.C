@@ -615,28 +615,26 @@ double func14(const double* x, int n) {
 // CHECK-NEXT:      int _d_n = 0;
 // CHECK-NEXT:      int _d_k = 0;
 // CHECK-NEXT:      int k = 0;
-// CHECK-NEXT:      clad::tape<double> _t2 = {};
+// CHECK-NEXT:      clad::tape<double> _t1 = {};
 // CHECK-NEXT:      int _d_i = 0;
 // CHECK-NEXT:      int i = 0;
-// CHECK-NEXT:      double _t0 = x[i++];
 // CHECK-NEXT:      double _d_s = 0.;
-// CHECK-NEXT:      double s = 2 * _t0;
-// CHECK-NEXT:      unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:      double s = 2 * x[i++];
+// CHECK-NEXT:      unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:      for (k = 0; k < n; ++k) {
-// CHECK-NEXT:          s += (k + 3) * clad::push(_t2, x[i++]);
+// CHECK-NEXT:          s += (k + 3) * clad::push(_t1, x[i++]);
 // CHECK-NEXT:      }
-// CHECK-NEXT:      double _t3 = x[++i];
-// CHECK-NEXT:      s += 6 * _t3;
+// CHECK-NEXT:      s += 6 * x[++i];
 // CHECK-NEXT:      _d_s += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d1 = _d_s;
 // CHECK-NEXT:          --i;
 // CHECK-NEXT:          _d_x[(i + 1)] += 6 * _r_d1;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      for (_t1 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
+// CHECK-NEXT:      for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:          --k;
 // CHECK-NEXT:          double _r_d0 = _d_s;
-// CHECK-NEXT:          double _r0 = _r_d0 * clad::pop(_t2);
+// CHECK-NEXT:          double _r0 = _r_d0 * clad::pop(_t1);
 // CHECK-NEXT:          _d_k += _r0;
 // CHECK-NEXT:          i--;
 // CHECK-NEXT:          _d_x[i] += (k + 3) * _r_d0;

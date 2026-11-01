@@ -1087,6 +1087,55 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
   }
+  /// Whether nothing \p R differentiates flows into the value of \p E.
+  static bool isDerivativeFree(const DiffRequest& R, const Expr* E,
+                               unsigned Depth) {
+    // Deep enough for a few locals defined from one another.
+    if (Depth > 8)
+      return false;
+    E = E->IgnoreParens();
+    if (R.isInactiveLocal(E) || (!E->isValueDependent() &&
+                                 E->isEvaluatable(R.Function->getASTContext())))
+      return true;
+    if (const auto* CE = dyn_cast<CastExpr>(E))
+      return isDerivativeFree(R, CE->getSubExpr(), Depth + 1);
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return UO->getOpcode() == UO_Minus &&
+             isDerivativeFree(R, UO->getSubExpr(), Depth + 1);
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      return (BO->isAdditiveOp() || BO->isMultiplicativeOp()) &&
+             isDerivativeFree(R, BO->getLHS(), Depth + 1) &&
+             isDerivativeFree(R, BO->getRHS(), Depth + 1);
+    const auto* DRE = dyn_cast<DeclRefExpr>(E);
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    if (!VD || VD->getDeclContext() != R.Function ||
+        VD->getType()->isReferenceType() || VD->getType()->isPointerType())
+      return false;
+    // A gradient differentiates the parameters it was asked for, and no
+    // other. A pullback is asked for by its callers, and its parameters
+    // vary as theirs do.
+    // The parameters asked for may be spelled on another declaration of the
+    // function, as a lambda's are: compare positions.
+    if (const auto* PVD = dyn_cast<ParmVarDecl>(VD))
+      return R.Mode == DiffMode::reverse &&
+             llvm::none_of(R.DVI, [PVD](const DiffInputVarInfo& I) {
+               const auto* P = dyn_cast_or_null<ParmVarDecl>(I.param);
+               return !P || P->getFunctionScopeIndex() ==
+                                PVD->getFunctionScopeIndex();
+             });
+    // A local never written after it is initialized from what has none.
+    return VD->hasLocalStorage() && VD->getInit() && !R.writesVariable(VD) &&
+           isDerivativeFree(R, VD->getInit(), Depth + 1);
+  }
+
+  bool DiffRequest::carriesNoDerivative(const Expr* E) const {
+    // An integer factor is an index or a count as often as a factor: the
+    // reverse sweep reads the other one to address memory whatever it is
+    // multiplied by.
+    return isInactiveLocal(E) || (E->getType()->isRealFloatingType() &&
+                                  isDerivativeFree(*this, E, /*Depth=*/0));
+  }
+
   bool DiffRequest::isInactiveLocal(const Expr* E) const {
     const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
     const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;

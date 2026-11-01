@@ -4085,8 +4085,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // in the reverse pass.
       // A factor that does not vary has no adjoint, and the other factor is
       // read only by that adjoint: it is stored only for a varied factor.
-      bool diffL = !m_DiffReq.isInactiveLocal(L);
-      bool diffR = !m_DiffReq.isInactiveLocal(R);
+      bool diffL = !m_DiffReq.carriesNoDerivative(L);
+      bool diffR = !m_DiffReq.carriesNoDerivative(R);
       DelayedStoreResult RDelayed = DelayedGlobalStoreAndRef(
           R, /*prefix=*/"_t", /*forceStore=*/false, /*isNeeded=*/diffL);
       StmtDiff& RResult = RDelayed.Result;
