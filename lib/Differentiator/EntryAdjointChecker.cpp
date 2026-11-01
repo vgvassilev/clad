@@ -273,7 +273,7 @@ class EffectsCollector : public RecursiveASTVisitor<EffectsCollector> {
 public:
   EffectsCollector(Context& C, Effects& E)
       : m_C(C), m_E(E), m_AST(C.S.getASTContext()) {}
-  bool shouldVisitImplicitCode() const { return true; }
+  [[nodiscard]] bool shouldVisitImplicitCode() const { return true; }
   bool TraverseLambdaExpr(LambdaExpr*) { return true; }
   bool VisitVarDecl(VarDecl* VD) {
     // A reference or pointer bound to a parameter may be written through.
@@ -372,7 +372,7 @@ class Checker {
 
   //===--- What the state says ---------------------------------------===//
 
-  std::optional<Origin> defaultOf(const Key& K) const {
+  [[nodiscard]] std::optional<Origin> defaultOf(const Key& K) const {
     const auto* VD = dyn_cast<VarDecl>(K.first);
     if (!m_GlobalsHaveAdjoints || !VD || !VD->isFileVarDecl() ||
         VD->getType().isConstQualified())
@@ -388,7 +388,8 @@ class Checker {
     return Pos == std::string::npos ? std::string() : Path.substr(0, Pos);
   }
 
-  std::optional<Origin> lookup(const State& S, const Key& K) const {
+  [[nodiscard]] std::optional<Origin> lookup(const State& S,
+                                             const Key& K) const {
     if (S.Dead)
       return std::nullopt;
     for (std::string P = K.second;; P = parentOf(P)) {
@@ -405,10 +406,12 @@ class Checker {
     }
     return defaultOf(K);
   }
-  std::optional<Origin> lookup(const Key& K) const { return lookup(m_S, K); }
+  [[nodiscard]] std::optional<Origin> lookup(const Key& K) const {
+    return lookup(m_S, K);
+  }
 
   /// Whether any part of \p K has an adjoint with no value.
-  std::optional<Origin> anyUnknownIn(const Key& K) const {
+  [[nodiscard]] std::optional<Origin> anyUnknownIn(const Key& K) const {
     if (std::optional<Origin> O = lookup(K))
       return O;
     for (const auto& Part : m_S.Parts)
@@ -441,7 +444,7 @@ class Checker {
     m_S.Parts[K] = std::move(O);
   }
 
-  State merge(const State& A, const State& B) const {
+  [[nodiscard]] State merge(const State& A, const State& B) const {
     if (A.Dead)
       return B;
     if (B.Dead)
@@ -459,7 +462,7 @@ class Checker {
     return R;
   }
 
-  bool sameKnowledge(const State& A, const State& B) const {
+  [[nodiscard]] bool sameKnowledge(const State& A, const State& B) const {
     if (A.Dead || B.Dead)
       return A.Dead == B.Dead;
     std::set<Key> Keys;
