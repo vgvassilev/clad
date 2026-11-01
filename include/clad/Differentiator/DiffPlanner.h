@@ -370,6 +370,10 @@ public:
   /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
   /// forward sweep may leave such a call out when nothing reads its results.
   std::set<const clang::Expr*> ReplayableCalls;
+  /// Calls in this function that have a user-provided pullback but no
+  /// reverse_forw. The pullback may not re-execute the callee, so the caller
+  /// saves and restores the memory the call writes.
+  std::set<const clang::Expr*> NonReplayingCalls;
   /// The globals each call in this function's body assigns, directly or
   /// through what it calls. Its pullback replays those assignments, so the
   /// reverse sweep puts the globals back around it, as it does for the
