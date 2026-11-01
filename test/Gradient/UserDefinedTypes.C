@@ -875,7 +875,7 @@ double fn24(double x, double y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
 // CHECK-NEXT:      Vector3 _d_v(0., 0., 0.);
 // CHECK-NEXT:      Vector3 w = 2 * v;
-// CHECK-NEXT:      Vector3 _d_w;
+// CHECK-NEXT:      Vector3 _d_w = {};
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r3 = 0.;
@@ -914,7 +914,7 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
 // CHECK-NEXT:      Vector3 _d_v{0., 0., 0.};
 // CHECK-NEXT:      Vector3 w = - v;
-// CHECK-NEXT:      Vector3 _d_w;
+// CHECK-NEXT:      Vector3 _d_w = {};
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      v.operator_minus_pullback(_d_w, &_d_v);
 // CHECK-NEXT:      {
@@ -1502,6 +1502,31 @@ double fnMemberOfCall(double x) {
 // CHECK: scaleByB_reverse_forw(double &v, double x, double &_d_v, double _d_x
 // CHECK:     v *= makePair(x).b;
 
+// The adjoint of a variable initialized from a call that returns an object by
+// value starts at zero, not with what the defaulted constructor leaves.
+struct Uninit {
+  double v[2];
+  Uninit() = default;
+  explicit Uninit(double s) : v{s, s} {}
+};
+Uninit operator*(double s, const Uninit& a) {
+  Uninit r;
+  r.v[0] = s * a.v[0];
+  r.v[1] = s * a.v[1];
+  return r;
+}
+double fnFromCall(double x) {
+  Uninit a;
+  a.v[0] = x;
+  a.v[1] = 1;
+  Uninit c = 2 * a;
+  return c.v[0];
+}
+
+// CHECK: void fnFromCall_grad(double x, double *_d_x) {
+// CHECK: Uninit c = 2 * a;
+// CHECK-NEXT: Uninit _d_c = {};
+
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1643,4 +1668,8 @@ int main() {
 
     INIT_GRADIENT(fnMemberOfCall);
     TEST_GRADIENT(fnMemberOfCall, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {12.00}
+
+  double dFromCall = 0;
+  clad::gradient(fnFromCall).execute(3, &dFromCall);
+  printf("%.2f\n", dFromCall); // CHECK-EXEC: 2.00
 }
