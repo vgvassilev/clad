@@ -213,6 +213,16 @@ double globals(double x) {
 
 #endif
 
+void sqRef(double& v) { v = v * v; }
+
+// The call writes t through a local reference to it, and t is read after.
+double throughLocalRef(double x) {
+  double t = 2 * x;
+  double& rt = t;
+  sqRef(rt);
+  return t * x;
+}
+
 int main() {
   double dx = 0;
   clad::gradient(square).execute(3, &dx);
@@ -238,6 +248,10 @@ int main() {
   dx = 0;
   clad::gradient(indirect).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 6.00
+  // 4 x^3
+  dx = 0;
+  clad::gradient(throughLocalRef).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 108.00
 #ifdef REMARKS
   clad::gradient(noBody);
   clad::gradient(globals);
