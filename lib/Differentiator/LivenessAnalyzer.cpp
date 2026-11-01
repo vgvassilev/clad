@@ -299,8 +299,10 @@ void findUnreadCalls(const DiffRequest& R, std::set<const Stmt*>& Unread) {
     for (const Expr* Arg : W.ByRef) {
       const VarDecl* VD = rootVar(Arg);
       // What a gradient's caller passed by reference, the caller reads.
-      // A static local outlives the call: the next one reads it.
+      // A static local outlives the call: the next one reads it. A local
+      // reference writes another object, read later by its own name.
       known &= VD && VD->hasLocalStorage() &&
+               !(VD->isLocalVarDecl() && VD->getType()->isReferenceType()) &&
                (VD->isLocalVarDecl() ||
                 (isa<ParmVarDecl>(VD) && (R.Mode == DiffMode::pullback ||
                                           !VD->getType()->isReferenceType())));
