@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <memory>
 #include <set>
+#include <utility>
 
 using namespace clang;
 
@@ -328,11 +329,19 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         // VarData of the RHS variable.
         if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
           init = init->IgnoreParenCasts();
-          // addVar already gave a reference-typed VDExpr an (empty) REF set;
-          // resetAsRef frees it before installing a fresh one rather than
-          // placement-new'ing over the live member and leaking it.
-          VDExpr->resetAsRef();
-          getDependencySet(init, *VDExpr->m_Val.m_RefData);
+          std::set<const VarDecl*> Targets;
+          getDependencySet(init, Targets);
+          // A pointer to storage no variable names, such as `new T[2]`, is
+          // all there is of it: it keeps its own bit, which an alias of
+          // nothing would drop.
+          if (VDExpr->m_Type == VarData::REF_TYPE || !Targets.empty()) {
+            // addVar already gave a reference-typed VDExpr an (empty) REF
+            // set; resetAsRef frees it before installing a fresh one rather
+            // than placement-new'ing over the live member and leaking it.
+            VDExpr->resetAsRef();
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+            *VDExpr->m_Val.m_RefData = std::move(Targets);
+          }
         }
       }
     }

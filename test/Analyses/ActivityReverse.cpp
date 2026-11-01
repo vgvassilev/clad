@@ -647,6 +647,17 @@ double f18(double x) {
   return y;
 }
 
+// What a pointer from new points to varies where it is written with what
+// varies.
+double f19(double x) {
+  double* s = new double[2];
+  s[0] = x;
+  s[1] = x * x;
+  double e = s[0] * s[1];
+  delete[] s;
+  return e;
+}
+
 int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
@@ -677,4 +688,5 @@ int main(){
     TEST1(f16, 3);// CHECK-EXEC: {6.00}
     TEST1(f17, 3);// CHECK-EXEC: {27.00}
     TEST1(f18, 3);// CHECK-EXEC: {6.00}
+    TEST1(f19, 3);// CHECK-EXEC: {27.00}
 }
