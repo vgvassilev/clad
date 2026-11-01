@@ -675,6 +675,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool IsDifferentiableType(clang::QualType T);
 
+    /// Whether the parameter \p Idx of the constructor \p Ctor does nothing
+    /// but set integer members, compare, and go on to constructors that do no
+    /// more with it. Its value then never reaches a real, and a tangent object
+    /// may be built with it.
+    bool OnlyCountsWith(const clang::CXXConstructorDecl* Ctor, unsigned Idx);
     /// If \p CE is a memcpy or memmove whose destination or source, before
     /// its conversion to `void*`, holds floating-point data, that type.
     clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);
