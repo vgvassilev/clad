@@ -1768,6 +1768,69 @@ namespace clad {
       return false;
     }
 
+    static bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx,
+                               unsigned Depth);
+
+    /// Whether \p E is the parameter \p P itself, as it is converted.
+    static bool IsParamRef(const Expr* E, const ParmVarDecl* P) {
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+      return DRE && DRE->getDecl() == P;
+    }
+
+    /// Whether every use of \p P in \p S is a comparison, or an argument of
+    /// a constructor that only counts with it.
+    static bool UsedOnlyToCount(const Stmt* S, const ParmVarDecl* P,
+                                unsigned Depth) {
+      if (!S)
+        return true;
+      if (const auto* CCE = dyn_cast<CXXConstructExpr>(S)) {
+        for (unsigned I = 0, N = CCE->getNumArgs(); I < N; ++I) {
+          const Expr* Arg = CCE->getArg(I);
+          if (IsParamRef(Arg, P)) {
+            if (!OnlyCountsWith(CCE->getConstructor(), I, Depth + 1))
+              return false;
+          } else if (!UsedOnlyToCount(Arg, P, Depth)) {
+            return false;
+          }
+        }
+        return true;
+      }
+      if (const auto* BO = dyn_cast<BinaryOperator>(S))
+        if (BO->isComparisonOp())
+          return (IsParamRef(BO->getLHS(), P) ||
+                  UsedOnlyToCount(BO->getLHS(), P, Depth)) &&
+                 (IsParamRef(BO->getRHS(), P) ||
+                  UsedOnlyToCount(BO->getRHS(), P, Depth));
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+        return DRE->getDecl() != P;
+      return llvm::all_of(S->children(), [&](const Stmt* Child) {
+        return UsedOnlyToCount(Child, P, Depth);
+      });
+    }
+
+    static bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx,
+                               unsigned Depth) {
+      const FunctionDecl* Def = nullptr;
+      if (Depth > 8 || Idx >= Ctor->getNumParams() || !Ctor->hasBody(Def))
+        return false;
+      const auto* CD = cast<CXXConstructorDecl>(Def);
+      const ParmVarDecl* P = CD->getParamDecl(Idx);
+      for (const CXXCtorInitializer* Init : CD->inits()) {
+        const Expr* E = Init->getInit();
+        const FieldDecl* F = Init->getAnyMember();
+        if (F && F->getType()->isIntegralOrEnumerationType() &&
+            IsParamRef(E, P))
+          continue;
+        if (!UsedOnlyToCount(E, P, Depth))
+          return false;
+      }
+      return UsedOnlyToCount(CD->getBody(), P, Depth);
+    }
+
+    bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx) {
+      return OnlyCountsWith(Ctor, Idx, /*Depth=*/0);
+    }
+
     QualType GetByteCopiedFloatingType(const CallExpr* CE) {
       const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
       if (!FD || CE->getNumArgs() < 2)
