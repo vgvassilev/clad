@@ -2193,6 +2193,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+    // A structured binding names part of the variable it decomposes, or the
+    // variable a tuple-like type introduces for it: differentiate what it
+    // stands for, `_bind.a` or `a`.
+    if (const auto* BD = dyn_cast<BindingDecl>(DRE->getDecl()))
+      return Visit(BD->getBinding(), dfdx());
     // Resolve the remapped primal decl. Every reverse-mode param/local clone is
     // registered in m_DeclReplacements, so for those leaves the decl is a plain
     // map probe and the forward value can be built lazily (BuildDeclRef) -- it
@@ -4734,8 +4739,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_DiffReq.shouldHaveAdjoint(VD) &&
         !clad::utils::hasNonDifferentiableAttribute(VD)) {
       if (!isLambdaDS) {
-        llvm::StringRef Name = VD->getName();
-        std::string CleanName = Name.ltrim('_').str();
+        std::string Name = CloneName(VD);
+        std::string CleanName = llvm::StringRef(Name).ltrim('_').str();
         VDDerived = BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName,
                                        dummyInit, false, nullptr, SC);
       }
@@ -4852,9 +4857,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDCloneTSI = m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc);
     }
 
-    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                 initDiff.getExpr(), VD->isDirectInit(),
-                                 VDCloneTSI, SC);
+    VDClone = BuildGlobalVarDecl(VDCloneType, CloneName(VD), initDiff.getExpr(),
+                                 VD->isDirectInit(), VDCloneTSI, SC);
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
@@ -4986,6 +4990,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    if (const auto* DD = dyn_cast_or_null<DecompositionDecl>(
+            DS->isSingleDecl() ? DS->getSingleDecl() : nullptr)) {
+      if (!CheckStructuredBinding(DD))
+        return {};
+      // The variable it decomposes, then one statement for each variable a
+      // tuple-like type introduces for its bindings.
+      StmtDiff Result = DifferentiateDeclStmt(DS);
+      for (DeclStmt* Holding : BuildHoldingVarStmts(DD)) {
+        addToCurrentBlock(Result.getStmt(), direction::forward);
+        Result = DifferentiateDeclStmt(Holding);
+      }
+      return Result;
+    }
+    return DifferentiateDeclStmt(DS);
+  }
+
+  StmtDiff ReverseModeVisitor::DifferentiateDeclStmt(const DeclStmt* DS) {
     // Refuse an unsupported lambda before building any derivative for it.
     for (const Decl* D : DS->decls())
       if (const auto* VD = dyn_cast<VarDecl>(D))

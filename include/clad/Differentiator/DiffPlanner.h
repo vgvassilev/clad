@@ -863,6 +863,14 @@ public:
     bool VisitBinaryOperator(clang::BinaryOperator* BO);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
+    /// The variable a binding of a tuple-like type refers to is initialized
+    /// with a call to get: plan its calls, which only newer clang traverses
+    /// as implicit code.
+    bool TraverseBindingDecl(clang::BindingDecl* BD) {
+      if (clang::VarDecl* Holding = BD->getHoldingVar())
+        return TraverseDecl(Holding);
+      return true;
+    }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
     /// new nested DiffRequest is created before the visitor goes to the capture
     /// or constructor initializers. If we use Visit they would be processed

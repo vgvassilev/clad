@@ -1218,6 +1218,11 @@ Expr* BaseForwardModeVisitor::KeepTangentNullness(const Expr* ptr,
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+  // A structured binding names part of the variable it decomposes, or the
+  // variable a tuple-like type introduces for it: differentiate what it
+  // stands for, `_bind.a` or `a`.
+  if (const auto* BD = dyn_cast<BindingDecl>(DRE->getDecl()))
+    return Visit(BD->getBinding());
   DeclRefExpr* clonedDRE = nullptr;
   // Check if referenced Decl was "replaced" with another identifier inside
   // the derivative
@@ -2401,7 +2406,7 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+  VarDecl* VDClone = BuildVarDecl(VD->getType(), CloneName(VD),
                                   initDiff.getExpr(), VD->isDirectInit());
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
@@ -2429,8 +2434,8 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   }
   VarDecl* VDDerived = nullptr;
   if (m_DiffReq.shouldHaveAdjointForw(VD) && (initDx || !isAlias))
-    VDDerived = BuildVarDecl(VDType, "_d_" + VD->getNameAsString(), initDx,
-                             VD->isDirectInit());
+    VDDerived =
+        BuildVarDecl(VDType, "_d_" + CloneName(VD), initDx, VD->isDirectInit());
 
   if (VDDerived)
     m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
@@ -2438,6 +2443,24 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+  if (const auto* DD = dyn_cast_or_null<DecompositionDecl>(
+          DS->isSingleDecl() ? DS->getSingleDecl() : nullptr)) {
+    if (!CheckStructuredBinding(DD))
+      return {};
+    // The variable it decomposes, then one statement for each variable a
+    // tuple-like type introduces for its bindings.
+    StmtDiff Result = DifferentiateDeclStmt(DS);
+    for (DeclStmt* Holding : BuildHoldingVarStmts(DD)) {
+      addToCurrentBlock(Result.getStmt_dx());
+      addToCurrentBlock(Result.getStmt());
+      Result = DifferentiateDeclStmt(Holding);
+    }
+    return Result;
+  }
+  return DifferentiateDeclStmt(DS);
+}
+
+StmtDiff BaseForwardModeVisitor::DifferentiateDeclStmt(const DeclStmt* DS) {
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;
   // If the type is marked as non_differentiable, skip generating its derivative
