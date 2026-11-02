@@ -437,10 +437,11 @@ namespace clad {
     /// cloning LHS. The global variable will be assigned with the actual
     /// expression only later, after the expression is visited and rebuilt.
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
-    /// original (uncloned) expression.
+    /// original (uncloned) expression. Where nothing will read the stored
+    /// value (\p isNeeded is false), E is not stored.
     virtual DelayedStoreResult
     DelayedGlobalStoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool forceStore = false);
+                             bool forceStore = false, bool isNeeded = true);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;

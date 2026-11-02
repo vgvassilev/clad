@@ -3035,6 +3035,54 @@ double fn50(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+// h does not vary, so neither h * v nor h * std::sin(x) needs its other
+// factor in the reverse sweep: v is not kept from being overwritten, and
+// std::sin(x) is not stored.
+double fn51(double x) {
+  double h = 0.5, r = 0, v = x;
+  for (int i = 0; i < 2; i++) {
+    r += h * v + h * std::sin(x);
+    v = x + i;
+  }
+  return r;
+}
+
+double fn51_sq(double a) { return a * a; }
+
+// Here h * v is an argument, whose value the pullback of fn51_sq reads again:
+// v is put back after it is overwritten.
+double fn51_call(double x) {
+  double h = 5, v = x;
+  double r = fn51_sq(h * v);
+  v = 3 * x;
+  return r + v;
+}
+
+//CHECK: void fn51_grad(double x, double *_d_x) {
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     double _d_r = 0., _d_v = 0.;
+//CHECK-NEXT:     double h = 0.5, r = 0, v = x;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     for (i = 0; i < 2; i++) {
+//CHECK-NEXT:         r += h * v + h * std::sin(x);
+//CHECK-NEXT:         v = x + i;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_r += 1;
+//CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             *_d_x += _d_v;
+//CHECK-NEXT:             _d_v = 0.;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         {
+//CHECK-NEXT:             _d_v += h * _d_r;
+//CHECK-NEXT:             double _r0 = 0.;
+//CHECK-NEXT:             _r0 += h * _d_r * clad::custom_derivatives::std::sin_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:             *_d_x += _r0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     *_d_x += _d_v;
+//CHECK-NEXT: }
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3142,4 +3190,15 @@ int main() {
 
   TEST_2(fn49, 2, 3); // CHECK-EXEC: {4.00, 2.00}
   TEST_2(fn50, 1, 2); // CHECK-EXEC: {-0.83, -0.42}
+
+  auto d_fn51 = clad::gradient<clad::opts::enable_va>(fn51);
+  result[0] = 0;
+  d_fn51.execute(0, result);
+  printf("{%.2f}\n", result[0]); // CHECK-EXEC: {2.00}
+
+  // fn51_call = 25 x^2 + 3 x
+  auto d_fn51_call = clad::gradient<clad::opts::enable_va>(fn51_call);
+  result[0] = 0;
+  d_fn51_call.execute(2, result);
+  printf("{%.2f}\n", result[0]); // CHECK-EXEC: {103.00}
 }

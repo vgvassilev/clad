@@ -1527,6 +1527,18 @@ double fnFromCall(double x) {
 // CHECK: Uninit c = 2 * a;
 // CHECK-NEXT: Uninit _d_c = {};
 
+// A function returning a reference to a const member of a const parameter
+// returns its adjoint as a reference into the adjoint of the parameter.
+struct Pt {
+  double a, b;
+};
+const double& firstOf(const Pt& p) { return p.a; }
+double fnConstRefReturn(double x) {
+  Pt p{x, 2 * x};
+  const double& r = firstOf(p);
+  return r * p.b;
+}
+
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1672,4 +1684,7 @@ int main() {
   double dFromCall = 0;
   clad::gradient(fnFromCall).execute(3, &dFromCall);
   printf("%.2f\n", dFromCall); // CHECK-EXEC: 2.00
+    double d_fcr = 0;
+    clad::gradient(fnConstRefReturn).execute(3, &d_fcr);
+    printf("{%.2f}\n", d_fcr);    // CHECK-EXEC: {12.00}
 }

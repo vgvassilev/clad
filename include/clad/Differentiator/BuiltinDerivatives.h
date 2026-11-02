@@ -301,6 +301,41 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_exponent += t.pushforward * d_y;
 }
 
+// sincos and sincosf, GNU extensions, write sin(x) and cos(x) through their
+// pointers. Computed with std::sin and std::cos, so that these build where
+// sincos is not declared. What was in *s and *c before is overwritten, so its
+// adjoint is dropped.
+CUDA_HOST_DEVICE inline void sincos_pushforward(double x, double* s, double* c,
+                                                double d_x, double* d_s,
+                                                double* d_c) {
+  *s = ::std::sin(x);
+  *c = ::std::cos(x);
+  *d_s = *c * d_x;
+  *d_c = -*s * d_x;
+}
+CUDA_HOST_DEVICE inline void sincos_pullback(double x, const double* /*s*/,
+                                             const double* /*c*/, double* d_x,
+                                             double* d_s, double* d_c) {
+  *d_x += (::std::cos(x) * *d_s) - (::std::sin(x) * *d_c);
+  *d_s = 0;
+  *d_c = 0;
+}
+CUDA_HOST_DEVICE inline void sincosf_pushforward(float x, float* s, float* c,
+                                                 float d_x, float* d_s,
+                                                 float* d_c) {
+  *s = ::std::sin(x);
+  *c = ::std::cos(x);
+  *d_s = *c * d_x;
+  *d_c = -*s * d_x;
+}
+CUDA_HOST_DEVICE inline void sincosf_pullback(float x, const float* /*s*/,
+                                              const float* /*c*/, float* d_x,
+                                              float* d_s, float* d_c) {
+  *d_x += (::std::cos(x) * *d_s) - (::std::sin(x) * *d_c);
+  *d_s = 0;
+  *d_c = 0;
+}
+
 namespace std {
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x);

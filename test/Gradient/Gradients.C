@@ -771,6 +771,28 @@ double fn_cond_decl(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+// scale_if writes through a pointer, so it gets a reverse_forw, which keeps
+// the condition's variable where it is declared: the condition is that
+// variable.
+void scale_if(double* p, int n) {
+  if (int k = n)
+    p[0] = p[0] * k;
+}
+
+double fn_cond_decl_forw(double x) {
+  double p[1] = {x};
+  scale_if(p, 2);
+  return p[0] * x;
+} // = 2 x^2
+
+//CHECK:        void scale_if_reverse_forw(double *p, int n, double *_d_p, int _d_n, clad::restore_tracker &_tracker0) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         int k = n;
+//CHECK-NEXT:         int _d_k = 0;
+//CHECK-NEXT:         _cond0 = k;
+//CHECK-NEXT:         if (_cond0) {
+
 double fn_cond_side_eff(double x) {
     if (x += x) {
         return x;
@@ -1307,6 +1329,10 @@ int main() {
   TEST_GRADIENT(fn_div, /*numOfDerivativeArgs=*/1, 2, &dx); // CHECK-EXEC: 0.12
 
   INIT_GRADIENT(fn_cond_decl);
+
+  INIT_GRADIENT(fn_cond_decl_forw);
+  dx = 0;
+  TEST_GRADIENT(fn_cond_decl_forw, /*numOfDerivativeArgs=*/1, 3, &dx); // CHECK-EXEC: 12.00
 
   INIT_GRADIENT(fn_cond_side_eff);
   TEST_GRADIENT(fn_cond_side_eff, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 2.00
