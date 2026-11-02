@@ -386,8 +386,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     QualType dFnType = GetDerivativeType();
 
-    // Check if the function is already declared as a custom derivative.
+    // Keep generated variants distinct without changing custom lookup names.
     std::string name = m_DiffReq.ComputeDerivativeName();
+    if (m_DiffReq.AssumeUnselectedInactive)
+      name += "_assume_inactive";
 
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
@@ -490,7 +492,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // like the copy. The adjoint of anything passed by address belongs to the
     // caller, which did not provide one.
     bool isPullback = m_DiffReq.Mode == DiffMode::pullback;
-    if ((m_DiffReq.Mode == DiffMode::reverse || isPullback) &&
+    if (((m_DiffReq.Mode == DiffMode::reverse &&
+          !m_DiffReq.AssumeUnselectedInactive) ||
+         isPullback) &&
         !m_ExternalSource) {
       // create derived variables for parameters which are not part of
       // independent variables (args).
@@ -2330,7 +2334,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isNAT(arg->getType()))
       return {};
 
-    if (clad::utils::hasNonDifferentiableAttribute(arg))
+    if (clad::utils::hasNonDifferentiableAttribute(arg) ||
+        m_DiffReq.isAssumedInactive(arg))
       isNonDiff = true;
     // We do not need to create result arg for arguments passed by reference
     // because the derivatives of arguments passed by reference are directly
@@ -2868,6 +2873,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // request further down.
     pullbackRequest.Function = FD;
     pullbackRequest.inheritAnalysesFrom(m_DiffReq);
+    pullbackRequest.NoAdjointThis =
+        baseOriginalE && m_DiffReq.isAssumedInactive(baseOriginalE);
     FunctionDecl* pullbackFD = nullptr;
     if (!nonDiff) {
       pullbackRequest.BaseFunctionName =
@@ -2955,6 +2962,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // args.
     llvm::SmallVector<Expr*, 16> revForwAdjointArgs{};
 
+    // Materialize a discarded receiver adjoint only if an older custom or a
+    // reverse_forw needs its pointer. A no_adjoint pullback needs no storage.
+    Expr* temporaryBaseAdjoint = nullptr;
+    auto getTemporaryBaseAdjoint = [&]() -> Expr* {
+      if (!temporaryBaseAdjoint) {
+        QualType T = utils::getNonConstType(
+            utils::GetValueType(baseOriginalE->getType()), m_Sema);
+        Expr* value = CloneNode(CallArgs.front());
+        if (value->getType()->isPointerType())
+          value = BuildOp(UO_Deref, value);
+        Expr* zero = BuildZeroAdjoint(value, T);
+        Expr* ref = nullptr;
+        if (calleeFnForwPassFD) {
+          // A tape's push needs a typed value, not a bare initializer list.
+          if (isa<InitListExpr>(zero))
+            zero = BuildFunctionalCast(m_Context.getTrivialTypeSourceInfo(T), T,
+                                       zero);
+          ref = GlobalStoreAndRef(zero, T, "_r", /*force=*/true);
+        } else {
+          VarDecl* VD = BuildVarDecl(T, "_r", zero);
+          PreCallStmts.push_back(BuildDeclStmt(VD));
+          ref = BuildDeclRef(VD);
+        }
+        temporaryBaseAdjoint = BuildOp(UO_AddrOf, ref);
+      }
+      return CloneNode(temporaryBaseAdjoint);
+    };
+
     /// Add base derivative expression in the derived call output args list if
     /// `CE` is a call to an instance member function.
     if (MD && !isLambdaCallOperator(MD)) {
@@ -3007,32 +3042,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (baseDerivative && !baseDerivative->getType()->isPointerType() &&
             !baseDerivative->isLValue())
           baseDerivative = nullptr;
-        if (!baseDerivative && !nonDiff) {
-          // The base has no adjoint of its own -- e.g. a read-only global, or
-          // an object reached through a cast address. The `_d_this` slot of
-          // the pullback must stay filled nonetheless: pass a zero-initialized
-          // placeholder whose contribution is discarded.
-          QualType dBaseTy = baseOriginalE->getType();
-          if (dBaseTy->isPointerType())
-            dBaseTy = dBaseTy->getPointeeType();
-          dBaseTy =
-              utils::getNonConstType(dBaseTy.getNonReferenceType(), m_Sema);
-          Expr* baseValue = CloneNode(baseDiff.getExpr());
-          if (baseValue->getType()->isPointerType())
-            baseValue = BuildOp(UO_Deref, baseValue);
-          VarDecl* dBaseDecl =
-              BuildVarDecl(dBaseTy, "_r", BuildZeroAdjoint(baseValue, dBaseTy));
-          PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
-          baseDerivative = BuildDeclRef(dBaseDecl);
-        }
-        if (baseDerivative) {
-          if (!baseDerivative->getType()->isPointerType())
-            baseDerivative = BuildOp(UO_AddrOf, baseDerivative);
+        if (!baseDerivative && !nonDiff && !pullbackRequest.NoAdjointThis)
+          baseDerivative = getTemporaryBaseAdjoint();
+        if (baseDerivative && !baseDerivative->getType()->isPointerType())
+          baseDerivative = BuildOp(UO_AddrOf, baseDerivative);
+        if (baseDerivative || (!nonDiff && pullbackRequest.NoAdjointThis)) {
           CallArgDx.push_back(baseDerivative);
-          // revForwAdjointArgs feeds the reverse-forward call while CallArgDx
-          // feeds the pullback; clone so the same `&_d_base` is not parented by
-          // both calls.
-          revForwAdjointArgs.push_back(CloneNode(baseDerivative));
+          Expr* forwBase = baseDerivative;
+          if (!forwBase && calleeFnForwPassFD)
+            forwBase = getTemporaryBaseAdjoint();
+          revForwAdjointArgs.push_back(CloneNode(forwBase));
         }
       }
     }
@@ -3170,7 +3189,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       // FIXME: No call context corresponds to second derivatives
       // used in hessians, which aren't scheduled statically yet.
-      hasDynamicNonDiffParams = false;
+      hasDynamicNonDiffParams = pullbackRequest.NoAdjointThis;
       pullbackRequest.DVI.clear();
       pullbackRequest.CUDAGlobalArgsIndexes.clear();
       if (asGrad)
@@ -3193,20 +3212,76 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!m_DiffReq.CallContext || hasDynamicNonDiffParams || unplannedBody ||
           FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
-        // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
-        OverloadedDerivedFn =
-            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                customPullback, pullbackCallArgs, getCurrentScope(), CE,
-                /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
-                CUDAExecConfig);
-        if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
-          pullbackFD = foundCE->getDirectCallee();
+        auto findCustom = [&](llvm::SmallVectorImpl<Expr*>& args) {
+          Expr* call = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+              customPullback, args, getCurrentScope(), CE,
+              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+              CUDAExecConfig);
+          return call ? cast<CallExpr>(call)->getDirectCallee() : nullptr;
+        };
+        // Keep every output slot for static overload selection. Real adjoints
+        // keep their pointer types; absent ones have only the marker type.
+        size_t adjointStart = CallArgs.size();
+        if (!(utils::isNonConstReferenceType(returnType) ||
+              returnType->isPointerType() || returnType->isVoidType()))
+          ++adjointStart;
+        if (asGrad && hasDynamicNonDiffParams) {
+          llvm::SmallVector<Expr*, 16> taggedArgs;
+          for (Expr* arg :
+               llvm::ArrayRef<Expr*>(pullbackCallArgs).take_front(adjointStart))
+            taggedArgs.push_back(CloneNode(arg));
+          for (Expr* dx : CallArgDx)
+            taggedArgs.push_back(
+                dx ? CloneNode(dx)
+                   : utils::BuildDefaultConstructExpr(
+                         m_Sema, utils::GetNoAdjointType(m_Sema)));
+          if (Expr* state = getPullbackStateRef())
+            taggedArgs.push_back(CloneNode(state));
+          const Decl* lookupDecl = FD;
+          if (const auto* DRE =
+                  dyn_cast<DeclRefExpr>(CE->getCallee()->IgnoreParenCasts()))
+            lookupDecl = DRE->getFoundDecl();
+          CXXScopeSpec SS;
+          LookupResult candidates =
+              m_Builder.LookupCustomDerivativeOrNumericalDiff(
+                  customPullback,
+                  utils::GetCustomDerivativeLookupContext(lookupDecl), SS,
+                  /*forCustomDerv=*/true, /*namespaceShouldExist=*/true);
+          if (!candidates.empty()) {
+            // Custom member derivatives take the object as their first pointer
+            // argument. Probe only custom declarations, never generated
+            // methods.
+            if (MD && MD->isInstance() && !isLambdaCallOperator(MD) &&
+                !taggedArgs.front()->getType()->isPointerType())
+              taggedArgs.front() = BuildOp(UO_AddrOf, taggedArgs.front());
+            Expr* lookup =
+                utils::BuildDeclarationNameExpr(m_Sema, SS, candidates);
+            pullbackFD = utils::ResolveOverload(m_Sema, lookup, taggedArgs);
+          }
+          if (pullbackFD) {
+            m_Builder.m_Scheduler.getDerivedFns().AddToCustomDerivativeSet(
+                pullbackFD);
+            pullbackCallArgs = std::move(taggedArgs);
+          }
+        }
+        if (!pullbackFD) {
+          // Historical signatures always take a receiver pointer.
+          if (pullbackRequest.NoAdjointThis) {
+            CallArgDx[0] = getTemporaryBaseAdjoint();
+            pullbackCallArgs.insert(
+                std::next(pullbackCallArgs.begin(),
+                          static_cast<std::ptrdiff_t>(adjointStart)),
+                CloneNode(CallArgDx[0]));
+            pullbackRequest.NoAdjointThis = false;
+          }
+          pullbackFD = findCustom(pullbackCallArgs);
+        }
 
-        // A user's pullback takes every parameter: hand it a zero adjoint for
-        // an argument passed by reference that has none.
+        // Older full signatures remain usable without a nullable-pointer
+        // contract: give each omitted output a disposable zero adjoint.
         if (!pullbackFD && hasDynamicNonDiffParams && asGrad &&
-            !getPullbackStateRef()) {
+            (m_DiffReq.AssumeUnselectedInactive || !getPullbackStateRef())) {
           llvm::SmallVector<Expr*, 16> fullArgs;
           llvm::SmallVector<Stmt*, 4> zeros;
           for (Expr* arg : CallArgs)
@@ -3227,17 +3302,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               continue;
             }
             QualType T = FD->getParamDecl(i)->getType();
-            complete = T->isReferenceType();
+            complete =
+                T->isReferenceType() ||
+                (m_DiffReq.AssumeUnselectedInactive && !T->isPointerType());
             if (!complete)
               break;
-            QualType dT =
-                utils::getNonConstType(T.getNonReferenceType(), m_Sema);
+            QualType dT = utils::GetNonConstValueType(T);
             Expr* value = CloneNode(CallArgs[i + offset]);
             VarDecl* zero = BuildVarDecl(dT, "_r", BuildZeroAdjoint(value, dT));
             zeros.push_back(BuildDeclStmt(zero));
             fullArgs.push_back(BuildOp(UO_AddrOf, BuildDeclRef(zero)));
           }
           if (complete) {
+            if (Expr* state = getPullbackStateRef())
+              fullArgs.push_back(CloneNode(state));
             DiffRequest fullRequest = pullbackRequest;
             fullRequest.DVI.clear();
             for (const ParmVarDecl* PVD : FD->parameters())

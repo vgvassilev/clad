@@ -494,11 +494,14 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// trailing restore tracker.
     /// \param[in] isForErrorEstimation whether the derivative also carries the
     /// floating-point error estimate.
+    /// \param[in] inactiveType placeholder for omitted custom pullback outputs.
+    /// \param[in] noAdjointThis whether the receiver uses that placeholder too.
     clang::QualType GetDerivativeType(
         clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
         llvm::ArrayRef<const clang::ValueDecl*> diffParams,
         bool forCustomDerv = false, bool shouldUseRestoreTracker = false,
-        bool isForErrorEstimation = false);
+        bool isForErrorEstimation = false, clang::QualType inactiveType = {},
+        bool noAdjointThis = false);
     /// Find declaration of clad::class templated type
     ///
     /// \param[in] S the Sema to look the name up in.
@@ -579,6 +582,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                                clang::QualType Type);
 
     clang::QualType GetRestoreTrackerType(clang::Sema& S);
+    clang::QualType GetNoAdjointType(clang::Sema& S);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 

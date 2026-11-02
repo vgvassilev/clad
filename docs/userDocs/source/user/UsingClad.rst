@@ -192,6 +192,74 @@ Visit the API reference of :cpp:func:`gradient` for more details, and
 :doc:`Core concepts <CoreConcepts>` for what Clad generates and why it needs to
 store values along the way.
 
+Assuming unselected parameters stay inactive
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Selecting gradient outputs normally does not forbid other parameters from
+carrying intermediate derivatives. For example, in
+``double f(double x, double y) { y = x * x; return y; }``, computing the
+derivative with respect to ``x`` still needs an adjoint for the overwritten
+``y``.
+
+When unselected inputs are fixed data, a request can instead promise that
+they stay inactive throughout the differentiated execution::
+
+  auto gradient =
+      clad::gradient<clad::opts::assume_unselected_inactive>(loss, "weight");
+
+This option is off by default and is supported by ``clad::gradient`` with
+the Clad backend. It omits local adjoints for unselected root parameters;
+it does not require activity analysis to prove that omission. The promise
+also covers storage reached through those parameters: it must not alias or
+receive active state needed to compute the requested gradient. The ``f``
+example above violates the promise. Clad does not check it.
+
+Ordinary local intermediates still get adjoints. Nested generated pullbacks
+omit unused output parameters, but retain adjoints for by-value parameter
+copies that become active inside the callee.
+
+Static selection of custom pullback outputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A custom function or member-function pullback can use ``clad::no_adjoint``
+in an output slot to declare that it does not compute that input's adjoint.
+The marker is an empty type, with no pointer conversions or derivative
+operations. The primal arguments and the output seed are still passed normally.
+For example::
+
+  // f(x, y) = x * y; this overload computes only dy.
+  void f_pullback(double x, double y, double seed,
+                  clad::no_adjoint, double* dy) {
+    *dy += x * seed;
+  }
+
+  // The other direction, and the full version, can be supplied separately.
+  void f_pullback(double x, double y, double seed,
+                  double* dx, clad::no_adjoint);
+  void f_pullback(double x, double y, double seed,
+                  double* dx, double* dy);
+
+When only ``dy`` is needed, Clad emits
+``f_pullback(x, y, seed, clad::no_adjoint(), &dy)``. The selected overload
+contains no work or storage for ``dx`` and needs no runtime null check.
+Template customizations can use the same marker. A custom member pullback
+can also put it in the receiver's adjoint slot when
+``assume_unselected_inactive`` omits that receiver's adjoint.
+
+Selection prefers a marker signature matching all requested outputs, then
+an existing compact signature that omits inactive output slots, then a full
+signature with temporary adjoints for unused outputs. Full custom pullbacks
+keep receiving actual output storage; they do not need to accept null
+pointers. Where Clad cannot construct an unused output, a compatible custom
+signature is still needed.
+
+This selection uses absent adjoints, whether established by the request
+option above or by existing non-differentiable annotations and analysis.
+Providing a single-direction overload is sufficient for requests needing
+only that direction. It does not declare the missing derivative to be zero:
+the overload cannot satisfy a request requiring that direction. Clad does not
+combine single-direction overloads into a full pullback.
+
 Hessian Computation
 ----------------------
 

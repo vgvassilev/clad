@@ -12,6 +12,8 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
       m_DiffVarsInfo(request.DVI),
       m_CUDAGlobalArgsIndexes(request.CUDAGlobalArgsIndexes),
       m_UsesEnzyme(request.use_enzyme),
+      m_AssumeUnselectedInactive(request.AssumeUnselectedInactive),
+      m_NoAdjointThis(request.NoAdjointThis),
       m_DeclarationOnly(request.DeclarationOnly),
       m_FallbacksSeeded(request.FallbacksSeeded) {
 #define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
@@ -22,6 +24,8 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
 bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
   return (request.Function == m_OriginalFn && request.Mode == m_Mode &&
           request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme &&
+          request.AssumeUnselectedInactive == m_AssumeUnselectedInactive &&
+          request.NoAdjointThis == m_NoAdjointThis &&
           request.DeclarationOnly == m_DeclarationOnly &&
           request.CUDAGlobalArgsIndexes == m_CUDAGlobalArgsIndexes);
 }
@@ -46,6 +50,8 @@ bool DerivedFnInfo::RepresentsSameDerivative(const DerivedFnInfo& lhs,
   return lhs.m_OriginalFn == rhs.m_OriginalFn && lhs.m_Mode == rhs.m_Mode &&
          lhs.m_DiffVarsInfo == rhs.m_DiffVarsInfo &&
          lhs.m_UsesEnzyme == rhs.m_UsesEnzyme &&
+         lhs.m_AssumeUnselectedInactive == rhs.m_AssumeUnselectedInactive &&
+         lhs.m_NoAdjointThis == rhs.m_NoAdjointThis &&
          lhs.m_DeclarationOnly == rhs.m_DeclarationOnly &&
          lhs.m_CUDAGlobalArgsIndexes == rhs.m_CUDAGlobalArgsIndexes;
 }

@@ -36,6 +36,8 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
 
   auto fnName =
       clad::utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_reverse_forw";
+  if (m_DiffReq.AssumeUnselectedInactive)
+    fnName += "_assume_inactive";
   auto fnDNI = utils::BuildDeclarationNameInfo(m_Sema, fnName);
 
   auto fnType = GetDerivativeType();

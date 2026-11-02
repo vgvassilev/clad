@@ -13,6 +13,9 @@
 #include <memory>
 
 namespace clad {
+/// A custom pullback output that is not requested. Carries no adjoint storage.
+struct no_adjoint {};
+
 // The aim is to have a single unsigned integer for storing both, the
 // differentiation order and the options. The differentiation order is
 // stored in the lower 8 bits, and the options are stored in the upper
