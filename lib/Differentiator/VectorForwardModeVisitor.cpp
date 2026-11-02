@@ -6,18 +6,22 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateName.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 
 using namespace clang;
@@ -134,6 +138,18 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
     Expr* dVectorParam = nullptr;
     if (m_IndependentVars.size() > independentVarIndex &&
         m_IndependentVars[independentVarIndex] == m_DiffReq->getParamDecl(i)) {
+
+      // The tangents of an object are objects, which one-hot vectors and
+      // identity matrices of numbers do not make.
+      if (dParamType->isRecordType()) {
+        diag(DiagnosticsEngine::Error,
+             m_DiffReq->getParamDecl(i)->getLocation(),
+             "vector mode cannot yet differentiate with respect to an object "
+             "of type %0")
+            << dParamType;
+        ++independentVarIndex;
+        continue;
+      }
 
       Expr* offsetExpr = offsetTracker.buildOffset();
 
@@ -336,6 +352,10 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   IndVarOffsetTracker offsetTracker(*this);
 
   for (size_t i = 0; i < m_IndependentVars.size(); ++i) {
+    // An object is refused as an independent variable.
+    if (utils::GetNonConstValueType(m_IndependentVars[i]->getType())
+            ->isRecordType())
+      continue;
     // Get the derivative of the ith parameter.
     auto dParam = m_ParamVariables[m_IndependentVars[i]];
     Expr* dParamValue = nullptr;
@@ -372,6 +392,14 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   return StmtDiff(returnStmt);
 }
 
+/// Whether \p Dx reads the tangents of a member out of those of an object,
+/// which are a copy: what is written to them would be lost.
+static bool isMemberTangents(const Expr* Dx) {
+  const auto* CE = Dx ? dyn_cast<CallExpr>(Dx->IgnoreImplicit()) : nullptr;
+  const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+  return FD && FD->getQualifiedNameAsString() == "clad::member_vector";
+}
+
 DeclDiff<VarDecl>
 VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
@@ -380,8 +408,44 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                                   initDiff.getExpr(), VD->isDirectInit());
   Expr* initDx = initDiff.getExpr_dx();
-  if (VD->getInit())
-    initDx = asTangentVector(initDx, VD->getType());
+  QualType T = VD->getType();
+  QualType ObjTy = utils::GetNonConstValueType(T);
+  if (utils::isNonConstReferenceType(T) && isMemberTangents(initDx))
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "vector mode cannot yet differentiate a reference to a member of an "
+         "object");
+  const auto* RD = ObjTy->getAsCXXRecordDecl();
+  // An array of objects is not an object: its elements have no tangents of
+  // their own yet.
+  if (RD && T->isArrayType()) {
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "vector mode cannot yet differentiate an array of objects");
+    initDx = nullptr;
+  } else if (RD && T->isPointerType() && initDx) {
+    // A pointer to an object with tangents; one to what has none, such as a
+    // global, has none either.
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "vector mode cannot yet differentiate a pointer to an object");
+    initDx = nullptr;
+  } else if (!T->isReferenceType() && RD && utils::hasObjectTangents(ObjTy)) {
+    initDx = objectTangents(ObjTy, VD->getInit(), initDx);
+    // Initializing a clad::array considers its constructor from a
+    // std::initializer_list, which, of a class no code has made one of yet,
+    // Sema would instantiate where the initializer is: a generated expression
+    // may have no location.
+    m_Sema.isCompleteType(GenLoc(),
+                          m_Sema.BuildStdInitializerList(ObjTy, GenLoc()));
+  } else if (!T->isReferenceType() && RD && RD->hasDefinition() &&
+             !RD->hasDefaultConstructor()) {
+    // Its tangents are a clad::array of objects, which must be able to start
+    // out empty.
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "vector mode cannot yet differentiate an object of type %0, which "
+         "has no default constructor")
+        << ObjTy;
+    initDx = nullptr;
+  } else if (VD->getInit())
+    initDx = asTangentVector(initDx, T);
   VarDecl* VDDerived = BuildVarDecl(
       utils::GetCladArrayOfType(m_Sema,
                                 utils::GetNonConstValueType(VD->getType())),
@@ -436,6 +500,13 @@ static QualType tangentElementType(const Expr* E, QualType Fallback) {
   return Fallback;
 }
 
+/// Whether \p Dx is a vector of the tangents of objects: a clad::array of a
+/// class.
+static bool isObjectTangents(const Expr* Dx) {
+  QualType Elem = Dx ? tangentElementType(Dx, QualType()) : QualType();
+  return !Elem.isNull() && Elem->isRecordType();
+}
+
 /// How \p Dx is a number that is zero whenever the code runs: what a
 /// derivative clad leaves at zero becomes, through a negation, a cast or a
 /// ?:. Every tangent that may not be zero is a vector, or holds one.
@@ -461,6 +532,17 @@ static ScalarZero isScalarZero(const Expr* Dx, ASTContext& C) {
   if (!Zero)
     return ScalarZero::No;
   return R.HasSideEffects ? ScalarZero::WithEffects : ScalarZero::Pure;
+}
+
+/// Whether \p Dx is a braced list of zeros, and of lists of them: the zero
+/// tangent of an object in scalar mode.
+static bool isZeroList(const Expr* Dx, ASTContext& C) {
+  const auto* ILE = dyn_cast<InitListExpr>(Dx->IgnoreImplicit());
+  if (!ILE)
+    return isScalarZero(Dx, C) == ScalarZero::Pure;
+  return std::all_of(ILE->begin(), ILE->end(), [&C](const Stmt* Init) {
+    return isZeroList(cast<Expr>(Init), C);
+  });
 }
 
 /// Whether \p Dx is a call to clad::zero_vector: the tangent vector mode
@@ -501,6 +583,17 @@ Expr* VectorForwardModeVisitor::keepEffects(Expr* E, Expr* Value) {
 void VectorForwardModeVisitor::matchBranchTangents(StmtDiff& TrueDiff,
                                                    StmtDiff& FalseDiff,
                                                    QualType T) {
+  // Of objects, a branch without tangents, or with the zero of scalar mode,
+  // has zero ones.
+  QualType Obj = utils::GetNonConstValueType(T);
+  if (Obj->isRecordType() && utils::hasObjectTangents(Obj)) {
+    for (StmtDiff* Branch : {&TrueDiff, &FalseDiff}) {
+      Expr* Dx = Branch->getExpr_dx();
+      if (!Dx || isZeroList(Dx, m_Context))
+        Branch->updateStmtDx(zeroObjects(Obj));
+    }
+    return;
+  }
   // A branch that does not depend on the independent variables has a zero:
   // a scalar, which beside the other's vector of tangents would become a
   // vector of its own size, or a vector of zeros of the branch's type, which
@@ -534,6 +627,15 @@ Expr* VectorForwardModeVisitor::castTangent(Expr* Dx, const CastExpr* Cast) {
   // tangent instead, truncating it. A cast to a reference names what it
   // casts, tangent and all, and is left alone.
   QualType To = Cast->getType();
+  // `M{x}` or `static_cast<M>(m)` makes an object, whose tangents those of
+  // its members, or of the object it copies, make.
+  QualType Obj = utils::GetNonConstValueType(To);
+  if (Obj->isRecordType() && utils::hasObjectTangents(Obj)) {
+    // `static_cast<M&&>(m)` names m, tangents and all.
+    if (Cast->isGLValue())
+      return isObjectTangents(Dx) ? Dx : nullptr;
+    return objectTangents(Obj, Cast->getSubExpr(), Dx);
+  }
   // A complex number is not one: its tangent is not the real one's.
   if (Cast->isGLValue() || !To->isRealType() || !isTangentVector(Dx))
     return nullptr;
@@ -548,6 +650,141 @@ Expr* VectorForwardModeVisitor::castTangent(Expr* Dx, const CastExpr* Cast) {
   if (changesState(Dx, m_Context))
     return keepEffects(Dx, Zeros);
   return Zeros;
+}
+
+Expr* VectorForwardModeVisitor::zeroObjects(QualType T) {
+  Expr* dCount = buildIndVarCountRef();
+  // Canonical, so that every call names the same specialization.
+  return BuildCallExprToCladFunction("zero_vector", {dCount},
+                                     {T.getCanonicalType()});
+}
+
+Expr* VectorForwardModeVisitor::objectTangents(QualType T, const Expr* Init,
+                                               Expr* InitDx) {
+  const Expr* E = Init ? Init->IgnoreImplicit() : nullptr;
+  // `M m{x, {y}}`: the tangents of each member, a vector each, make those of
+  // the object.
+  if (const auto* ILE = dyn_cast_or_null<InitListExpr>(E)) {
+    auto* DxILE =
+        InitDx ? dyn_cast<InitListExpr>(InitDx->IgnoreImplicit()) : nullptr;
+    llvm::SmallVector<Expr*, 4> Args{buildIndVarCountRef()};
+    llvm::SmallVector<TemplateArgument, 4> MemberTys;
+    auto Field = T->getAsRecordDecl()->field_begin();
+    for (unsigned I = 0, N = ILE->getNumInits(); I < N; ++I, ++Field) {
+      Expr* Dx =
+          DxILE && I < DxILE->getNumInits() ? DxILE->getInit(I) : nullptr;
+      QualType MemberTy = utils::GetNonConstValueType(Field->getType());
+      if (MemberTy->isRecordType()) {
+        Dx = objectTangents(MemberTy, ILE->getInit(I), Dx);
+      } else {
+        Dx = asTangentVector(Dx, MemberTy);
+        // aggregate_vector takes a clad::array of each member's own type.
+        QualType ArrTy = utils::GetCladArrayOfType(m_Sema, MemberTy);
+        if (!m_Context.hasSameType(Dx->getType(), ArrTy))
+          Dx = m_Sema
+                   .BuildCStyleCastExpr(
+                       noLoc, m_Context.getTrivialTypeSourceInfo(ArrTy), noLoc,
+                       BuildParens(Dx))
+                   .get();
+      }
+      Args.push_back(Dx);
+      MemberTys.push_back(MemberTy.getCanonicalType());
+    }
+    std::array<TemplateArgument, 2> TArgs = {
+        T.getCanonicalType(),
+        TemplateArgument::CreatePackCopy(m_Context, MemberTys)};
+    return BuildCallExprToCladFunction("aggregate_vector", Args, TArgs);
+  }
+  // What has no tangents, such as a global, has zero ones, as has what does
+  // not depend on the independent variables: its tangent is the zero of
+  // scalar mode, an object, `M()`, or a braced list of zeros.
+  if (!InitDx || isZeroList(InitDx, m_Context) ||
+      m_Context.hasSameUnqualifiedType(InitDx->getType(), T))
+    return zeroObjects(T);
+  // Otherwise it copies another object, or the result of a call, and their
+  // tangents.
+  assert(isObjectTangents(InitDx) && "the tangents of an object are objects");
+  return InitDx;
+}
+
+Expr* VectorForwardModeVisitor::memberTangent(Expr* BaseDx,
+                                              const MemberExpr* ME) {
+  if (!isObjectTangents(BaseDx))
+    return BaseForwardModeVisitor::memberTangent(BaseDx, ME);
+  // A static member is not part of the object: it has no tangents, as a
+  // global has none.
+  const auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
+  if (!FD)
+    return nullptr;
+  // clad::member_vector(_d_m, &M::k): k out of each of the tangents of m.
+  CXXScopeSpec SS;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  utils::BuildNNS(m_Sema, const_cast<RecordDecl*>(FD->getParent()), SS);
+  // A qualified reference to the field, which `&` makes a pointer to member
+  // and not, inside a method, to the member of `this`.
+  Expr* Member = m_Sema.BuildDeclRefExpr(
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      const_cast<FieldDecl*>(FD), FD->getType().getNonReferenceType(),
+      VK_LValue, DeclarationNameInfo(FD->getDeclName(), noLoc), &SS);
+  Expr* MemberPtr = BuildOp(UnaryOperatorKind::UO_AddrOf, Member);
+  llvm::SmallVector<Expr*, 2> Args{BaseDx, MemberPtr};
+  QualType ObjTy = tangentElementType(BaseDx, QualType());
+  return BuildCallExprToCladFunction(
+      "member_vector", Args,
+      {ObjTy.getCanonicalType(), FD->getType().getCanonicalType()});
+}
+
+Expr* VectorForwardModeVisitor::thisTangentArgument(const CXXMethodDecl* MD,
+                                                    const Expr* Base,
+                                                    Expr* BaseDx) {
+  // The pushforward of a method takes the tangents of its object. Those of a
+  // member of an object are a copy, which a method that may change them
+  // cannot take.
+  if (isMemberTangents(BaseDx) && !MD->isConst()) {
+    diag(DiagnosticsEngine::Error, Base->getBeginLoc(),
+         "vector mode cannot yet differentiate a call to a non-const method "
+         "of a member of an object");
+    BaseDx = nullptr;
+  }
+  if (isObjectTangents(BaseDx))
+    return BaseDx;
+  // The tangents of a pointer or an array are a vector of what they reach, and
+  // not one object per independent variable.
+  if (BaseDx)
+    diag(DiagnosticsEngine::Error, Base->getBeginLoc(),
+         "vector mode cannot yet differentiate a call to a method of an "
+         "object reached through a pointer or an array");
+  QualType ObjTy = Base->getType();
+  if (ObjTy->isPointerType())
+    ObjTy = ObjTy->getPointeeType();
+  ObjTy = utils::GetNonConstValueType(ObjTy);
+  // An object without tangents has zero ones, which a method may change.
+  VarDecl* dBaseVD =
+      BuildVarDecl(utils::GetCladArrayOfType(m_Sema, ObjTy), "_d_base",
+                   zeroObjects(ObjTy), /*DirectInit=*/true);
+  addToCurrentBlock(BuildDeclStmt(dBaseVD));
+  return BuildDeclRef(dBaseVD);
+}
+
+StmtDiff VectorForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+  const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE);
+  if (!OCE || !utils::isObjectTangentsAssignment(OCE->getDirectCallee()))
+    return BaseForwardModeVisitor::VisitCallExpr(CE);
+  // `a = b` of objects copies b into a, and so its tangents into a's.
+  StmtDiff L = Visit(OCE->getArg(0));
+  StmtDiff R = Visit(OCE->getArg(1));
+  QualType T = utils::GetNonConstValueType(OCE->getArg(0)->getType());
+  Expr* Value = BuildOp(BO_Assign, L.getExpr(), R.getExpr());
+  Expr* LDx = L.getExpr_dx();
+  if (isMemberTangents(LDx) || !isObjectTangents(LDx)) {
+    diag(DiagnosticsEngine::Error, OCE->getBeginLoc(),
+         "vector mode cannot yet differentiate an assignment to %select{a "
+         "member of an object|an object without a derivative}0")
+        << !isMemberTangents(LDx);
+    return {Value, LDx};
+  }
+  Expr* RDx = objectTangents(T, OCE->getArg(1), R.getExpr_dx());
+  return {Value, BuildOp(BO_Assign, LDx, RDx)};
 }
 
 StmtDiff
