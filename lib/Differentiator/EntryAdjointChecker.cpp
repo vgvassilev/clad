@@ -798,13 +798,14 @@ public:
     if (const auto* WS = dyn_cast<WhileStmt>(S)) {
       loop(
           WS->getConditionVariable(), WS->getCond(),
-          [&] { stmt(WS->getBody()); }, nullptr, /*BodyFirst=*/false);
+          [&] { stmt(WS->getBody()); }, /*Inc=*/nullptr, /*BodyFirst=*/false);
       return;
     }
     if (const auto* DS = dyn_cast<DoStmt>(S)) {
       loop(
-          nullptr, DS->getCond(), [&] { stmt(DS->getBody()); }, nullptr,
-          /*BodyFirst=*/true);
+          /*CondVar=*/
+          nullptr, DS->getCond(), [&] { stmt(DS->getBody()); },
+          /*Inc=*/nullptr, /*BodyFirst=*/true);
       return;
     }
     if (const auto* FS = dyn_cast<ForStmt>(S)) {
@@ -820,6 +821,7 @@ public:
       stmt(RS->getBeginStmt());
       stmt(RS->getEndStmt());
       loop(
+          /*CondVar=*/
           nullptr, RS->getCond(),
           [&] {
             stmt(RS->getLoopVarStmt());
@@ -905,10 +907,14 @@ public:
   void expr(const Expr* E, bool Carry) {
     if (!E)
       return;
-    if (const auto* PE = dyn_cast<ParenExpr>(E))
-      return expr(PE->getSubExpr(), Carry);
-    if (const auto* CE = dyn_cast<CastExpr>(E))
-      return expr(CE->getSubExpr(), Carry && !isToBoolean(CE->getCastKind()));
+    if (const auto* PE = dyn_cast<ParenExpr>(E)) {
+      expr(PE->getSubExpr(), Carry);
+      return;
+    }
+    if (const auto* CE = dyn_cast<CastExpr>(E)) {
+      expr(CE->getSubExpr(), Carry && !isToBoolean(CE->getCastKind()));
+      return;
+    }
     if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
       const Expr* Sub = UO->getSubExpr();
       switch (UO->getOpcode()) {
@@ -917,20 +923,23 @@ public:
         access(Sub, Carry);
         return;
       case UO_LNot:
-        return expr(Sub, /*Carry=*/false);
+        expr(Sub, /*Carry=*/false);
+        return;
       case UO_PreInc:
       case UO_PreDec:
       case UO_PostInc:
       case UO_PostDec:
-        return expr(Sub, /*Carry=*/true);
+        expr(Sub, /*Carry=*/true);
+        return;
       case UO_AddrOf:
         expr(Sub, Carry);
         // An address passed to a call is followed by what the call does.
-        if (!m_PassedAddresses.count(UO))
-          addressTaken(Sub, UO->getOperatorLoc(), nullptr);
+        if (!m_PassedAddresses.contains(UO))
+          addressTaken(Sub, UO->getOperatorLoc(), /*Callee=*/nullptr);
         return;
       default:
-        return expr(Sub, Carry);
+        expr(Sub, Carry);
+        return;
       }
     }
     if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
@@ -1004,23 +1013,35 @@ public:
       }
       return;
     }
-    if (const auto* CE = dyn_cast<CallExpr>(E))
-      return call(CE, CE->getDirectCallee());
-    if (const auto* CE = dyn_cast<CXXConstructExpr>(E))
-      return call(CE, CE->getConstructor());
+    if (const auto* CE = dyn_cast<CallExpr>(E)) {
+      call(CE, CE->getDirectCallee());
+      return;
+    }
+    if (const auto* CE = dyn_cast<CXXConstructExpr>(E)) {
+      call(CE, CE->getConstructor());
+      return;
+    }
     // Not evaluated, or a function clad derives on its own.
     if (isa<UnaryExprOrTypeTraitExpr>(E) || isa<CXXTypeidExpr>(E) ||
         isa<CXXNoexceptExpr>(E) || isa<LambdaExpr>(E) ||
         isa<OpaqueValueExpr>(E))
       return;
-    if (const auto* GSE = dyn_cast<GenericSelectionExpr>(E))
-      return expr(GSE->getResultExpr(), Carry);
-    if (const auto* SE = dyn_cast<StmtExpr>(E))
-      return stmt(SE->getSubStmt());
-    if (const auto* DAE = dyn_cast<CXXDefaultArgExpr>(E))
-      return expr(DAE->getExpr(), Carry);
-    if (const auto* DIE = dyn_cast<CXXDefaultInitExpr>(E))
-      return expr(DIE->getExpr(), Carry);
+    if (const auto* GSE = dyn_cast<GenericSelectionExpr>(E)) {
+      expr(GSE->getResultExpr(), Carry);
+      return;
+    }
+    if (const auto* SE = dyn_cast<StmtExpr>(E)) {
+      stmt(SE->getSubStmt());
+      return;
+    }
+    if (const auto* DAE = dyn_cast<CXXDefaultArgExpr>(E)) {
+      expr(DAE->getExpr(), Carry);
+      return;
+    }
+    if (const auto* DIE = dyn_cast<CXXDefaultInitExpr>(E)) {
+      expr(DIE->getExpr(), Carry);
+      return;
+    }
     for (const Stmt* Child : E->children())
       if (const auto* CE = dyn_cast_or_null<Expr>(Child))
         expr(CE, Carry);
@@ -1086,7 +1107,7 @@ public:
 
     const FunctionDecl* Def = FD->getDefinition();
     if (How == CallDerivative::Pullback && Def && Def->hasBody() &&
-        !m_C.Active.count(Def->getCanonicalDecl()) && m_C.Budget) {
+        !m_C.Active.contains(Def->getCanonicalDecl()) && m_C.Budget) {
       --m_C.Budget;
       Checker Callee(m_C, Def, m_Chain, E->getBeginLoc(), m_S);
       if (Object)
@@ -1186,9 +1207,9 @@ public:
 
   Checker(Context& C, const FunctionDecl* FD,
           llvm::ArrayRef<std::pair<const FunctionDecl*, SourceLocation>> Chain,
-          SourceLocation CallLoc, const State& S)
+          SourceLocation CallLoc, State S)
       : m_C(C), m_AST(C.S.getASTContext()), m_Chain(Chain.begin(), Chain.end()),
-        m_S(S) {
+        m_S(std::move(S)) {
     m_S.Dead = false;
     if (CallLoc.isValid())
       m_Chain.insert(m_Chain.begin(), {FD, CallLoc});
@@ -1290,6 +1311,7 @@ void diagnoseUnknownEntryAdjoints(
   // call. Report the first access through each pointer, along each chain of
   // calls: fixing it fixes the rest.
   std::vector<const Finding*> Order;
+  Order.reserve(C.Findings.size());
   for (const Finding& F : C.Findings)
     Order.push_back(&F);
   auto Outer = [](const Finding* F) {

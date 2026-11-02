@@ -1,7 +1,9 @@
 #ifndef CLAD_DIFFERENTIATOR_ENTRYADJOINTCHECKER_H
 #define CLAD_DIFFERENTIATOR_ENTRYADJOINTCHECKER_H
 
-#include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
+#include "llvm/ADT/STLFunctionalExtras.h"
+
+#include <cstdint>
 
 namespace clang {
 class FunctionDecl;
@@ -13,7 +15,7 @@ namespace clad {
 /// How the reverse sweep of a gradient differentiates a call: not at all,
 /// through a pullback whose body clad derives, or through a derivative it
 /// cannot see into (a custom one, or a pushforward).
-enum class CallDerivative { None, Pullback, Opaque };
+enum class CallDerivative : std::uint8_t { None, Pullback, Opaque };
 
 /// Reports where the gradient of \p FD would read the adjoint of a global
 /// pointer or reference before giving it a value.
