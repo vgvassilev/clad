@@ -662,6 +662,16 @@ namespace clad {
     /// did.
     clang::TypedefNameDecl*
     BuildTypedefNameDecl(const clang::TypedefNameDecl* TND);
+    /// The name a variable's clone takes: its own, or, for the unnamed
+    /// variable a structured binding decomposes, one to refer to it by.
+    static std::string CloneName(const clang::VarDecl* VD);
+    /// Diagnoses a structured binding clad does not differentiate yet, and
+    /// then returns false.
+    bool CheckStructuredBinding(const clang::DecompositionDecl* DD);
+    /// A statement declaring each variable a structured binding of a
+    /// tuple-like type introduces for its bindings.
+    llvm::SmallVector<clang::DeclStmt*, 4>
+    BuildHoldingVarStmts(const clang::DecompositionDecl* DD);
 
     /// Wraps a declaration in DeclStmt.
     /// \n Variable declaration cannot be added to code directly, instead we

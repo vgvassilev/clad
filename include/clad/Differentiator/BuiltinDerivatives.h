@@ -11,13 +11,16 @@
 #include "clad/Differentiator/CladConfig.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 
 /// Marks a reverse_forw that clad need not call: it calls the primal on the
 /// arguments and again on their adjoints instead. Write it before the
@@ -2168,6 +2171,78 @@ CUDA_HOST_DEVICE void ellint_3_pullback(T1 k, T2 nu, T3 phi, T4 d_out, T1* d_k,
   }
 }
 #endif
+
+// std::get derivatives, for the elements of a pair, a tuple or an array that
+// a structured binding names. Structured bindings are the language, so these
+// live here, not in STLBuiltins.h. The index comes first, as a
+// std::integral_constant, since a call does not deduce it.
+template <::std::size_t I, class T>
+ValueAndPushforward<::std::tuple_element_t<I, T>&,
+                    ::std::tuple_element_t<I, T>&>
+get_pushforward(::std::integral_constant<::std::size_t, I>, T& t,
+                T& dt) noexcept {
+  return {::std::get<I>(t), ::std::get<I>(dt)};
+}
+
+template <::std::size_t I, class T,
+          ::std::enable_if_t<!::std::is_reference<T>::value, int> = 0>
+ValueAndPushforward<::std::tuple_element_t<I, T>&&,
+                    ::std::tuple_element_t<I, T>&&>
+get_pushforward(::std::integral_constant<::std::size_t, I>, T&& t,
+                T&& dt) noexcept {
+  return {::std::get<I>(::std::move(t)), ::std::get<I>(::std::move(dt))};
+}
+
+// The element of the adjoint is read as the element of the value, so its
+// adjoint is accumulated in place, through the reference get_reverse_forw
+// hands back.
+template <::std::size_t I, class T>
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<::std::tuple_element_t<I, T>&,
+                                           ::std::tuple_element_t<I, T>&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, T& t, T& dt);
+
+template <::std::size_t I, class T>
+CLAD_NOOP_DERIVATIVE void
+get_pullback(::std::integral_constant<::std::size_t, I>, T& t, T* dt);
+
+template <::std::size_t I, class T,
+          ::std::enable_if_t<!::std::is_reference<T>::value, int> = 0>
+ValueAndAdjoint<::std::tuple_element_t<I, T>&&, ::std::tuple_element_t<I, T>&&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, T&& t, T&& dt) {
+  return {::std::get<I>(::std::move(t)), ::std::get<I>(::std::move(dt))};
+}
+
+template <::std::size_t I, class T,
+          ::std::enable_if_t<!::std::is_reference<T>::value, int> = 0>
+void get_pullback(::std::integral_constant<::std::size_t, I>, T&& t, T* dt) {}
+
+// An element of a const object is read, and its adjoint written, through the
+// object's adjoint, which is not const.
+template <::std::size_t I, class T>
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<const ::std::tuple_element_t<I, T>&,
+                                           ::std::tuple_element_t<I, T>&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, const T& t, T& dt);
+
+// When the element is read as a value, its adjoint comes back here instead.
+template <::std::size_t I, class T>
+void get_pullback(::std::integral_constant<::std::size_t, I>, const T& t,
+                  ::std::tuple_element_t<I, T> dy, T* dt) {
+  ::std::get<I>(*dt) += dy;
+}
+
+template <::std::size_t I, class T>
+ValueAndAdjoint<const ::std::tuple_element_t<I, T>&&,
+                ::std::tuple_element_t<I, T>&&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, const T&& t,
+                 T&& dt) {
+  return {::std::get<I>(::std::move(t)), ::std::get<I>(::std::move(dt))};
+}
+
+template <::std::size_t I, class T>
+void get_pullback(::std::integral_constant<::std::size_t, I>, const T&& t,
+                  ::std::tuple_element_t<I, T> dy, T* dt) {
+  ::std::get<I>(*dt) += dy;
+}
 
 } // namespace std
 

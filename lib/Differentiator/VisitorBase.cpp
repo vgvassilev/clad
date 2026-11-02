@@ -194,6 +194,36 @@ namespace clad {
     return Clone;
   }
 
+  std::string VisitorBase::CloneName(const VarDecl* VD) {
+    if (isa<DecompositionDecl>(VD) && VD->getName().empty())
+      return "_bind";
+    return VD->getNameAsString();
+  }
+
+  bool VisitorBase::CheckStructuredBinding(const DecompositionDecl* DD) {
+    // An array copy is initialized element by element, which clad does not
+    // differentiate: its elements would be read as zero.
+    if (DD->getType()->isArrayType()) {
+      diag(DiagnosticsEngine::Error, DD->getLocation(),
+           "differentiating a structured binding of an array copy is not "
+           "supported yet");
+      return false;
+    }
+    return true;
+  }
+
+  llvm::SmallVector<DeclStmt*, 4>
+  VisitorBase::BuildHoldingVarStmts(const DecompositionDecl* DD) {
+    // `std::tuple_element_t<i, E>&& a = get<i>(e);` ([dcl.struct.bind]).
+    llvm::SmallVector<DeclStmt*, 4> Stmts;
+    for (const BindingDecl* B : DD->bindings())
+      if (VarDecl* Holding = B->getHoldingVar())
+        Stmts.push_back(new (m_Context) DeclStmt(DeclGroupRef(Holding),
+                                                 Holding->getBeginLoc(),
+                                                 Holding->getEndLoc()));
+    return Stmts;
+  }
+
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
     utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);

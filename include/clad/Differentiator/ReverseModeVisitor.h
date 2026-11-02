@@ -545,6 +545,8 @@ namespace clad {
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
+    /// The declarations of \p DS, which are not a structured binding.
+    StmtDiff DifferentiateDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
