@@ -11,6 +11,7 @@ coverage:
       default:
         target: auto # will use the coverage from the base commit
         threshold: 2 # Allow to drop by 2%, and posting a success status.
+        after_n_builds: 1
     patch:
       default:
         target: 98 # Force 98% coverage with 2% threshold.
