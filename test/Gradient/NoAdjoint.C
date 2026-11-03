@@ -12,6 +12,9 @@ double compact(double data, double weight) { return data * weight; }
 template <class T> T product(const T& data, const T& weight) {
   return data * weight;
 }
+template <int N> double scaled_product(double data, double weight) {
+  return N * data * weight;
+}
 
 namespace impl {
 double array_product(const double* data, double weight) {
@@ -64,6 +67,12 @@ void product_pullback(const T& data, const T&, T seed,
   selected = 5;
   *d_weight += data * seed;
 }
+template <int N>
+void scaled_product_pullback(::std::integral_constant<int, N>, double data,
+                             double, double seed, clad::no_adjoint,
+                             double* d_weight) {
+  *d_weight += N * data * seed;
+}
 } // namespace clad::custom_derivatives
 
 double legacy_loss(double data, double weight) { return legacy(data, weight); }
@@ -71,6 +80,9 @@ double compact_loss(double data, double weight) { return compact(data, weight); 
 double template_loss(double data, double weight) { return product(data, weight); }
 double array_loss(const double* data, double weight) {
   return api::array_product(data, weight);
+}
+double scaled_loss(double data, double weight) {
+  return scaled_product<2>(data, weight) + scaled_product<3>(data, weight);
 }
 
 // A marker is useful independently of the request option when an existing
@@ -86,6 +98,8 @@ int main() {
   auto full = clad::gradient(template_loss);
   auto annotated = clad::gradient(annotated_loss, "weight");
   auto array = clad::gradient<clad::opts::assume_unselected_inactive>(array_loss, "weight");
+  auto scaled = clad::gradient<clad::opts::assume_unselected_inactive>(
+      scaled_loss, "weight");
   double dw = 0;
   old.execute(3, 2, &dw);
   printf("legacy: %.0f, overload %d\n", dw, selected);
@@ -112,6 +126,10 @@ int main() {
   array.execute(data, 2, &dw);
   printf("array: %.0f, overload %d\n", dw, selected);
   // CHECK-EXEC: array: 3, overload 6
+  dw = 0;
+  scaled.execute(3, 2, &dw);
+  printf("template tags: %.0f\n", dw);
+  // CHECK-EXEC: template tags: 15
 }
 
 // CHECK-LABEL: void legacy_loss_grad_1_assume_inactive(
@@ -124,3 +142,6 @@ int main() {
 // CHECK-LABEL: void array_loss_grad_1_assume_inactive(
 // CHECK-NOT: _d_data
 // CHECK: clad::custom_derivatives::api::array_product_pullback(data, weight, 1, clad::no_adjoint(),
+// CHECK-LABEL: void scaled_loss_grad_1_assume_inactive(
+// CHECK-DAG: scaled_product_pullback(std::integral_constant<int, 2>(), data, weight, 1, clad::no_adjoint(),
+// CHECK-DAG: scaled_product_pullback(std::integral_constant<int, 3>(), data, weight, 1, clad::no_adjoint(),

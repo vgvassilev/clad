@@ -6,6 +6,7 @@
 
 #include <complex>
 #include <numeric>
+#include <stdexcept>
 #include <vector>
 
 #include "../TestUtils.h"
@@ -1238,6 +1239,88 @@ double fn19(double x) {
   return g.scale(x);
 }
 
+// An integer has no tangent to construct with: the tangent object takes the
+// integer's value, which the constructor checks.
+struct Sliced {
+  double ds;
+  int n;
+  Sliced(double ds_, int n_) : ds(ds_), n(n_) {
+    if (n_ <= 0)
+      throw std::invalid_argument("n must be > 0");
+  }
+  double step() const { return ds / n; }
+};
+double fnSliced(double x) {
+  Sliced s(x, 4);
+  return s.step();
+}
+
+// CHECK: double fnSliced_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     Sliced _d_s{_d_x, 4};
+// CHECK-NEXT:     Sliced s{x, 4};
+
+// An integer that sets a real is a constant: its tangent stays 0.
+struct FromInt {
+  double v;
+  FromInt(int n) : v(n) {}
+};
+double fnFromInt(double x) {
+  FromInt s(3);
+  return s.v * x;
+}
+
+// CHECK: double fnFromInt_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     FromInt _d_s(0);
+// CHECK-NEXT:     FromInt s(3);
+
+// An integer handed on to a member's constructor that only counts with it.
+struct Count {
+  int n;
+  Count(int n_) : n(n_) {
+    if (n_ <= 0)
+      throw std::invalid_argument("n must be > 0");
+  }
+};
+struct Mesh {
+  double ds;
+  Count c;
+  Mesh(double ds_, int n_) : ds(ds_), c(n_) {}
+};
+double fnMesh(double x) {
+  Mesh m(x, 4);
+  return m.ds / m.c.n;
+}
+
+// CHECK: double fnMesh_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     Mesh _d_m{_d_x, 4};
+// CHECK-NEXT:     Mesh m{x, 4};
+
+// Handed on to a constructor that makes a real of it, or computed with, the
+// integer is not only a count: its tangent stays 0.
+struct HoldsFromInt {
+  FromInt f;
+  HoldsFromInt(int n) : f(n) {}
+};
+struct MeshNext {
+  Count c;
+  MeshNext(int n) : c(n + 1) {}
+};
+double fnNotCounts(double x) {
+  HoldsFromInt h(3);
+  MeshNext m(0);
+  return h.f.v * m.c.n * x;
+}
+
+// CHECK: double fnNotCounts_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     HoldsFromInt _d_h(0);
+// CHECK-NEXT:     HoldsFromInt h(3);
+// CHECK-NEXT:     MeshNext _d_m(0);
+// CHECK-NEXT:     MeshNext m(0);
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
@@ -1282,4 +1365,9 @@ int main() {
   TEST_DIFFERENTIATE(fn17, A(3.00), B(5.00));   // CHECK-EXEC: {3.00}
   TEST_DIFFERENTIATE(fn18, 7, 3);   // CHECK-EXEC: {9.00}
   TEST_DIFFERENTIATE(fn19, 2);   // CHECK-EXEC: {12.00}
+
+  printf("%.2f\n", clad::differentiate(fnSliced, 0).execute(2)); // CHECK-EXEC: 0.25
+  printf("%.2f\n", clad::differentiate(fnFromInt, 0).execute(2)); // CHECK-EXEC: 3.00
+  printf("%.2f\n", clad::differentiate(fnMesh, 0).execute(2)); // CHECK-EXEC: 0.25
+  printf("%.2f\n", clad::differentiate(fnNotCounts, 0).execute(2)); // CHECK-EXEC: 3.00
 }

@@ -229,11 +229,9 @@ double fn6(dcomplex c, double i) {
 
 // CHECK: void fn6_grad(dcomplex c, double i, dcomplex *_d_c, double *_d_i) {
 // CHECK-NEXT:     c.real(5 * i);
-// CHECK-NEXT:     double _t0 = c.imag();
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = c.real() + 3 * _t0 + 6 * i;
-// CHECK-NEXT:     double _t1 = c.real();
-// CHECK-NEXT:     res += 4 * _t1;
+// CHECK-NEXT:     double res = c.real() + 3 * c.imag() + 6 * i;
+// CHECK-NEXT:     res += 4 * c.real();
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_res;
@@ -257,16 +255,14 @@ double fn7(dcomplex c1, dcomplex c2) {
 }
 
 // CHECK: void fn7_grad(dcomplex c1, dcomplex c2, dcomplex *_d_c1, dcomplex *_d_c2) {
-// CHECK-NEXT:     double _t0 = c2.real();
-// CHECK-NEXT:     c1.real(c2.imag() + 5 * _t0);
-// CHECK-NEXT:     double _t1 = c1.imag();
+// CHECK-NEXT:     c1.real(c2.imag() + 5 * c2.real());
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c1.real_pullback(1, _d_c1);
 // CHECK-NEXT:         c1.imag_pullback(3 * 1, _d_c1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, _d_c1, &_r0);
+// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * c2.real(), _d_c1, &_r0);
 // CHECK-NEXT:         c2.imag_pullback(_r0, _d_c2);
 // CHECK-NEXT:         c2.real_pullback(5 * _r0, _d_c2);
 // CHECK-NEXT:     }
@@ -317,12 +313,11 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK: void fn9_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     double _t1[5];
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
-// CHECK-NEXT:         res += c.real() + 2 * (_t1[i] = c.imag());
+// CHECK-NEXT:         res += c.real() + 2 * c.imag();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     res += sum(t);
 // CHECK-NEXT:     _d_res += 1;
@@ -331,7 +326,6 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         sum_pullback(t, _r_d1, _d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
 // CHECK-NEXT:             c.real_pullback(_r_d0, _d_c);

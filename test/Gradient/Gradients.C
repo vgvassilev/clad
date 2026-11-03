@@ -715,10 +715,7 @@ double fn_template_non_type(double x) {
 // CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
 // CHECK-NEXT:     size_t _d_m = {{0U|0UL}};
 // CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL|15ULL}};
-// CHECK-NEXT:     {
-// CHECK-NEXT:       *_d_x += 1 * m;
-// CHECK-NEXT:       _d_m += x * 1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1 * m;
 // CHECK-NEXT:     if (_cond0)
 // CHECK-NEXT:         _d_maxN += _d_m;
 // CHECK-NEXT: }

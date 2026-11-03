@@ -64,6 +64,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   DiffParams args{};
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
   auto params = BuildParams(args);
+  PrependTemplateTagParams(params);
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
 
@@ -186,7 +187,9 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   const auto* derivativeFnType =
       cast<FunctionProtoType>(m_Derivative->getType());
 
-  std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
+  // The derivative's type starts with its template tags, which are added to
+  // params last.
+  std::size_t dParamTypesIdx = getNumTemplateTags() + m_DiffReq->getNumParams();
 
   QualType tagType;
   if (const auto* CD = dyn_cast<CXXConversionDecl>(m_DiffReq.Function))

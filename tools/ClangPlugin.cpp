@@ -511,10 +511,12 @@ void InitTimers();
               Out.emplace_back(S, VD);
       // A value kept once per iteration goes onto a tape rather than into its
       // own variable. The push is the thing that costs, not the tape.
+      // Only clad::push(tape, value) keeps a value; an operator has no name.
       if (const auto* CE = llvm::dyn_cast<clang::CallExpr>(S))
         if (const clang::FunctionDecl* Callee = CE->getDirectCallee())
-          if (Callee->getName() == "push" && CE->getNumArgs() == 2)
-            Out.emplace_back(S, nullptr);
+          if (const clang::IdentifierInfo* II = Callee->getIdentifier())
+            if (II->isStr("push") && CE->getNumArgs() == 2)
+              Out.emplace_back(S, nullptr);
       for (const clang::Stmt* Child : S->children())
         collectKeptValues(Child, Out);
     }

@@ -358,7 +358,6 @@ public:
   // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
-  // CHECK-NEXT:         _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -1006,7 +1005,6 @@ int main() {
   // CHECK-NEXT:           _d_this->y += 1 * i;
   // CHECK-NEXT:           *_d_i += _t0 * 1;
   // CHECK-NEXT:           *_d_i += 1 * j;
-  // CHECK-NEXT:           _d_j += i * 1;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }
 
@@ -1014,12 +1012,9 @@ int main() {
 
   // CHECK:   void const_volatile_rval_ref_mem_fn_grad_1(double i, double j, volatile SimpleFunctions *_d_this, double *_d_j) const volatile && {
   // CHECK-NEXT:       double _d_i = 0.;
-  // CHECK-NEXT:       double _t0 = (this->x + this->y);
   // CHECK-NEXT:       {
   // CHECK-NEXT:           _d_this->x += 1 * i;
   // CHECK-NEXT:           _d_this->y += 1 * i;
-  // CHECK-NEXT:           _d_i += _t0 * 1;
-  // CHECK-NEXT:           _d_i += 1 * j;
   // CHECK-NEXT:           *_d_j += i * 1;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }

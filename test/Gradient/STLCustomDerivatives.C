@@ -840,7 +840,6 @@ int main() {
 // CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc{};
 // CHECK-NEXT:      std::vector<double> ls({u, v}, alloc);
 // CHECK-NEXT:      std::vector<double> _d_ls({0., 0.}, _d_alloc);
-// CHECK-NEXT:      {{.*}}value_type _t0 = ls[0];
 // CHECK-NEXT:      {
 // CHECK-NEXT:          ls[1] += 1;
 // CHECK-NEXT:          ls[0] += 2 * -1;
@@ -1114,7 +1113,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_x_ptr, _d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(clad::Tag<double>(), x, _d_x_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1143,7 +1142,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, _d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(clad::Tag<double>(), x, _d_s_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
