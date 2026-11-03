@@ -281,6 +281,17 @@ double viaConstRef(double x) {
   return m.at(0) * m.at(1) * x;
 }
 
+// A class without a default constructor starts its adjoint from the value.
+struct Scaled {
+  double a;
+  explicit Scaled(double x) : a(x) {}
+};
+Scaled makeScaled(double x) { return Scaled(2 * x); }
+double viaNoDefault(double x) {
+  Scaled s = makeScaled(x);
+  return s.a * s.a * x;
+}
+
 int main() {
   double result[10];
 
@@ -313,5 +324,9 @@ int main() {
   result[0] = 0;
   clad::hessian(viaConstRef).execute(3, result);
   printf("Result is = {%.2f}\n", result[0]); // CHECK-EXEC: Result is = {36.00}
+  // 4x^3: 24x
+  result[0] = 0;
+  clad::hessian(viaNoDefault).execute(3, result);
+  printf("Result is = {%.2f}\n", result[0]); // CHECK-EXEC: Result is = {72.00}
 
 }
