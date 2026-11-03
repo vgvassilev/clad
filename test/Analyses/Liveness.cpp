@@ -128,13 +128,54 @@ void copyOut(S& s, double* out) { *out = s.a; }
 double pointer(double x) {
   S s{x, 2};
   double o = 0;
+  double* po = &o;
   double r = s.a * x;
-  copyOut(s, &o);
+  copyOut(s, po);
   // CHECK-REMARK: :[[@LINE-1]]:3: remark: clad runs this call in the forward sweep, although nothing reads what it computes there
   // CHECK-REMARK: :[[@LINE-2]]:3: note: the callee writes through a pointer argument
   // CHECK-REMARK: note: to avoid this, make it a call whose results nothing reads (CLAD1006)
   return r;
 }
+
+// `&o` writes o, as passing o by reference does, and nothing reads o after.
+double address(double x) {
+  S s{x, 2};
+  double o = 0;
+  double r = s.a * x;
+  copyOut(s, &o);
+  return r;
+}
+
+// CHECK: void address_grad(double x, double *_d_x) {
+// CHECK: double r = s.a * x;
+// CHECK-NOT: copyOut(s, &o);
+// CHECK: _d_r += 1;
+
+// The address of o is also taken outside the call, so o may be read later.
+double addressTwice(double x) {
+  S s{x, 2};
+  double o = 0;
+  double* q = &o;
+  double r = s.a * x;
+  copyOut(s, &o);
+  // CHECK-REMARK: :[[@LINE-1]]:3: remark: clad runs this call in the forward sweep, although nothing reads what it computes there
+  // CHECK-REMARK: :[[@LINE-2]]:3: note: the function takes the address of something this call writes, so a read through it cannot be ruled out
+  // CHECK-REMARK: note: to avoid this, make it a call whose results nothing reads (CLAD1006)
+  return r + *q;
+}
+
+void cube(double x, double* out) { *out = x * x * x; }
+
+// Only the return reads out. A gradient does not use the value returned.
+double returned(double x) {
+  double out;
+  cube(x, &out);
+  return out;
+}
+
+// CHECK: void returned_grad(double x, double *_d_x) {
+// CHECK-NOT: cube(x, &out);
+// CHECK: cube_pullback(x, &out
 
 [[clad::non_differentiable]] void runHook(S& s, void (*hook)(S&)) {
   if (hook)
@@ -245,6 +286,17 @@ int main() {
   dx = 0;
   clad::gradient(pointer).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 6.00
+  dx = 0;
+  clad::gradient(address).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 6.00
+  // 2 x + 1
+  dx = 0;
+  clad::gradient(addressTwice).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 7.00
+  // 3 x^2
+  dx = 0;
+  clad::gradient(returned).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 27.00
   dx = 0;
   clad::gradient(indirect).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 6.00
