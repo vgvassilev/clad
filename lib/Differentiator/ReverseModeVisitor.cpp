@@ -1261,9 +1261,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // raw operand would drop qualifiers, e.g. a `const char*` condition (as in
     // libstdc++'s basic_string(const char*) constructor) becomes an ill-formed
     // `char* _cond = <const char*>`.
+    // A condition on parameters the function never writes, such as a null
+    // check of an adjoint pointer, is re-evaluated instead of stored.
     Expr* condStored =
-        GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond",
-                          /*force=*/false, m_DiffReq.hasEarlyReturns());
+        m_DiffReq.readsOnlyUnwrittenParams(CO->getCond())
+            ? condDiff.getExpr()
+            : GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond",
+                                /*force=*/false, m_DiffReq.hasEarlyReturns());
     // Convert cond to boolean condition.
     condStored = m_Sema
                      .ActOnCondition(getCurrentScope(), noLoc, condStored,
@@ -1858,6 +1862,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff
   ReverseModeVisitor::VisitCharacterLiteral(const CharacterLiteral* CL) {
     return Clone(CL);
+  }
+
+  StmtDiff ReverseModeVisitor::VisitConstantExpr(const ConstantExpr* CE) {
+    // A constant, such as the condition of an `if constexpr`, whose discarded
+    // branch is not in the instantiation: its derivative is 0.
+    return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
   }
 
   StmtDiff ReverseModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
@@ -2828,8 +2838,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // differentiable so its statically scheduled pullback can propagate it
     // through the implicit object.
     // A call that moves a derivative through a global needs its pullback.
+    // A lambda that captures by reference may write through its captures what
+    // a function writes through its reference parameters.
+    bool capturesByRef =
+        calledLambda &&
+        llvm::any_of(calledLambda->captures(), [](const LambdaCapture& C) {
+          return C.capturesVariable() && C.getCaptureKind() == LCK_ByRef;
+        });
     if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
-        !needsPullbackForRefReturningInstance &&
+        !needsPullbackForRefReturningInstance && !capturesByRef &&
         !m_DiffReq.touchesActiveGlobal(CE))
       nonDiff = true;
 
@@ -3117,6 +3134,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         PreCallStmts.push_back(pushPop.getStmt_dx());
       }
     }
+
+    // The pullback of a lambda reads its by-reference captures as they were
+    // before the call, which may write them: store those it writes and put
+    // them back before the pullback, as for an argument passed by reference.
+    if (capturesByRef && !nonDiff &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass)
+      for (const VarDecl* capVD : m_DiffReq.lambdaCaptureWrites(calledLambda)) {
+        StmtDiff pushPop =
+            StoreAndRestore(BuildDeclRef(getEnclosingCaptureClone(capVD)), "_t",
+                            /*moveToTape=*/false);
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
+      }
 
     // The pullback replays the globals the call assigns. Put them back before
     // it, as the call found them, and once more after it, for the reverse of
@@ -3471,20 +3501,33 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     };
     llvm::SmallVector<RecordedRange, 4> recordedRanges;
     bool useRangeRecords = false;
-    if (usingRestoreTracker && !m_RestoreTracker && hasStoredParams &&
-        !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall &&
-        !callerRestoresWrites) {
+    // The pullback of such a call does not re-execute the callee, so these
+    // range records are the only restore.
+    bool nonReplaying = m_DiffReq.NonReplayingCalls.count(CE) != 0;
+    if ((usingRestoreTracker || nonReplaying) && !m_RestoreTracker &&
+        hasStoredParams && !needsForwPass && pullbackStateType.isNull() &&
+        !isMethodOperatorCall && !callerRestoresWrites) {
       llvm::ArrayRef<WrittenExtent> extents =
           pullbackRequest.getWrittenExtents();
       // Empty where the loop analysis did not run, and there is then nothing
-      // to record from: the tracker stays.
-      useRangeRecords = extents.size() == FD->getNumParams();
+      // to record from: the tracker stays. For a non-replaying call, treat
+      // every pointer-to-non-const argument as written, with unknown extent.
+      bool haveExtents = extents.size() == FD->getNumParams();
+      useRangeRecords = haveExtents || nonReplaying;
       for (std::size_t i = 0, e = FD->getNumParams(); i != e && useRangeRecords;
            ++i) {
-        const WrittenExtent& W = extents[i];
+        QualType parTy = FD->getParamDecl(i)->getType();
+        WrittenExtent Unbounded;
+        Unbounded.K = parTy->isPointerType() &&
+                              !parTy->getPointeeType().isConstQualified()
+                          ? WrittenExtent::Kind::Unknown
+                          : WrittenExtent::Kind::None;
+        // A copy: GCC 13 takes a reference into the ArrayRef temporary for a
+        // dangling one.
+        const WrittenExtent W =
+            haveExtents ? extents.drop_front(i).front() : Unbounded;
         if (W.K == WrittenExtent::Kind::None)
           continue;
-        QualType parTy = FD->getParamDecl(i)->getType();
         if (i >= CE->getNumArgs() || !parTy->isPointerType() ||
             parTy->getPointeeType().isConstQualified()) {
           useRangeRecords = false;
@@ -3513,6 +3556,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             bound = ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy,
                                                       m_Context, W.BoundConst);
         }
+        // Unknown extent: save the whole local array passed as the argument.
+        const auto* arr =
+            nonReplaying
+                ? dyn_cast<DeclRefExpr>(CE->getArg(i)->IgnoreImpCasts())
+                : nullptr;
+        const auto* arrTy =
+            arr ? m_Context.getAsConstantArrayType(arr->getType()) : nullptr;
+        if (!bound && arrTy && arrTy->getElementType()->isArithmeticType())
+          bound = ConstantFolder::synthesizeLiteral(
+              m_Context.UnsignedLongTy, m_Context,
+              arrTy->getSize().getZExtValue());
         if (!bound) {
           useRangeRecords = false;
           break;
@@ -4192,7 +4246,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
 
-      if (L->HasSideEffects(m_Context)) {
+      // Re-evaluate the element access in the reverse pass, as for an array
+      // subscript, instead of storing its address.
+      if (L->HasSideEffects(m_Context) &&
+          !(utils::isPureElementAccess(L, m_Context) &&
+            utils::isPureElementAccess(Ldiff.getExpr(), m_Context))) {
         Expr* E = Ldiff.getExpr();
         llvm::SmallVector<Expr*, 4> returnExprs;
         utils::GetInnermostReturnExpr(E, returnExprs);
@@ -5049,6 +5107,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // use it are promoted there too, and an alias reads no variable that
         // would keep it from moving.
         AddToGlobalBlock(BuildDeclStmt(BuildTypedefNameDecl(TND)));
+      } else if (isa<UsingDirectiveDecl>(D) || isa<UsingDecl>(D)) {
+        // Keep it, so the derivative read back as source finds the same
+        // names. At the top, like an alias: what uses it moves there too.
+        AddToGlobalBlock(BuildDeclStmt(BuildUsing(D)));
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
         if (SADDiff.getDecl())

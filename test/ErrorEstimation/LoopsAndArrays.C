@@ -35,7 +35,7 @@ float func(float* p, int n) {
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             float _r_d0 = _d_sum;
 //CHECK-NEXT:             _d_p[i] += _r_d0;
-//CHECK-NEXT:             p_size = std::max(p_size, i);
+//CHECK-NEXT:             p_size = std::max(p_size, static_cast<unsigned {{int|long}}>(i));
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -168,15 +168,15 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:             sum = _t2[i];
 //CHECK-NEXT:             float _r_d1 = _d_sum;
 //CHECK-NEXT:             _d_x[i] += _r_d1;
-//CHECK-NEXT:             x_size = std::max(x_size, i);
+//CHECK-NEXT:             x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(i));
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_x[i] * x[i] * {{.+}});
 //CHECK-NEXT:             x[i] = _t1[i];
 //CHECK-NEXT:             float _r_d0 = _d_x[i];
 //CHECK-NEXT:             _d_y[i] += _r_d0;
-//CHECK-NEXT:             y_size = std::max(y_size, i);
-//CHECK-NEXT:             x_size = std::max(x_size, i);
+//CHECK-NEXT:             y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(i));
+//CHECK-NEXT:             x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(i));
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -210,62 +210,62 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     _ret_value0 = output[0] + output[1] + output[2];
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_output[0] += 1;
-//CHECK-NEXT:         output_size = std::max(output_size, 0);
+//CHECK-NEXT:         output_size = std::max(output_size, static_cast<unsigned {{int|long}}>(0));
 //CHECK-NEXT:         _d_output[1] += 1;
-//CHECK-NEXT:         output_size = std::max(output_size, 1);
+//CHECK-NEXT:         output_size = std::max(output_size, static_cast<unsigned {{int|long}}>(1));
 //CHECK-NEXT:         _d_output[2] += 1;
-//CHECK-NEXT:         output_size = std::max(output_size, 2);
+//CHECK-NEXT:         output_size = std::max(output_size, static_cast<unsigned {{int|long}}>(2));
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(_d_output[2] * output[2] * {{.+}});
 //CHECK-NEXT:         output[2] = _t2;
 //CHECK-NEXT:         double _r_d2 = _d_output[2];
 //CHECK-NEXT:         _d_output[2] = 0.;
-//CHECK-NEXT:         y_size = std::max(y_size, 1);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(1));
 //CHECK-NEXT:         _d_x[0] += _r_d2 * y[1];
-//CHECK-NEXT:         x_size = std::max(x_size, 0);
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(0));
 //CHECK-NEXT:         _d_y[1] += x[0] * _r_d2;
-//CHECK-NEXT:         y_size = std::max(y_size, 1);
-//CHECK-NEXT:         x_size = std::max(x_size, 1);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(1));
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(1));
 //CHECK-NEXT:         _d_y[0] += -_r_d2 * x[1];
-//CHECK-NEXT:         y_size = std::max(y_size, 0);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(0));
 //CHECK-NEXT:         _d_x[1] += y[0] * -_r_d2;
-//CHECK-NEXT:         x_size = std::max(x_size, 1);
-//CHECK-NEXT:         output_size = std::max(output_size, 2);
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(1));
+//CHECK-NEXT:         output_size = std::max(output_size, static_cast<unsigned {{int|long}}>(2));
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(_d_output[1] * output[1] * {{.+}});
 //CHECK-NEXT:         output[1] = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_output[1];
 //CHECK-NEXT:         _d_output[1] = 0.;
-//CHECK-NEXT:         y_size = std::max(y_size, 0);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(0));
 //CHECK-NEXT:         _d_x[2] += _r_d1 * y[0];
-//CHECK-NEXT:         x_size = std::max(x_size, 2);
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(2));
 //CHECK-NEXT:         _d_y[0] += x[2] * _r_d1;
-//CHECK-NEXT:         y_size = std::max(y_size, 0);
-//CHECK-NEXT:         y_size = std::max(y_size, 2);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(0));
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(2));
 //CHECK-NEXT:         _d_x[0] += -_r_d1 * y[2];
-//CHECK-NEXT:         x_size = std::max(x_size, 0);
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(0));
 //CHECK-NEXT:         _d_y[2] += x[0] * -_r_d1;
-//CHECK-NEXT:         y_size = std::max(y_size, 2);
-//CHECK-NEXT:         output_size = std::max(output_size, 1);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(2));
+//CHECK-NEXT:         output_size = std::max(output_size, static_cast<unsigned {{int|long}}>(1));
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(_d_output[0] * output[0] * {{.+}});
 //CHECK-NEXT:         output[0] = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_output[0];
 //CHECK-NEXT:         _d_output[0] = 0.;
-//CHECK-NEXT:         y_size = std::max(y_size, 2);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(2));
 //CHECK-NEXT:         _d_x[1] += _r_d0 * y[2];
-//CHECK-NEXT:         x_size = std::max(x_size, 1);
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(1));
 //CHECK-NEXT:         _d_y[2] += x[1] * _r_d0;
-//CHECK-NEXT:         y_size = std::max(y_size, 2);
-//CHECK-NEXT:         y_size = std::max(y_size, 1);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(2));
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(1));
 //CHECK-NEXT:         _d_x[2] += -_r_d0 * y[1];
-//CHECK-NEXT:         x_size = std::max(x_size, 2);
+//CHECK-NEXT:         x_size = std::max(x_size, static_cast<unsigned {{int|long}}>(2));
 //CHECK-NEXT:         _d_y[1] += x[2] * -_r_d0;
-//CHECK-NEXT:         y_size = std::max(y_size, 1);
-//CHECK-NEXT:         output_size = std::max(output_size, 0);
+//CHECK-NEXT:         y_size = std::max(y_size, static_cast<unsigned {{int|long}}>(1));
+//CHECK-NEXT:         output_size = std::max(output_size, static_cast<unsigned {{int|long}}>(0));
 //CHECK-NEXT:     }
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     for (; i <= x_size; i++)

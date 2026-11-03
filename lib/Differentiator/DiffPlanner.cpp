@@ -39,6 +39,7 @@
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
+#include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
@@ -51,6 +52,7 @@
 #include "clang/Sema/TemplateDeduction.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -65,6 +67,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 using namespace clang;
 
@@ -369,9 +372,82 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     m_DeferredDGRs.clear();
   }
 
+  /// The variable an lvalue stores into: `g`, `g.v`, `g[i]`.
+  static const DeclRefExpr* assignedVar(const Expr* E) {
+    while (true) {
+      E = E->IgnoreParenImpCasts();
+      if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+        if (ME->isArrow())
+          return nullptr;
+        E = ME->getBase();
+      } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+        // `p[i]` stores through a pointer, not into p.
+        E = ASE->getBase()->IgnoreParenImpCasts();
+        if (!E->getType()->isArrayType())
+          return nullptr;
+      } else {
+        break;
+      }
+    }
+    return dyn_cast<DeclRefExpr>(E);
+  }
+
+  /// Adds to \p Written the variables of \p Vars that \p S may write, or a
+  /// part of: assigns or increments, calls a non-const member function of, or
+  /// passes to a non-const reference parameter.
+  static void collectWrites(const Stmt* S,
+                            const llvm::SmallPtrSetImpl<const VarDecl*>& Vars,
+                            llvm::SmallPtrSetImpl<const VarDecl*>& Written) {
+    auto mark = [&](const Expr* E) {
+      const DeclRefExpr* DRE = assignedVar(E);
+      const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      if (VD && Vars.contains(VD))
+        Written.insert(VD);
+    };
+    if (const auto* BO = dyn_cast<BinaryOperator>(S)) {
+      if (BO->isAssignmentOp())
+        mark(BO->getLHS());
+    } else if (const auto* UO = dyn_cast<UnaryOperator>(S)) {
+      if (UO->isIncrementDecrementOp())
+        mark(UO->getSubExpr());
+    } else if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(S)) {
+      const CXXMethodDecl* MD = MCE->getMethodDecl();
+      if (MD && !MD->isConst() && !MD->isStatic())
+        mark(MCE->getImplicitObjectArgument());
+    } else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(S)) {
+      // `r = other`.
+      if (OCE->isAssignmentOp())
+        mark(OCE->getArg(0));
+    }
+    if (const auto* CE = dyn_cast<CallExpr>(S))
+      if (const FunctionDecl* FD = CE->getDirectCallee())
+        for (unsigned I = 0, N = std::min(CE->getNumArgs(), FD->getNumParams());
+             I < N; ++I)
+          if (utils::isNonConstReferenceType(FD->getParamDecl(I)->getType()))
+            mark(CE->getArg(I));
+    // A child may be absent, an omitted part of the statement.
+    for (const Stmt* Child : S->children())
+      if (Child)
+        collectWrites(Child, Vars, Written);
+  }
+
   bool DiffCollector::TraverseLambdaExpr(LambdaExpr* LE) {
     if (!m_ParentReq)
       return RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(LE);
+    llvm::SmallPtrSet<const VarDecl*, 4> ByRef;
+    for (const LambdaCapture& Cap : LE->captures())
+      if (Cap.capturesVariable() && Cap.getCaptureKind() == LCK_ByRef)
+        ByRef.insert(cast<VarDecl>(Cap.getCapturedVar()));
+    llvm::SmallPtrSet<const VarDecl*, 4> Written;
+    if (!ByRef.empty())
+      collectWrites(LE->getCallOperator()->getBody(), ByRef, Written);
+    std::vector<const VarDecl*> Writes;
+    for (const LambdaCapture& Cap : LE->captures())
+      if (Cap.capturesVariable() &&
+          Written.contains(cast<VarDecl>(Cap.getCapturedVar())))
+        Writes.push_back(cast<VarDecl>(Cap.getCapturedVar()));
+    if (!Writes.empty())
+      m_ParentReq->LambdaCaptureWrites[LE] = std::move(Writes);
     // Create a nested request
     DiffRequest LambdaReq = *m_ParentReq;
 
@@ -628,6 +704,29 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       m_WrittenVarInfo.HasAnalysisRun = true;
     }
     return m_WrittenVarInfo.Written.count(VD) != 0;
+  }
+
+  bool DiffRequest::readsOnlyUnwrittenParams(const Expr* E) const {
+    E = E->IgnoreParens();
+    if (isa<IntegerLiteral, FloatingLiteral, CXXBoolLiteralExpr,
+            CXXNullPtrLiteralExpr>(E))
+      return true;
+    if (const auto* CE = dyn_cast<CastExpr>(E)) {
+      if (CE->getCastKind() != CK_LValueToRValue)
+        return readsOnlyUnwrittenParams(CE->getSubExpr());
+      const auto* DRE = dyn_cast<DeclRefExpr>(CE->getSubExpr()->IgnoreParens());
+      const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+      return PVD && !writesVariable(PVD);
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return (UO->getOpcode() == UO_LNot || UO->getOpcode() == UO_Minus) &&
+             readsOnlyUnwrittenParams(UO->getSubExpr());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      return (BO->isComparisonOp() || BO->isLogicalOp() || BO->isAdditiveOp() ||
+              BO->isMultiplicativeOp()) &&
+             readsOnlyUnwrittenParams(BO->getLHS()) &&
+             readsOnlyUnwrittenParams(BO->getRHS());
+    return false;
   }
 
   bool DiffRequest::isUnreadCall(const Stmt* S) const {
@@ -1056,6 +1155,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   bool DiffRequest::shouldBeRecorded(const Stmt* S) const {
     if (!EnableTBRAnalysis)
+      return true;
+    // TBR analyzes a function, not a lambda's call operator, which may
+    // overwrite its parameters and captures as a function does: record.
+    if (isLambdaCallOperator(Function))
       return true;
 
     if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
@@ -2586,6 +2689,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           forwPassRequest.PullbackStateParam.isNull() &&
           !utils::allocatesIntoRecordParam(request.Function))
         Saved.get()->ReplayableCalls.insert(E);
+      // A custom pullback without a custom reverse_forw does not restore the
+      // memory the call wrote.
+      if (!nonDiff && Saved.get() && hasCustomPullback && !hasCustomReverseForw)
+        Saved.get()->NonReplayingCalls.insert(E);
     }
 
     // The call, the stores around it and its pullback each use an argument.
@@ -2737,24 +2844,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     class Collector : public RecursiveASTVisitor<Collector> {
       GlobalAccess& m_Access;
-      /// The variable an lvalue stores into: `g`, `g.v`, `g[i]`.
-      static const DeclRefExpr* assignedVar(const Expr* E) {
-        while (true) {
-          E = E->IgnoreParenImpCasts();
-          if (const auto* ME = dyn_cast<MemberExpr>(E)) {
-            if (ME->isArrow())
-              return nullptr;
-            E = ME->getBase();
-          } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
-            // `p[i]` stores through a pointer, not into p.
-            E = ASE->getBase()->IgnoreParenImpCasts();
-            if (!E->getType()->isArrayType())
-              return nullptr;
-          } else
-            break;
-        }
-        return dyn_cast<DeclRefExpr>(E);
-      }
       static bool isTracked(const DeclRefExpr* DRE) {
         const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
         return VD && VD->isFileVarDecl() && !VD->getType().isConstQualified() &&

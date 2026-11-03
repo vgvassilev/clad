@@ -4,6 +4,12 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+// A run-time function that calls a consteval one: half() is folded to a
+// constant, whose derivative is 0. Defined before the consteval functions
+// below, which are differentiated at compile time.
+consteval double half() { return 0.5; }
+double scaleHalf(double x) { return x * half(); }
+
 consteval double fn(double x, double y) {
     return (x+y)/2;
 }
@@ -43,10 +49,19 @@ consteval double mul_test() {
     return dx.execute(5, 6, 10);
 }
 
+//CHECK: double scaleHalf_darg0(double x) {
+//CHECK-NEXT:    double _d_x = 1;
+//CHECK-NEXT:    double _t0 = half();
+//CHECK-NEXT:    return _d_x * _t0;
+//CHECK-NEXT: }
+
 int main() {
     constexpr double fn_result = fn_test();
     printf("%.2f\n", fn_result); // CHECK-EXEC: 0.50
 
     constexpr double mul_result = mul_test();
     printf("%.2f\n", mul_result); // CHECK-EXEC: 99.00
+
+    auto d_scaleHalf = clad::differentiate(scaleHalf, "x");
+    printf("%.2f\n", d_scaleHalf.execute(3)); // CHECK-EXEC: 0.50
 }

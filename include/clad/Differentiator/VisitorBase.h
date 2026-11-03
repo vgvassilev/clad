@@ -657,6 +657,9 @@ namespace clad {
     /// m_Sema.PopDeclContextIsUsed.
     clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
                                              bool isInline);
+    /// Re-declares a using-directive or using-declaration of the primal in
+    /// the derivative.
+    clang::Decl* BuildUsing(const clang::Decl* D);
     /// Re-declares \p TND in the derivative and makes it findable there by
     /// name, so the statements that follow can go on naming the type as they
     /// did.

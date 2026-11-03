@@ -302,6 +302,11 @@ public:
   /// variable with static or external storage (a callee may write it), and one
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
+  /// Whether \p E uses only parameters that the function never writes,
+  /// combined with arithmetic, comparison and logical operators. Such an
+  /// expression has the same value anywhere in the body. Globals do not
+  /// qualify: a callee can write them without the body showing it.
+  bool readsOnlyUnwrittenParams(const clang::Expr* E) const;
 
   /// Whether \p S, a statement of the primal's body, is a call whose results
   /// nothing reads, so the forward sweep need not run it. False where the
@@ -370,12 +375,30 @@ public:
   /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
   /// forward sweep may leave such a call out when nothing reads its results.
   std::set<const clang::Expr*> ReplayableCalls;
+  /// Calls in this function that have a user-provided pullback but no
+  /// reverse_forw. The pullback may not re-execute the callee, so the caller
+  /// saves and restores the memory the call writes.
+  std::set<const clang::Expr*> NonReplayingCalls;
   /// The globals each call in this function's body assigns, directly or
   /// through what it calls. Its pullback replays those assignments, so the
   /// reverse sweep puts the globals back around it, as it does for the
   /// arguments the call changes.
   std::map<const clang::Expr*, std::vector<const clang::VarDecl*>>
       CalleeGlobalWrites;
+  /// The variables each lambda in this function's body captures by reference
+  /// and may write, in capture order. The pullback of a call to it reads them
+  /// as they were before the call, so the reverse sweep puts them back around
+  /// it, as it does for the arguments the call changes.
+  std::map<const clang::LambdaExpr*, std::vector<const clang::VarDecl*>>
+      LambdaCaptureWrites;
+  /// The by-reference captures \p LE may write; empty if none.
+  llvm::ArrayRef<const clang::VarDecl*>
+  lambdaCaptureWrites(const clang::LambdaExpr* LE) const {
+    auto found = LambdaCaptureWrites.find(LE);
+    if (found == LambdaCaptureWrites.end())
+      return {};
+    return found->second;
+  }
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
     return ActiveGlobalCalls.count(Call) != 0;

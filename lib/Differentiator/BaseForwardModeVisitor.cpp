@@ -1271,6 +1271,12 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   return StmtDiff(clonedDRE, getZeroInit(clonedDRE->getType()));
 }
 
+StmtDiff BaseForwardModeVisitor::VisitConstantExpr(const ConstantExpr* CE) {
+  // A constant, such as the condition of an `if constexpr`, whose discarded
+  // branch is not in the instantiation: its derivative is 0.
+  return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+}
+
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
   QualType T = IL->getType();
   llvm::APInt zero(m_Context.getIntWidth(T), /*value*/ 0);
@@ -2464,6 +2470,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         const LambdaExpr* LE = utils::getLambdaInit(VD);
         if (LE && diagnoseUnsupportedLambda(LE))
           return {};
+        // The pushforward takes the captures by value, so it would lose what
+        // the body writes through a by-reference one.
+        if (LE && !m_DiffReq.lambdaCaptureWrites(LE).empty()) {
+          diag(DiagnosticsEngine::Error, LE->getCallOperator()->getLocation(),
+               "forward-mode differentiation of a lambda that assigns to a "
+               "by-reference capture is not supported yet");
+          return {};
+        }
         if (LE && LE->capture_size()) {
           // Snapshot each by value capture at creation so a later mutation of
           // the enclosing variable is not observed.
@@ -2591,6 +2605,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       // An alias carries no value and so no derivative, but the statements
       // after it go on naming the type by it.
       decls.push_back(BuildTypedefNameDecl(TND));
+    } else if (isa<UsingDirectiveDecl>(D) || isa<UsingDecl>(D)) {
+      // Keep it, so the derivative read back as source finds the same names.
+      decls.push_back(BuildUsing(D));
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())

@@ -16,12 +16,14 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MathExtras.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <set>
@@ -671,6 +673,65 @@ class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   /// A local the function never writes again, as an affine form of the loop
   /// indices around its declaration, which are still around every use of it.
   llvm::DenseMap<const VarDecl*, AffineIndex> m_LocalForms;
+  /// Per parameter, one past the last element every complete run writes, by
+  /// a statement of the body itself ahead of anything that may leave early:
+  /// the elements below it exist.
+  llvm::DenseMap<unsigned, uint64_t> m_UncondEnd;
+  /// Per parameter, one past the last element any constant extent covers,
+  /// and the parameters some write of which is not constant.
+  llvm::DenseMap<unsigned, uint64_t> m_ConstEnd;
+  llvm::DenseSet<unsigned> m_NonConst;
+
+  /// Raises \p M's entry for \p K to at least \p V.
+  static void raise(llvm::DenseMap<unsigned, uint64_t>& M, unsigned K,
+                    uint64_t V) {
+    auto [It, Inserted] = M.try_emplace(K, V);
+    if (!Inserted)
+      It->second = std::max(It->second, V);
+  }
+
+  static bool mayLeave(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt, GotoStmt, IndirectGotoStmt, LabelStmt, CXXThrowExpr>(S))
+      return true;
+    return llvm::any_of(S->children(), mayLeave);
+  }
+
+  void noteUnconditionalWrites(const Stmt* Body) {
+    const auto* CS = dyn_cast<CompoundStmt>(Body);
+    // Both arms of the same type: LLVM 23 converts body_const_range and
+    // ArrayRef<Stmt*> into each other, which makes a mix ambiguous.
+    for (const Stmt* S :
+         CS ? CS->body() : CompoundStmt::body_const_range(nullptr, nullptr)) {
+      if (mayLeave(S))
+        return;
+      const auto* BO = dyn_cast<BinaryOperator>(S);
+      if (!BO || !BO->isAssignmentOp())
+        continue;
+      const Expr* LHS = BO->getLHS()->IgnoreParenImpCasts();
+      const Expr* Base = nullptr;
+      int64_t At = 0;
+      Expr::EvalResult R;
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(LHS)) {
+        if (!ASE->getIdx()->EvaluateAsInt(R, m_Context) ||
+            R.Val.getInt().isNegative())
+          continue;
+        At = R.Val.getInt().getExtValue();
+        Base = ASE->getBase();
+      } else if (const auto* UO = dyn_cast<UnaryOperator>(LHS);
+                 UO && UO->getOpcode() == UO_Deref) {
+        Base = UO->getSubExpr();
+      } else {
+        continue;
+      }
+      const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
+      const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+      auto It = PVD ? m_ParamIdx.find(PVD) : m_ParamIdx.end();
+      if (It != m_ParamIdx.end())
+        raise(m_UncondEnd, It->second, At + 1);
+    }
+  }
 
 public:
   ExtentVisitor(const FunctionDecl* FD,
@@ -679,6 +740,29 @@ public:
         m_ReadOnly(FD->getBody()) {
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
       m_ParamIdx[FD->getParamDecl(i)] = i;
+    noteUnconditionalWrites(FD->getBody());
+  }
+
+  /// Constant extents that disagree, `p[0]` and `p[1]` say, are covered by
+  /// `[0, n)` where every complete run writes up to `p[n - 1]`: those
+  /// elements exist, and putting back one the call did not write leaves it
+  /// as it was.
+  void coverPrefix() {
+    for (auto E : llvm::enumerate(m_Extents)) {
+      auto i = static_cast<unsigned>(E.index());
+      WrittenExtent& W = E.value();
+      auto End = m_ConstEnd.find(i);
+      auto Uncond = m_UncondEnd.find(i);
+      if (W.K != WrittenExtent::Kind::Unknown ||
+          W.Why != AnalysisMiss::WritesDisagree || m_NonConst.contains(i) ||
+          End == m_ConstEnd.end() || Uncond == m_UncondEnd.end() ||
+          End->second > Uncond->second)
+        continue;
+      W.K = WrittenExtent::Kind::Range;
+      W.Why = AnalysisMiss::None;
+      W.BoundIsParam = false;
+      W.BoundConst = End->second;
+    }
   }
 
   bool TraverseForStmt(ForStmt* FS) {
@@ -1017,6 +1101,12 @@ private:
   /// other, and to Unknown otherwise rather than to a guessed union: a wrong
   /// union would under-record.
   void widen(unsigned Idx, const WrittenExtent& New) {
+    if (New.K == WrittenExtent::Kind::Element)
+      raise(m_ConstEnd, Idx, New.Offset + 1);
+    else if (New.K == WrittenExtent::Kind::Range && !New.BoundIsParam)
+      raise(m_ConstEnd, Idx, New.BoundConst);
+    else
+      m_NonConst.insert(Idx);
     WrittenExtent& Cur = m_Extents[Idx];
     if (Cur.K == WrittenExtent::Kind::None) {
       Cur = New;
@@ -1213,6 +1303,7 @@ computeWrittenExtents(const FunctionDecl* FD,
   }
   ExtentVisitor V(FD, Extents);
   V.TraverseStmt(FD->getBody());
+  V.coverPrefix();
   // Something in the body could write through a parameter without this
   // analysis seeing which one. Report every parameter it could have been as
   // unbounded rather than as untouched, so a caller that gates on isProven()
