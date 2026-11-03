@@ -388,18 +388,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Keep generated variants distinct without changing custom lookup names.
     std::string name = m_DiffReq.ComputeDerivativeName();
-    if (m_DiffReq.AssumeUnselectedInactive) {
+    if (m_DiffReq.AssumeUnselectedInactive)
       name += "_assume_inactive";
-      // Different output subsets can have the same C++ function type. Keep
-      // their symbols distinct as well as their entries in the request cache.
-      if (m_DiffReq.Mode == DiffMode::pullback &&
-          m_DiffReq.DVI.size() != m_DiffReq->getNumParams())
-        for (const ParmVarDecl* P : m_DiffReq->parameters())
-          if (llvm::any_of(m_DiffReq.DVI, [P](const auto& I) {
-                return utils::IsSameParam(I.param, P);
-              }))
-            name += "_" + std::to_string(P->getFunctionScopeIndex());
-    }
 
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
@@ -3240,16 +3230,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (!(utils::isNonConstReferenceType(returnType) ||
               returnType->isPointerType() || returnType->isVoidType()))
           ++adjointStart;
+        auto appendAdjointArgs = [&](llvm::SmallVectorImpl<Expr*>& args) {
+          for (Expr* dx : CallArgDx)
+            args.push_back(dx ? CloneNode(dx)
+                              : utils::BuildDefaultConstructExpr(
+                                    m_Sema, utils::GetNoAdjointType(m_Sema)));
+        };
         if (asGrad && hasDynamicNonDiffParams) {
           llvm::SmallVector<Expr*, 16> taggedArgs;
           for (Expr* arg :
                llvm::ArrayRef<Expr*>(pullbackCallArgs).take_front(adjointStart))
             taggedArgs.push_back(CloneNode(arg));
-          for (Expr* dx : CallArgDx)
-            taggedArgs.push_back(
-                dx ? CloneNode(dx)
-                   : utils::BuildDefaultConstructExpr(
-                         m_Sema, utils::GetNoAdjointType(m_Sema)));
+          appendAdjointArgs(taggedArgs);
           if (Expr* state = getPullbackStateRef())
             taggedArgs.push_back(CloneNode(state));
           const Decl* lookupDecl = FD;
@@ -3292,8 +3284,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             pullbackRequest.NoAdjointThis = false;
           }
           if (hasDynamicNonDiffParams) {
-            // A generated compact pullback is identified by its request, not
-            // just its type: two different output subsets can have that type.
+            // Reuse the derivative planned for this output subset.
             pullbackFD = FindDerivedFunction(pullbackRequest);
           } else {
             llvm::SmallVector<Expr*, 16> taggedArgs =
@@ -3377,6 +3368,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Derivative was not found, request differentiation
         if (!pullbackFD)
           pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
+
+        if (pullbackFD && pullbackRequest.usesNoAdjointParameters() &&
+            !isInCustomDerivatives(pullbackFD)) {
+          // Generated pullbacks use the same output slots as marker customs.
+          pullbackCallArgs.resize(adjointStart);
+          appendAdjointArgs(pullbackCallArgs);
+        }
       }
 
       if (pullbackFD) {
@@ -7211,6 +7209,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
     if (LE)
       FnType = cast<FunctionProtoType>(GetLambdaDerivativeType(LE));
+    bool useNoAdjoint = !LE && m_DiffReq.usesNoAdjointParameters();
 
     // The derivative's type starts with its template tags, which are added
     // to params last.
@@ -7219,7 +7218,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
          i < s - HasThis - HasRet; ++i) {
       const ParmVarDecl* oPVD = FD->getParamDecl(i);
 
-      if (clad::utils::hasNonDifferentiableAttribute(oPVD))
+      bool nonDiff = clad::utils::hasNonDifferentiableAttribute(oPVD);
+      if (nonDiff && !useNoAdjoint)
         continue;
       // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
       // operator== considers params and intervals as different entities and
@@ -7235,7 +7235,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       const ParmVarDecl* PVD = params[i];
       if (!LE && !IsSelected) {
-        m_NonIndepParams.push_back(PVD);
+        if (!nonDiff)
+          m_NonIndepParams.push_back(PVD);
+        if (useNoAdjoint)
+          params.push_back(utils::BuildParmVarDecl(
+              m_Sema, m_Derivative, /*II=*/nullptr, FnType->getParamType(p++)));
         continue;
       }
       llvm::StringRef Name = PVD->getName();

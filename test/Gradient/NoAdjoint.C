@@ -10,6 +10,9 @@ int selected = 0;
 double legacy(double data, double weight) { return data * weight; }
 double compact(double data, double weight) { return data * weight; }
 double generated(double data, double weight) { return data * weight; }
+double generated_middle(double x, double data, double z) {
+  return x * data + x * z;
+}
 double activity(const double& data, double weight) { return data * weight; }
 template <class T> T product(const T& data, const T& weight) {
   return data * weight;
@@ -100,6 +103,9 @@ double compact_loss(double data, double weight) { return compact(data, weight); 
 double generated_loss(double data, double weight) {
   return generated(data, weight);
 }
+double middle_loss(double x, double data, double z) {
+  return generated_middle(x, data, z);
+}
 double activity_loss(double weight) {
   double data = 3;
   return activity(data, weight);
@@ -124,6 +130,7 @@ int main() {
   auto small_data = clad::gradient<clad::opts::assume_unselected_inactive>(compact_loss, "data");
   auto generated_weight = clad::gradient<clad::opts::assume_unselected_inactive>(generated_loss, "weight");
   auto generated_data = clad::gradient<clad::opts::assume_unselected_inactive>(generated_loss, "data");
+  auto middle = clad::gradient<clad::opts::assume_unselected_inactive>(middle_loss, "x,z");
   auto active = clad::gradient<clad::opts::enable_va>(activity_loss);
   auto tagged = clad::gradient<clad::opts::assume_unselected_inactive>(template_loss, "weight");
   auto full = clad::gradient(template_loss);
@@ -148,6 +155,10 @@ int main() {
   generated_data.execute(3, 2, &dd);
   printf("generated: %.0f %.0f\n", dd, dw);
   // CHECK-EXEC: generated: 2 3
+  double dx = 0, dz = 0;
+  middle.execute(2, 3, 5, &dx, &dz);
+  printf("middle marker: %.0f %.0f\n", dx, dz);
+  // CHECK-EXEC: middle marker: 8 2
   dw = 0;
   active.execute(2, &dw);
   printf("activity: %.0f, overload %d\n", dw, selected);
@@ -183,6 +194,15 @@ int main() {
 // CHECK: clad::custom_derivatives::compact_pullback(data, weight, 1, &_r{{[0-9]+}}, &_r{{[0-9]+}});
 // CHECK-LABEL: void compact_loss_grad_0_assume_inactive(
 // CHECK: clad::custom_derivatives::compact_pullback(data, weight, 1, &_r{{[0-9]+}}, &_r{{[0-9]+}});
+// CHECK-LABEL: void generated_pullback_assume_inactive(double data, double weight, double _d_y, clad::no_adjoint, double *_d_weight)
+// CHECK-LABEL: void generated_loss_grad_1_assume_inactive(
+// CHECK: generated_pullback_assume_inactive(data, weight, 1, clad::no_adjoint(), &_r{{[0-9]+}});
+// CHECK-LABEL: void generated_pullback_assume_inactive(double data, double weight, double _d_y, double *_d_data, clad::no_adjoint)
+// CHECK-LABEL: void generated_loss_grad_0_assume_inactive(
+// CHECK: generated_pullback_assume_inactive(data, weight, 1, &_r{{[0-9]+}}, clad::no_adjoint());
+// CHECK-LABEL: void generated_middle_pullback_assume_inactive(double x, double data, double z, double _d_y, double *_d_x, clad::no_adjoint, double *_d_z)
+// CHECK-LABEL: void middle_loss_grad_0_2_assume_inactive(
+// CHECK: generated_middle_pullback_assume_inactive(x, data, z, 1, &_r{{[0-9]+}}, clad::no_adjoint(), &_r{{[0-9]+}});
 // CHECK-LABEL: void template_loss_grad_1_assume_inactive(
 // CHECK: clad::custom_derivatives::product_pullback(data, weight, 1, clad::no_adjoint(),
 // CHECK-LABEL: void array_loss_grad_1_assume_inactive(

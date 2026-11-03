@@ -604,6 +604,10 @@ public:
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
+  /// Generated pullbacks preserve omitted output positions with no_adjoint.
+  bool usesNoAdjointParameters() const {
+    return Mode == DiffMode::pullback && AssumeUnselectedInactive;
+  }
   /// A direct parameter argument whose adjoint the assumption omits.
   bool isAssumedInactive(const clang::Expr* E) const;
   /// Whether \p E names a local variable that is given no adjoint because it

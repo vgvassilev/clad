@@ -494,7 +494,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// trailing restore tracker.
     /// \param[in] isForErrorEstimation whether the derivative also carries the
     /// floating-point error estimate.
-    /// \param[in] inactiveType placeholder for omitted custom pullback outputs.
+    /// \param[in] inactiveType placeholder for omitted pullback outputs.
     /// \param[in] noAdjointThis whether the receiver uses that placeholder too.
     clang::QualType GetDerivativeType(
         clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
