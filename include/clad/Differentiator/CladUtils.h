@@ -674,6 +674,8 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+    /// Whether `T{}` compiles, as Sema decides it.
+    bool isValueInitializable(clang::Sema& S, clang::QualType T);
     /// Returns true if a function returning T must return its adjoint too.
     bool returnsAdjoint(clang::QualType T);
 
