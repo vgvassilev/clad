@@ -7210,7 +7210,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
     if (LE)
       FnType = cast<FunctionProtoType>(GetLambdaDerivativeType(LE));
-    bool useNoAdjoint = !LE && m_DiffReq.Mode == DiffMode::pullback;
+    const bool useNoAdjoint = !LE && m_DiffReq.Mode == DiffMode::pullback;
 
     // The derivative's type starts with its template tags, which are added
     // to params last.
