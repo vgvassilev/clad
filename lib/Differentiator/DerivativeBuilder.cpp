@@ -520,7 +520,10 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     for (const DiffInputVarInfo& VarInfo : request.DVI)
       diffParams.push_back(VarInfo.param);
     QualType DerivativeType = utils::GetDerivativeType(
-        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true);
+        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true,
+        /*shouldUseRestoreTracker=*/false, /*isForErrorEstimation=*/false,
+        request.Mode == DiffMode::pullback ? utils::GetNoAdjointType(m_Sema)
+                                           : QualType());
 
     diag(DiagnosticsEngine::Remark, Loc,
          "clad has no custom derivative for %0 and is differentiating its "

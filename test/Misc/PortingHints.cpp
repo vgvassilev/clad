@@ -21,10 +21,16 @@ double f(double x) {
   return w.scale(x);
 }
 
+double active(double x) {
+  double data = 3;
+  return product(data, x);
+}
+
 int main() {
   auto g = clad::gradient(f);
   double dx = 0;
   g.execute(2, &dx);
+  clad::gradient<clad::opts::enable_va>(active);
 }
 
 // The main-file function under differentiation is never reported as a boundary
@@ -34,6 +40,10 @@ int main() {
 // CHECK: remark: clad has no custom derivative for 'scale' and is differentiating its definition, descending into library internals
 // CHECK: note: to differentiate it, provide clad::custom_derivatives::scale_{{.*}} with signature
 // CHECK: note: or mark it non-differentiable with CLAD_NONDIFFERENTIABLE_TYPE(Widget)
+
+// A missing output must be identified in the suggested custom signature.
+// CHECK: remark: clad has no custom derivative for 'product'
+// CHECK: note: to differentiate it, provide clad::custom_derivatives::product_pullback with signature 'void (const double &, const double &, double, clad::no_adjoint, double *)'
 
 // CHECK-QUIET-NOT: remark:
 
