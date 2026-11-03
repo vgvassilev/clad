@@ -246,9 +246,10 @@ Template customizations can use the same marker. A custom member pullback
 can also put it in the receiver's adjoint slot when
 ``assume_unselected_inactive`` omits that receiver's adjoint.
 
-Selection prefers a marker signature matching all requested outputs, then
-an existing compact signature that omits inactive output slots, then a full
-signature with temporary adjoints for unused outputs. Full custom pullbacks
+Selection prefers a marker signature matching all requested outputs, then a
+full signature with temporary adjoints for unused outputs. Simply deleting
+an output parameter cannot distinguish directions with the same type; use
+``no_adjoint`` to identify which output is absent. Full custom pullbacks
 keep receiving actual output storage; they do not need to accept null
 pointers. Where Clad cannot construct an unused output, a compatible custom
 signature is still needed.

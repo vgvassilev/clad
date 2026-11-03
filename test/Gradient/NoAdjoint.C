@@ -9,6 +9,8 @@ int selected = 0;
 
 double legacy(double data, double weight) { return data * weight; }
 double compact(double data, double weight) { return data * weight; }
+double generated(double data, double weight) { return data * weight; }
+double activity(const double& data, double weight) { return data * weight; }
 template <class T> T product(const T& data, const T& weight) {
   return data * weight;
 }
@@ -42,13 +44,31 @@ void legacy_pullback(double data, double weight, double seed,
   *d_data += weight * seed;
   *d_weight += data * seed;
 }
-// The existing compact convention stays usable.
+// An untagged compact overload cannot say which direction it implements.
+// Even when it matches by type, use the full custom below instead.
 void compact_pullback(double data, double, double seed, double* d_weight) {
-  selected = 2;
+  selected = -1;
   *d_weight += data * seed;
 }
-// Give the planner all three choices, including a compact overload. The
-// position-preserving marker must win over both historical signatures.
+void compact_pullback(double data, double weight, double seed,
+                      double* d_data, double* d_weight) {
+  selected = 2;
+  *d_data += weight * seed;
+  *d_weight += data * seed;
+}
+void activity_pullback(const double& data, double, double seed,
+                       double* d_weight) {
+  selected = -1;
+  *d_weight += data * seed;
+}
+void activity_pullback(const double& data, double weight, double seed,
+                       double* d_data, double* d_weight) {
+  selected = 7;
+  *d_data += weight * seed;
+  *d_weight += data * seed;
+}
+// The position-preserving marker must win over the full signature and the
+// ambiguous compact overload.
 template <class T>
 void product_pullback(const T& data, const T& weight, T seed,
                       T* d_data, T* d_weight) {
@@ -77,6 +97,13 @@ void scaled_product_pullback(::std::integral_constant<int, N>, double data,
 
 double legacy_loss(double data, double weight) { return legacy(data, weight); }
 double compact_loss(double data, double weight) { return compact(data, weight); }
+double generated_loss(double data, double weight) {
+  return generated(data, weight);
+}
+double activity_loss(double weight) {
+  double data = 3;
+  return activity(data, weight);
+}
 double template_loss(double data, double weight) { return product(data, weight); }
 double array_loss(const double* data, double weight) {
   return api::array_product(data, weight);
@@ -94,6 +121,10 @@ double annotated_loss(CLAD_NONDIFFERENTIABLE double data, double weight) {
 int main() {
   auto old = clad::gradient<clad::opts::assume_unselected_inactive>(legacy_loss, "weight");
   auto small = clad::gradient<clad::opts::assume_unselected_inactive>(compact_loss, "weight");
+  auto small_data = clad::gradient<clad::opts::assume_unselected_inactive>(compact_loss, "data");
+  auto generated_weight = clad::gradient<clad::opts::assume_unselected_inactive>(generated_loss, "weight");
+  auto generated_data = clad::gradient<clad::opts::assume_unselected_inactive>(generated_loss, "data");
+  auto active = clad::gradient<clad::opts::enable_va>(activity_loss);
   auto tagged = clad::gradient<clad::opts::assume_unselected_inactive>(template_loss, "weight");
   auto full = clad::gradient(template_loss);
   auto annotated = clad::gradient(annotated_loss, "weight");
@@ -108,11 +139,24 @@ int main() {
   small.execute(3, 2, &dw);
   printf("compact: %.0f, overload %d\n", dw, selected);
   // CHECK-EXEC: compact: 3, overload 2
+  double dd = 0;
+  small_data.execute(3, 2, &dd);
+  printf("compact data: %.0f, overload %d\n", dd, selected);
+  // CHECK-EXEC: compact data: 2, overload 2
+  dd = dw = 0;
+  generated_weight.execute(3, 2, &dw);
+  generated_data.execute(3, 2, &dd);
+  printf("generated: %.0f %.0f\n", dd, dw);
+  // CHECK-EXEC: generated: 2 3
+  dw = 0;
+  active.execute(2, &dw);
+  printf("activity: %.0f, overload %d\n", dw, selected);
+  // CHECK-EXEC: activity: 3, overload 7
   dw = 0;
   tagged.execute(3, 2, &dw);
   printf("tagged template: %.0f, overload %d\n", dw, selected);
   // CHECK-EXEC: tagged template: 3, overload 5
-  double dd = 0;
+  dd = 0;
   dw = 0;
   full.execute(3, 2, &dd, &dw);
   printf("full: %.0f %.0f, overload %d\n", dd, dw, selected);
@@ -136,7 +180,9 @@ int main() {
 // CHECK-NOT: nullptr
 // CHECK: clad::custom_derivatives::legacy_pullback(data, weight, 1, &_r{{[0-9]+}}, &_r{{[0-9]+}});
 // CHECK-LABEL: void compact_loss_grad_1_assume_inactive(
-// CHECK: clad::custom_derivatives::compact_pullback(data, weight, 1, &_r{{[0-9]+}});
+// CHECK: clad::custom_derivatives::compact_pullback(data, weight, 1, &_r{{[0-9]+}}, &_r{{[0-9]+}});
+// CHECK-LABEL: void compact_loss_grad_0_assume_inactive(
+// CHECK: clad::custom_derivatives::compact_pullback(data, weight, 1, &_r{{[0-9]+}}, &_r{{[0-9]+}});
 // CHECK-LABEL: void template_loss_grad_1_assume_inactive(
 // CHECK: clad::custom_derivatives::product_pullback(data, weight, 1, clad::no_adjoint(),
 // CHECK-LABEL: void array_loss_grad_1_assume_inactive(

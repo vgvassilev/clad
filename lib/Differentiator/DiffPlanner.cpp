@@ -1677,8 +1677,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
-                               bool* foundAnyDecl = nullptr,
-                               bool quiet = false) {
+                               bool* foundAnyDecl = nullptr, bool quiet = false,
+                               bool onlyNoAdjoint = false) {
     if (foundAnyDecl)
       *foundAnyDecl = false;
     // Error estimation only uses forward mode derivatives if they are
@@ -1792,8 +1792,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         R.PullbackStateParam = stateArg;
       }
 
-    // Preserve output positions with no_adjoint before trying the historical
-    // signature that omits those parameters entirely.
+    // A marker preserves which output is absent even when several parameters
+    // have the same type. A compact signature cannot identify that direction.
     if (R.Mode == DiffMode::pullback &&
         (R.DVI.size() != R.Function->getNumParams() || R.NoAdjointThis)) {
       QualType taggedTy = utils::GetDerivativeType(
@@ -1814,6 +1814,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return overload;
       }
     }
+    if (onlyNoAdjoint)
+      return nullptr;
 
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
@@ -1878,7 +1880,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request,
-                                                 bool* foundAnyDecl) {
+                                                 bool* foundAnyDecl,
+                                                 bool onlyNoAdjoint) {
     if (foundAnyDecl)
       *foundAnyDecl = false;
     NamespaceDecl* cladNS =
@@ -1934,7 +1937,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
 
-    auto LookupOverload = [this, fnDecl, &request,
+    auto LookupOverload = [this, fnDecl, &request, onlyNoAdjoint,
                            quiet = foundAnyDecl != nullptr](NamespaceDecl* NSD,
                                                             bool* foundDecl) {
       DeclContext* DC = NSD;
@@ -1946,7 +1949,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             m_Sema, DC, utils::GetCustomDerivativeLookupContext(fnDecl));
       if (!DC)
         return static_cast<Expr*>(nullptr);
-      return getOverloadExpr(m_Sema, DC, request, foundDecl, quiet);
+      return getOverloadExpr(m_Sema, DC, request, foundDecl, quiet,
+                             onlyNoAdjoint);
     };
 
     // Look for the user overrides namespace nested inside custom_derivatives
@@ -2357,12 +2361,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           }
         };
         planParams(request, /*dropNoAdjoint=*/true);
-        // Prefer a custom matching the requested outputs. An older full
-        // signature remains usable with disposable adjoints at the call site.
+        // Omitted outputs must be identified by markers in a custom signature.
+        // Otherwise retain the full custom, with disposable adjoints at the
+        // call.
         if (droppedNoAdjoint || request.NoAdjointThis) {
           request.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
           bool declared = false;
-          if (!LookupCustomDerivativeDecl(request, &declared)) {
+          if (!LookupCustomDerivativeDecl(request, &declared,
+                                          /*onlyNoAdjoint=*/true)) {
             DiffRequest full = request;
             planParams(full, /*dropNoAdjoint=*/false);
             full.NoAdjointThis = false;

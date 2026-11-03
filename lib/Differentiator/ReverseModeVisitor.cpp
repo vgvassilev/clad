@@ -388,8 +388,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Keep generated variants distinct without changing custom lookup names.
     std::string name = m_DiffReq.ComputeDerivativeName();
-    if (m_DiffReq.AssumeUnselectedInactive)
+    if (m_DiffReq.AssumeUnselectedInactive) {
       name += "_assume_inactive";
+      // Different output subsets can have the same C++ function type. Keep
+      // their symbols distinct as well as their entries in the request cache.
+      if (m_DiffReq.Mode == DiffMode::pullback &&
+          m_DiffReq.DVI.size() != m_DiffReq->getNumParams())
+        for (const ParmVarDecl* P : m_DiffReq->parameters())
+          if (llvm::any_of(m_DiffReq.DVI, [P](const auto& I) {
+                return utils::IsSameParam(I.param, P);
+              }))
+            name += "_" + std::to_string(P->getFunctionScopeIndex());
+    }
 
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
@@ -3224,14 +3234,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
-        auto findCustom = [&](llvm::SmallVectorImpl<Expr*>& args) {
-          llvm::SmallVector<Expr*, 16> taggedArgs = withTemplateTags(args);
-          Expr* call = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              customPullback, taggedArgs, getCurrentScope(), CE,
-              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
-              CUDAExecConfig);
-          return call ? cast<CallExpr>(call)->getDirectCallee() : nullptr;
-        };
         // Keep every output slot for static overload selection. Real adjoints
         // keep their pointer types; absent ones have only the marker type.
         size_t adjointStart = CallArgs.size();
@@ -3289,7 +3291,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 CloneNode(CallArgDx[0]));
             pullbackRequest.NoAdjointThis = false;
           }
-          pullbackFD = findCustom(pullbackCallArgs);
+          if (hasDynamicNonDiffParams) {
+            // A generated compact pullback is identified by its request, not
+            // just its type: two different output subsets can have that type.
+            pullbackFD = FindDerivedFunction(pullbackRequest);
+          } else {
+            llvm::SmallVector<Expr*, 16> taggedArgs =
+                withTemplateTags(pullbackCallArgs);
+            OverloadedDerivedFn =
+                m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                    customPullback, taggedArgs, getCurrentScope(), CE,
+                    /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+                    CUDAExecConfig);
+            if (auto* call = cast_or_null<CallExpr>(OverloadedDerivedFn))
+              pullbackFD = call->getDirectCallee();
+          }
         }
 
         // Older full signatures remain usable without a nullable-pointer

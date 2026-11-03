@@ -854,9 +854,11 @@ public:
     /// \param[in] request The request for the derivative to lookup.
     /// \param[out] foundAnyDecl If given, the lookup reports nothing, and is
     /// told whether a declaration of the derivative's name exists at all.
+    /// \param[in] onlyNoAdjoint Only match position-preserving marker outputs.
     /// \returns true if a custom derivative was found, false otherwise
     bool LookupCustomDerivativeDecl(DiffRequest& request,
-                                    bool* foundAnyDecl = nullptr);
+                                    bool* foundAnyDecl = nullptr,
+                                    bool onlyNoAdjoint = false);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
