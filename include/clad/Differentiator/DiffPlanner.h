@@ -597,6 +597,12 @@ public:
   /// Whether \p E names a local variable that is given no adjoint because it
   /// does not vary.
   bool isInactiveLocal(const clang::Expr* E) const;
+  /// Whether nothing differentiated flows into the value of \p E: it is an
+  /// inactive local, or built only of constants, parameters not
+  /// differentiated, and locals never written after they are initialized
+  /// from such. The other factor of a product with it is then read by no
+  /// adjoint that matters.
+  bool carriesNoDerivative(const clang::Expr* E) const;
   /// Whether forward mode has to differentiate through the call \p CE. False
   /// only when varied analysis proved that no argument of the call depends on
   /// the direction this request differentiates along. A call the analysis

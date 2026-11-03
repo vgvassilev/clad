@@ -1754,6 +1754,44 @@ namespace clad {
         m_DiffReq.EnableErrorEstimation);
   }
 
+  unsigned VisitorBase::getNumTemplateTags() {
+    if (!utils::TakesTemplateTags(m_DiffReq.Mode))
+      return 0;
+    llvm::SmallVector<QualType, 2> Tags;
+    utils::GetTemplateTagTypes(m_Sema, m_DiffReq.Function, Tags);
+    return Tags.size();
+  }
+
+  void VisitorBase::PrependTemplateTagParams(
+      llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+    // Without its tag, the derivative would be one function for every such
+    // argument, as derivatives of specializations were before tags.
+    llvm::SmallVector<QualType, 2> Unused;
+    if (utils::TakesTemplateTags(m_DiffReq.Mode) &&
+        !utils::GetTemplateTagTypes(m_Sema, m_DiffReq.Function, Unused))
+      diag(DiagnosticsEngine::Error, m_DiffReq->getLocation(),
+           "differentiating a call to a specialization by a template template "
+           "argument is not supported yet");
+    const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
+    llvm::SmallVector<ParmVarDecl*, 2> Tags;
+    for (unsigned I = 0, N = getNumTemplateTags(); I < N; ++I)
+      Tags.push_back(utils::BuildParmVarDecl(m_Sema, m_Derivative,
+                                             &m_Context.Idents.get(""),
+                                             FnType->getParamType(I)));
+    params.insert(params.begin(), Tags.begin(), Tags.end());
+  }
+
+  void VisitorBase::InsertTemplateTagArgs(const FunctionDecl* Callee,
+                                          llvm::SmallVectorImpl<Expr*>& Args,
+                                          unsigned Pos) {
+    llvm::SmallVector<QualType, 2> Tags;
+    utils::GetTemplateTagTypes(m_Sema, Callee, Tags);
+    llvm::SmallVector<Expr*, 2> TagArgs;
+    for (QualType T : Tags)
+      TagArgs.push_back(utils::BuildDefaultConstructExpr(m_Sema, T));
+    Args.insert(Args.begin() + Pos, TagArgs.begin(), TagArgs.end());
+  }
+
   FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {
     // Check if the call is recursive
     if (request == m_DiffReq)

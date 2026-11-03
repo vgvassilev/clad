@@ -740,6 +740,15 @@ double f26(double x) {
   return s[0] * s[0] * 3;
 }
 
+// s is varied after b is declared to point to it: what is read through b
+// is varied, and b has the adjoint the derivative gets back to s through.
+double f27(double x) {
+  double s[2] = {0, 0};
+  Buf25 b{s};
+  s[0] = x;
+  return b.p[0] * b.p[0] * 3;
+}
+
 double f17(double x) {
   double y[2] = {0, 0};
   double* p = &y[1];
@@ -782,6 +791,7 @@ int main(){
     TEST1(f8, 3);// CHECK-EXEC: {1.00}
     TEST1(f25, 3);// CHECK-EXEC: {6.00}
     TEST1(f26, 3);// CHECK-EXEC: {18.00}
+    TEST1(f27, 3);// CHECK-EXEC: {18.00}
                  
     auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
     grad9.execute(3, arr, &dx, darr);

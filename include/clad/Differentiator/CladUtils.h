@@ -575,6 +575,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns type clad::Tag\<T\>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 
+    /// Whether a derivative of \p Mode is one clad calls from another
+    /// derivative, and so takes the template tags of its function.
+    bool TakesTemplateTags(DiffMode Mode);
+    /// The tags a called derivative of \p FD takes first, one for each
+    /// template argument of FD that a call does not deduce: clad::Tag\<T\>
+    /// for a type, std::integral_constant\<T, V\> for a value, as
+    /// std::in_place_type_t and std::in_place_index_t carry them. The
+    /// derivatives of pick\<0\> and pick\<1\> are not templates; the tags
+    /// tell them apart. An argument that is its parameter's default, such as
+    /// an enable_if parameter, is not part of the call and takes no tag.
+    /// \returns false if an argument has no tag yet: a template template
+    /// argument.
+    bool GetTemplateTagTypes(clang::Sema& S, const clang::FunctionDecl* FD,
+                             llvm::SmallVectorImpl<clang::QualType>& Tags);
+
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
@@ -675,6 +690,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool IsDifferentiableType(clang::QualType T);
 
+    /// Whether the parameter \p Idx of the constructor \p Ctor does nothing
+    /// but set integer members, compare, and go on to constructors that do no
+    /// more with it. Its value then never reaches a real, and a tangent object
+    /// may be built with it.
+    bool OnlyCountsWith(const clang::CXXConstructorDecl* Ctor, unsigned Idx);
     /// If \p CE is a memcpy or memmove whose destination or source, before
     /// its conversion to `void*`, holds floating-point data, that type.
     clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);

@@ -286,30 +286,27 @@ double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) 
 // CHECK-NEXT:         power += sq(x[i] - p[i]);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     double _t1 = power;
-// CHECK-NEXT:     double _t3 = sq(sigma);
-// CHECK-NEXT:     double _t2 = (2 * _t3);
+// CHECK-NEXT:     double _t2 = (2 * sq(sigma));
 // CHECK-NEXT:     power = -power / _t2;
-// CHECK-NEXT:     double _t6 = std::pow(2 * 3.1415926535897931, n);
-// CHECK-NEXT:     double _t5 = std::sqrt(_t6 * sigma);
-// CHECK-NEXT:     double _t4 = std::exp(power);
+// CHECK-NEXT:     double _t4 = std::sqrt(std::pow(2 * 3.1415926535897931, n) * sigma);
+// CHECK-NEXT:     double _t3 = std::exp(power);
 // CHECK-NEXT:     double _d_gaus = 0.;
-// CHECK-NEXT:     double gaus = 1. / _t5 * _t4;
+// CHECK-NEXT:     double gaus = 1. / _t4 * _t3;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r8 = 0.;
 // CHECK-NEXT:         _r8 += 1 * clad::custom_derivatives::std::log_pushforward(gaus, 1.).pushforward;
 // CHECK-NEXT:         _d_gaus += _r8;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r3 = _d_gaus * _t4 * -(1. / (_t5 * _t5));
+// CHECK-NEXT:         double _r3 = _d_gaus * _t3 * -(1. / (_t4 * _t4));
 // CHECK-NEXT:         double _r4 = 0.;
-// CHECK-NEXT:         _r4 += _r3 * clad::custom_derivatives::std::sqrt_pushforward(_t6 * sigma, 1.).pushforward;
+// CHECK-NEXT:         _r4 += _r3 * clad::custom_derivatives::std::sqrt_pushforward(std::pow(2 * 3.1415926535897931, n) * sigma, 1.).pushforward;
 // CHECK-NEXT:         double _r5 = 0.;
 // CHECK-NEXT:         double _r6 = 0.;
 // CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(2 * 3.1415926535897931, n, _r4 * sigma, &_r5, &_r6);
 // CHECK-NEXT:         _d_n += _r6;
-// CHECK-NEXT:         _d_sigma += _t6 * _r4;
 // CHECK-NEXT:         double _r7 = 0.;
-// CHECK-NEXT:         _r7 += 1. / _t5 * _d_gaus * clad::custom_derivatives::std::exp_pushforward(power, 1.).pushforward;
+// CHECK-NEXT:         _r7 += 1. / _t4 * _d_gaus * clad::custom_derivatives::std::exp_pushforward(power, 1.).pushforward;
 // CHECK-NEXT:         _d_power += _r7;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -3058,6 +3055,15 @@ double fn51_call(double x) {
   return r + v;
 }
 
+// The same with a constant factor, which carries no derivative with or
+// without the activity analysis.
+double fn51_const_call(double x) {
+  double v = x;
+  double r = fn51_sq(5 * v);
+  v = 3 * x;
+  return r + v;
+}
+
 //CHECK: void fn51_grad(double x, double *_d_x) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     double _d_r = 0., _d_v = 0.;
@@ -3200,5 +3206,10 @@ int main() {
   auto d_fn51_call = clad::gradient<clad::opts::enable_va>(fn51_call);
   result[0] = 0;
   d_fn51_call.execute(2, result);
+  printf("{%.2f}\n", result[0]); // CHECK-EXEC: {103.00}
+
+  auto d_fn51_const_call = clad::gradient(fn51_const_call);
+  result[0] = 0;
+  d_fn51_const_call.execute(2, result);
   printf("{%.2f}\n", result[0]); // CHECK-EXEC: {103.00}
 }

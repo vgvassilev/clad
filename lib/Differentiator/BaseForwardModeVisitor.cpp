@@ -181,6 +181,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   llvm::SmallVector<ParmVarDecl*, 16> params;
   SetupDerivativeParameters(params);
+  PrependTemplateTagParams(params);
 
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
@@ -1682,6 +1683,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            CallArgs.end());
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                            diffArgs.end());
+  // The template tags come first, after the object a member's is called on.
+  InsertTemplateTagArgs(FD, pushforwardFnArgs, /*Pos=*/0);
 
   Expr* callDiff = nullptr;
 
@@ -3231,6 +3234,25 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
         m_Sema, getCurrentScope(), CloneNode(valueAndPushforwardE),
         "pushforward");
     return StmtDiff(valueE, pushforwardE);
+  }
+
+  // An integer has no derivative to construct the tangent with. One the
+  // constructor only counts with -- stores in integer members, compares --
+  // takes the integer's value, which keeps what the constructor checks, such
+  // as a count that has to be positive; the tangent of an integer member reads
+  // as 0 whatever it holds. One that may reach a real keeps its tangent, 0.
+  const CXXConstructorDecl* Ctor = CE->getConstructor();
+  const FunctionDecl* Declared = Ctor->getTemplateInstantiationPattern();
+  if (!Declared)
+    Declared = Ctor;
+  for (unsigned I = 0, N = std::min<unsigned>(derivedArgs.size(),
+                                              Declared->getNumParams());
+       I < N; ++I) {
+    QualType T = Declared->getParamDecl(I)->getType();
+    if (clonedArgs[I] && !T->isDependentType() &&
+        T.getNonReferenceType()->isIntegralOrEnumerationType() &&
+        utils::OnlyCountsWith(Ctor, I))
+      derivedArgs[I] = CloneNode(clonedArgs[I]);
   }
 
   // Custom derivative not found. Create simple constructor calls based on the

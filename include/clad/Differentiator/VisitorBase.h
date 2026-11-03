@@ -1104,6 +1104,18 @@ namespace clad {
     /// Builds the QualType of the derivative to be generated.
     ///
     clang::QualType GetDerivativeType();
+    /// The number of template tags the derivative takes first; see
+    /// utils::GetTemplateTagTypes.
+    unsigned getNumTemplateTags();
+    /// Builds the template tags of the derivative, unnamed, at the front of
+    /// \p params.
+    void PrependTemplateTagParams(
+        llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+    /// Inserts at \p Pos of \p Args the tags a call to a derivative of
+    /// \p Callee passes.
+    void InsertTemplateTagArgs(const clang::FunctionDecl* Callee,
+                               llvm::SmallVectorImpl<clang::Expr*>& Args,
+                               unsigned Pos);
 
     /// Which flavour of overload CreateDerivativeOverload should build.
     ///
