@@ -767,6 +767,63 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_WrittenVarInfo.OnlyLocals;
   }
 
+  /// Collects the calls in \p Body that write their arguments and whose value
+  /// is an operand of another expression.
+  static void findCallsInExpressions(const Stmt* Body,
+                                     std::set<const Stmt*>& Calls) {
+    class Finder : public RecursiveASTVisitor<Finder> {
+      std::set<const Stmt*>& m_Calls;
+
+      static bool writesArguments(const CallExpr* CE) {
+        const FunctionDecl* FD = CE->getDirectCallee();
+        return FD && llvm::any_of(FD->parameters(), [](const ParmVarDecl* P) {
+                 QualType T = P->getType();
+                 return (T->isLValueReferenceType() &&
+                         !T.getNonReferenceType().isConstQualified()) ||
+                        (T->isPointerType() &&
+                         !T->getPointeeType().isConstQualified());
+               });
+      }
+
+    public:
+      explicit Finder(std::set<const Stmt*>& Calls) : m_Calls(Calls) {}
+      bool VisitExpr(Expr* E) {
+        // What computes nothing is not the expression around an operand.
+        if (isa<ImplicitCastExpr, ParenExpr, FullExpr, MaterializeTemporaryExpr,
+                CXXBindTemporaryExpr>(E))
+          return true;
+        const Expr* RHS = nullptr;
+        if (const auto* BO = dyn_cast<BinaryOperator>(E))
+          if (BO->isAssignmentOp())
+            RHS = BO->getRHS()->IgnoreImplicit()->IgnoreParens();
+        for (const Stmt* Child : E->children()) {
+          const auto* Op = dyn_cast_or_null<Expr>(Child);
+          if (!Op)
+            continue;
+          Op = Op->IgnoreImplicit()->IgnoreParens();
+          const auto* CE = dyn_cast<CallExpr>(Op);
+          if (CE && CE != RHS && !isa<CXXOperatorCallExpr>(CE) &&
+              CE->isPRValue() && !CE->getType()->isVoidType() &&
+              writesArguments(CE))
+            m_Calls.insert(CE);
+        }
+        return true;
+      }
+    } F(Calls);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    F.TraverseStmt(const_cast<Stmt*>(Body));
+  }
+
+  bool DiffRequest::isCallInExpression(const CallExpr* CE) const {
+    if (!m_CallInExpressionInfo.HasAnalysisRun) {
+      const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+      if (Def && Def->hasBody())
+        findCallsInExpressions(Def->getBody(), m_CallInExpressionInfo.Calls);
+      m_CallInExpressionInfo.HasAnalysisRun = true;
+    }
+    return m_CallInExpressionInfo.Calls.count(CE) != 0;
+  }
+
   bool DiffRequest::isUnreadCall(const Stmt* S) const {
     // Only a sweep that goes on into its own reverse can leave work out: a
     // reverse_forw hands its results to its caller, a jacobian its output.

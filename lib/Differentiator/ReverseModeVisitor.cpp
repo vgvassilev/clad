@@ -3907,6 +3907,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                  .get();
     }
 
+    // A call that writes its arguments, inside a larger expression, runs in
+    // place: a later call in the expression sees what it wrote, and it runs
+    // even when nothing reads its value.
+    if (hasStoredParams && m_DiffReq.isCallInExpression(CE)) {
+      if (isInsideLoop())
+        call = GlobalStoreAndRef(call, "_t", /*force=*/true);
+      else
+        call = StoreAndRef(call, direction::forward, "_t",
+                           /*forceDeclCreation=*/true);
+    }
+
     // Resolve zero_like before storing the primal so a failed lookup leaves
     // no extra temporaries or loop tapes on the fallback path.
     if (FunctionDecl* zeroLike =
