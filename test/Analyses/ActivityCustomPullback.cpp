@@ -41,7 +41,7 @@ double reducedFirst(double x) {
 }
 
 // CHECK-NOT: void inner_pullback(
-// CHECK: void h_pullback(const E &e, double x, double _d_y, double *_d_x) {
+// CHECK: void h_pullback(const E &e, double x, double _d_y, clad::no_adjoint, double *_d_x) {
 // CHECK: E _r{{[0-9]+}} = {0.};
 // CHECK-NEXT: clad::custom_derivatives::inner_pullback(e, x, _d_y, &_r{{[0-9]+}}, &_r{{[0-9]+}});
 // CHECK-NOT: void inner_pullback(
@@ -78,7 +78,7 @@ double others(double x) {
 }
 
 // CHECK-NOT: void apply_pullback(
-// CHECK: void method_pullback(const E &e, double x, double _d_y, double *_d_x) {
+// CHECK: void method_pullback(const E &e, double x, double _d_y, clad::no_adjoint, double *_d_x) {
 // CHECK: E _r{{[0-9]+}} = {0.};
 // CHECK-NEXT: clad::custom_derivatives::class_functions::apply_pullback(&op, e, x, _d_y, &_d_op, &_r{{[0-9]+}}, &_r{{[0-9]+}});
 // CHECK-NOT: void apply_pullback(

@@ -25,7 +25,7 @@ double linearAndNonlinear(double x, double y) {
   return s * a;
 }
 
-// CHECK: inline void linearAndNonlinear_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1) {
+// CHECK: inline void linearAndNonlinear_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, clad::no_adjoint, clad::no_adjoint) {
 // CHECK-NEXT:     int _d_d_i = 0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t0;

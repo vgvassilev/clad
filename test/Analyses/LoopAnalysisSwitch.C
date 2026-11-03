@@ -107,7 +107,7 @@ double f(const double* x, const double* w, int n) {
 // CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 43]]:3: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-OFF: note: the loop analysis is off (-fdisable-analysis=loop)
 
-// CHECK-CODE: void sum_pullback(const double *x, const double *w, int n, double _d_y, double *_d_x, int *_d_n) {
+// CHECK-CODE: void sum_pullback(const double *x, const double *w, int n, double _d_y, double *_d_x, clad::no_adjoint, int *_d_n) {
 // CHECK-CODE: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-CODE: double _acc0 = 0.;
 // CHECK-CODE: _acc0 += _r_d0 * w[j];
@@ -117,7 +117,7 @@ double f(const double* x, const double* w, int n) {
 // onto a tape, for the inner loop -- and the adjoint is accumulated where it
 // stands. The values are the same either way: an analysis may change the code
 // clad generates, never what that code computes.
-// CHECK-CONSERVATIVE: void sum_pullback(const double *x, const double *w, int n, double _d_y, double *_d_x, int *_d_n) {
+// CHECK-CONSERVATIVE: void sum_pullback(const double *x, const double *w, int n, double _d_y, double *_d_x, clad::no_adjoint, int *_d_n) {
 // CHECK-CONSERVATIVE: clad::tape<unsigned {{int|long|long long}}> _t1 = {};
 // CHECK-CONSERVATIVE: for (; _t0; _t0--) {
 // CHECK-CONSERVATIVE-NOT: _acc

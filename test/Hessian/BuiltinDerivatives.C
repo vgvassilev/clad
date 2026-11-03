@@ -18,14 +18,14 @@ float f1(float x) {
 // CHECK-NEXT:     return {_t0.value + _t1.value, _t0.pushforward + _t1.pushforward};
 // CHECK-NEXT: }
 
-// CHECK: inline void f1_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
+// CHECK: inline void f1_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint);
 
 // CHECK: void f1_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f1_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK-NEXT:     f1_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT: }
 
@@ -38,14 +38,14 @@ float f2(float x) {
 // CHECK-NEXT:     return {_t0.value, _t0.pushforward};
 // CHECK-NEXT: }
 
-// CHECK: inline void f2_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
+// CHECK: inline void f2_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint);
 
 // CHECK: void f2_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f2_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK-NEXT:     f2_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT: }
 
@@ -59,14 +59,14 @@ float f3(float x) {
 // CHECK-NEXT:     return {_t0.value, _t0.pushforward};
 // CHECK-NEXT: }
 
-// CHECK: inline void f3_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
+// CHECK: inline void f3_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint);
 
 // CHECK: void f3_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f3_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK-NEXT:     f3_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT: }
 
@@ -80,14 +80,14 @@ float f4(float x) {
 // CHECK-NEXT:     return {_t0.value, _t0.pushforward};
 // CHECK-NEXT: }
 
-// CHECK: inline void f4_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
+// CHECK: inline void f4_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint);
 
 // CHECK: void f4_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f4_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK-NEXT:     f4_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT: }
 
@@ -101,14 +101,14 @@ float f5(float x) {
 // CHECK-NEXT:     return {_t0.value, _t0.pushforward};
 // CHECK-NEXT: }
 
-// CHECK: inline void f5_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
+// CHECK: inline void f5_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint);
 
 // CHECK: void f5_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f5_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK-NEXT:     f5_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT: }
 
@@ -123,7 +123,7 @@ float f6(float x, float y) {
 // CHECK-NEXT: }
 
 
-// CHECK: inline void f6_pushforward_pullback(float x, float y, float _d_x, float _d_y, clad::ValueAndPushforward<float, float> _d_y0, float *_d_x0, float *_d_y1);
+// CHECK: inline void f6_pushforward_pullback(float x, float y, float _d_x, float _d_y, clad::ValueAndPushforward<float, float> _d_y0, float *_d_x0, float *_d_y1, clad::no_adjoint, clad::no_adjoint);
 
 // CHECK: void f6_hessian(float x, float y, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
@@ -131,10 +131,10 @@ float f6(float x, float y) {
 // CHECK-NEXT:     float _d_x(0.F);
 // CHECK-NEXT:     float _d_y0(0.F);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f6_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     f6_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT:     _d_y0 = 1.;
-// CHECK-NEXT:     f6_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+// CHECK-NEXT:     f6_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_y0 = 0.;
 // CHECK-NEXT: }
 
@@ -218,7 +218,7 @@ int main() {
 
 // CHECK: inline void cos_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
-// CHECK: inline void f1_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0) {
+// CHECK: inline void f1_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint) {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t1 = {0.F, 0.F};
@@ -245,7 +245,7 @@ int main() {
 
 // CHECK: inline void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
-// CHECK: inline void f2_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0) {
+// CHECK: inline void f2_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint) {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::exp_pushforward(x, _d_x);
 // CHECK-NEXT:     {
@@ -262,7 +262,7 @@ int main() {
 
 // CHECK: inline void log_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
-// CHECK: inline void f3_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0) {
+// CHECK: inline void f3_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint) {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::log_pushforward(x, _d_x);
 // CHECK-NEXT:     {
@@ -279,7 +279,7 @@ int main() {
 
 // CHECK: inline void pow_pushforward_pullback(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent);
 
-// CHECK: inline void f4_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0) {
+// CHECK: inline void f4_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint) {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(x, 4.F, _d_x, 0.F);
 // CHECK-NEXT:     {
@@ -296,7 +296,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: inline void f5_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0) {
+// CHECK: inline void f5_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0, clad::no_adjoint) {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(2.F, x, 0.F, _d_x);
 // CHECK-NEXT:     {
@@ -313,7 +313,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: inline void f6_pushforward_pullback(float x, float y, float _d_x, float _d_y, clad::ValueAndPushforward<float, float> _d_y0, float *_d_x0, float *_d_y1) {
+// CHECK: inline void f6_pushforward_pullback(float x, float y, float _d_x, float _d_y, clad::ValueAndPushforward<float, float> _d_y0, float *_d_x0, float *_d_y1, clad::no_adjoint, clad::no_adjoint) {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     {

@@ -214,11 +214,8 @@ also covers storage reached through those parameters: it must not alias or
 receive active state needed to compute the requested gradient. The ``f``
 example above violates the promise. Clad does not check it.
 
-Ordinary local intermediates still get adjoints. Nested generated pullbacks
-use ``clad::no_adjoint`` for unrequested output parameters. Different output
-subsets then have distinct overload signatures, just as marker custom
-pullbacks do. The marker carries no adjoint storage; a by-value parameter
-copy that becomes active inside the callee can still need a local adjoint.
+Ordinary local intermediates still get adjoints. A by-value parameter copy
+that becomes active inside a nested pullback can still need a local adjoint.
 
 Static selection of custom pullback outputs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -244,6 +241,10 @@ For example::
 When only ``dy`` is needed, Clad emits
 ``f_pullback(x, y, seed, clad::no_adjoint(), &dy)``. The selected overload
 contains no work or storage for ``dx`` and needs no runtime null check.
+Clad-generated pullbacks use the same marker for unrequested outputs,
+including those omitted by activity analysis without any assumption option.
+This preserves parameter positions and distinguishes output subsets with the
+same adjoint types. It does not change which derivatives the request needs.
 Template customizations can use the same marker. A custom member pullback
 can also put it in the receiver's adjoint slot when
 ``assume_unselected_inactive`` omits that receiver's adjoint.

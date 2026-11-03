@@ -2029,6 +2029,9 @@ namespace clad {
                       bool isForErrorEstimation, QualType inactiveType,
                       bool noAdjointThis) {
       ASTContext& C = S.getASTContext();
+      // Keep omitted outputs identifiable in every generated pullback.
+      if (mode == DiffMode::pullback && !forCustomDerv)
+        inactiveType = GetNoAdjointType(S);
       if (mode == DiffMode::forward) {
         // A function returning void leaves its result in a parameter, and the
         // tangent of that parameter is the only thing its derivative has to

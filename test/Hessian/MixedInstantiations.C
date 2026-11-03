@@ -28,7 +28,7 @@ double sumOfScales(double x) { return scale(x, 2.) + scale(x, 3); }
 // CHECK: inline void scale_pushforward_pullback(double x, double n, double _d_x, double _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, double *_d_n0, double *_d_d_x, double *_d_d_n);
 // CHECK-NEXT: inline void scale_pushforward_pullback(double x, int n, double _d_x, int _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, int *_d_n0, double *_d_d_x, int *_d_d_n);
 
-// CHECK: inline void sumOfScales_pushforward_pullback(double x, double _d_x, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0) {
+// CHECK: inline void sumOfScales_pushforward_pullback(double x, double _d_x, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, clad::no_adjoint) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = scale_pushforward(x, 2., _d_x, 0.);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_t1 = {0., 0.};

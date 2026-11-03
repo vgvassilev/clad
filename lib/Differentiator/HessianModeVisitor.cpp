@@ -133,28 +133,15 @@ HessianModeVisitor::DeriveVectorProductFunctions(const DiffParams& args) {
   pullbackReq.m_CladLoopCheckpoints = m_DiffReq.m_CladLoopCheckpoints;
   // Adjoints for the parameters the hessian was requested for, in parameter
   // order: those are the rows the wrapper fills in.
-  size_t numAdjoints = 0;
-  std::string subsetSuffix;
   for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
-    if (std::find(args.begin(), args.end(), FD->getParamDecl(i)) !=
-        args.end()) {
+    if (std::find(args.begin(), args.end(), FD->getParamDecl(i)) != args.end())
       pullbackReq.DVI.push_back(pushforwardFD->getParamDecl(i));
-      ++numAdjoints;
-      subsetSuffix += "_" + std::to_string(i);
-    }
-  // A pullback w.r.t. a subset of the parameters is its own function: two
-  // subsets of equal size would otherwise produce two inline definitions
-  // with one signature and different bodies, of which the linker silently
-  // keeps one for both. Encode the subset the way restricted grads and
-  // hessians encode theirs.
-  if (numAdjoints != FD->getNumParams())
-    pullbackReq.BaseFunctionName += subsetSuffix;
 
   FunctionDecl* pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackReq);
   // The wrapper builds the call by position, so anything but
-  // `(pushforward parameters..., _d_y, adjoints...)` is not ours to call.
-  if (!pullbackFD || pullbackFD->getNumParams() !=
-                         pushforwardFD->getNumParams() + 1 + numAdjoints)
+  // `(pushforward parameters..., _d_y, output slots...)` is not ours to call.
+  if (!pullbackFD ||
+      pullbackFD->getNumParams() != (2 * pushforwardFD->getNumParams()) + 1)
     return {nullptr, nullptr}; // LCOV_EXCL_LINE
   return {pushforwardFD, pullbackFD};
 }
@@ -320,8 +307,11 @@ DerivativeAndOverload HessianModeVisitor::BuildHessianFromVectorProducts(
       // pullback can accumulate straight into the matrix.
       size_t column = 0;
       for (unsigned p = 0; p != numParams; ++p) {
-        if (posInRequested[p] < 0)
+        if (posInRequested[p] < 0) {
+          callArgs.push_back(utils::BuildDefaultConstructExpr(
+              m_Sema, utils::GetNoAdjointType(m_Sema)));
           continue;
+        }
         llvm::APInt offset(sizeTypeBits,
                            row * TotalIndependentArgsSize + column);
         Expr* offsetArg =
@@ -329,6 +319,10 @@ DerivativeAndOverload HessianModeVisitor::BuildHessianFromVectorProducts(
         callArgs.push_back(BuildOp(BO_Add, CloneNode(Result), offsetArg));
         column += IndependentArgsSize[posInRequested[p]];
       }
+      // Tangents seed directions; their adjoints are not Hessian outputs.
+      for (unsigned p = 0; p != numParams; ++p)
+        callArgs.push_back(utils::BuildDefaultConstructExpr(
+            m_Sema, utils::GetNoAdjointType(m_Sema)));
       block.push_back(BuildCallExprToFunction(pullbackFD, callArgs));
 
       // Clear the seed so the next direction starts from e_0.

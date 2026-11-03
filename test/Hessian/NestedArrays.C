@@ -47,7 +47,7 @@ double f2_outer(double x) {
 // CHECK-NEXT:     return {_t0 * x, (_d_p[0] * x + p[0] * _d_x) * x + _t0 * _d_x};
 // CHECK-NEXT: }
 
-// CHECK: inline void f0_inner_pushforward_pullback(double *params, double *_d_params, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
+// CHECK: inline void f0_inner_pushforward_pullback(double *params, double *_d_params, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0, clad::no_adjoint) {
 // CHECK-NEXT:     double _d_t0 = 0.;
 // CHECK-NEXT:     double _t00 = params[0] * params[1];
 // CHECK-NEXT:     {

@@ -35,7 +35,7 @@ double f(double x) {
   return h(a, x) + h(b, x);
 }
 
-// CHECK: void inner_pullback(const E &e, double x, double _d_y, double *_d_x) {
+// CHECK: void inner_pullback(const E &e, double x, double _d_y, clad::no_adjoint, double *_d_x) {
 // CHECK: get_pullback(_d_y);
 // CHECK: set_pullback(x * e.k, &_r0);
 // CHECK: *_d_x += _r0 * e.k;

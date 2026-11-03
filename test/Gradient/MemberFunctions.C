@@ -762,7 +762,7 @@ struct B {
   }
 };
 
-// CHECK:  void scale_pullback(const float *in, float *out, B *_d_this, float *_d_out) const {
+// CHECK:  void scale_pullback(const float *in, float *out, B *_d_this, clad::no_adjoint, float *_d_out) const {
 // CHECK-NEXT:      out[0] = in[0] * this->m;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          float _r_d0 = _d_out[0];
@@ -782,7 +782,7 @@ float fn12(const B b, const float* in) {
 // CHECK-NEXT:      float res = 0;
 // CHECK-NEXT:      b.scale(in, &res);
 // CHECK-NEXT:      _d_res += 1;
-// CHECK-NEXT:      b.scale_pullback(in, &res, _d_b, &_d_res);
+// CHECK-NEXT:      b.scale_pullback(in, &res, _d_b, clad::no_adjoint(), &_d_res);
 // CHECK-NEXT:  }
 
 struct C {

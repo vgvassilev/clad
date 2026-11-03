@@ -12,13 +12,13 @@ double f(double i, double j[2]) { return i * j[0] * j[1]; }
 // CHECK-NEXT:     double _d_i(0.);
 // CHECK-NEXT:     double _d_j[2]{0};
 // CHECK-NEXT:     _d_i = 1.;
-// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_i = 0.;
 // CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 1.;
-// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 0.;
 // CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 1.;
-// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT: }
 
@@ -29,13 +29,13 @@ double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 // CHECK-NEXT:     double _d_i(0.);
 // CHECK-NEXT:     double _d_j[2]{0};
 // CHECK-NEXT:     _d_i = 1.;
-// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_i = 0.;
 // CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 1.;
-// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 0.;
 // CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 1.;
-// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT: }
 

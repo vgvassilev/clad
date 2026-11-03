@@ -3369,9 +3369,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (!pullbackFD)
           pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
-        if (pullbackFD && pullbackRequest.usesNoAdjointParameters() &&
+        if (pullbackFD && asGrad && !OverloadedDerivedFn &&
             !isInCustomDerivatives(pullbackFD)) {
           // Generated pullbacks use the same output slots as marker customs.
+          // A full fallback call already has storage for every output.
           pullbackCallArgs.resize(adjointStart);
           appendAdjointArgs(pullbackCallArgs);
         }
@@ -7209,7 +7210,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
     if (LE)
       FnType = cast<FunctionProtoType>(GetLambdaDerivativeType(LE));
-    bool useNoAdjoint = !LE && m_DiffReq.usesNoAdjointParameters();
+    bool useNoAdjoint = !LE && m_DiffReq.Mode == DiffMode::pullback;
 
     // The derivative's type starts with its template tags, which are added
     // to params last.

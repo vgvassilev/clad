@@ -614,7 +614,7 @@ double f21(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         f15_1_pullback(x, pick, 1, &_r0);
+// CHECK-NEXT:         f15_1_pullback(x, pick, 1, &_r0, clad::no_adjoint());
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }

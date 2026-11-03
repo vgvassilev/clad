@@ -22,19 +22,19 @@ double manyDirections(double* p, double q) {
 // CHECK-NEXT:     double _d_p[4]{0};
 // CHECK-NEXT:     double _d_q(0.);
 // CHECK-NEXT:     _d_p[{{0U|0UL|0ULL}}] = 1.;
-// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{4U|4UL|4ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_p[{{0U|0UL|0ULL}}] = 0.;
 // CHECK-NEXT:     _d_p[{{1U|1UL|1ULL}}] = 1.;
-// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{5U|5UL|5ULL}}, hessianMatrix + {{9U|9UL|9ULL}});
+// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{5U|5UL|5ULL}}, hessianMatrix + {{9U|9UL|9ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_p[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT:     _d_p[{{2U|2UL|2ULL}}] = 1.;
-// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{10U|10UL|10ULL}}, hessianMatrix + {{14U|14UL|14ULL}});
+// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{10U|10UL|10ULL}}, hessianMatrix + {{14U|14UL|14ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_p[{{2U|2UL|2ULL}}] = 0.;
 // CHECK-NEXT:     _d_p[{{3U|3UL|3ULL}}] = 1.;
-// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{15U|15UL|15ULL}}, hessianMatrix + {{19U|19UL|19ULL}});
+// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{15U|15UL|15ULL}}, hessianMatrix + {{19U|19UL|19ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_p[{{3U|3UL|3ULL}}] = 0.;
 // CHECK-NEXT:     _d_q = 1.;
-// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{20U|20UL|20ULL}}, hessianMatrix + {{24U|24UL|24ULL}});
+// CHECK-NEXT:     manyDirections_pushforward_pullback(p, q, _d_p, _d_q, _d_y, hessianMatrix + {{20U|20UL|20ULL}}, hessianMatrix + {{24U|24UL|24ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_q = 0.;
 // CHECK-NEXT: }
 
@@ -49,24 +49,23 @@ double someDirections(double* p, const double* x) {
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     double _d_p[2]{0};
 // CHECK-NEXT:     _d_p[{{0U|0UL|0ULL}}] = 1.;
-// CHECK-NEXT:     someDirections_pushforward_0_pullback(p, x, _d_p, nullptr, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK-NEXT:     someDirections_pushforward_pullback(p, x, _d_p, nullptr, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint(), clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_p[{{0U|0UL|0ULL}}] = 0.;
 // CHECK-NEXT:     _d_p[{{1U|1UL|1ULL}}] = 1.;
-// CHECK-NEXT:     someDirections_pushforward_0_pullback(p, x, _d_p, nullptr, _d_y, hessianMatrix + {{2U|2UL|2ULL}});
+// CHECK-NEXT:     someDirections_pushforward_pullback(p, x, _d_p, nullptr, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, clad::no_adjoint(), clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_p[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT: }
 
 // Two hessians of one function w.r.t. different single parameters take two
-// different pullbacks of the same pushforward. The subset is part of the
-// pullback's name: with one name, the two same-signature inline definitions
-// would collapse onto one symbol and one body would serve both hessians.
+// different pullbacks of the same pushforward. Marker output slots give them
+// different signatures, so each hessian calls the body for its own subset.
 double twoSubsets(double x, double y) { return x * x * y + y * y; }
 
 // CHECK:  void twoSubsets_hessian_0(double x, double y, double *hessianMatrix) {
-// CHECK:  twoSubsets_pushforward_0_pullback(x, y, _d_x, 0., _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK:  twoSubsets_pushforward_pullback(x, y, _d_x, 0., _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint(), clad::no_adjoint(), clad::no_adjoint());
 
 // CHECK:  void twoSubsets_hessian_1(double x, double y, double *hessianMatrix) {
-// CHECK:  twoSubsets_pushforward_1_pullback(x, y, 0., _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+// CHECK:  twoSubsets_pushforward_pullback(x, y, 0., _d_y0, _d_y, clad::no_adjoint(), hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint(), clad::no_adjoint());
 
 int main() {
   double p[4] = {2., 3., 5., 7.};
