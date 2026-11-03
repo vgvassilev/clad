@@ -121,11 +121,12 @@ double fn3(double i, double j) {
   return i;
 }
 
+// Only the return reads what the second call writes, so the forward sweep
+// leaves it out.
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _t0 = j;
 // CHECK-NEXT:     update1(i, j);
 // CHECK-NEXT:     double _t1 = j;
-// CHECK-NEXT:     update1(i, j);
 // CHECK-NEXT:     *_d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t1;
@@ -840,9 +841,10 @@ double fn24(double x) {
   return x;
 }
 
+// Only the return reads x after the call, so the forward sweep leaves the
+// call out.
 // CHECK:  void fn24_grad(double x, double *_d_x) {
 // CHECK-NEXT:      double _t0 = x;
-// CHECK-NEXT:      unused_return(x);
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          x = _t0;
@@ -1132,10 +1134,11 @@ double fn31(double *variables) {
    inner_function(&out, true, variables);
    return out;
 }
+// The call writes only out, through &out, and only the return reads out, so
+// the forward sweep leaves the call out.
 // CHECK: void fn31_grad(double *variables, double *_d_variables) {
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0.;
-// CHECK-NEXT:     inner_function(&out, true, variables);
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         bool _r0 = false;
@@ -1240,10 +1243,11 @@ double fn33(double *params) {
   inner_fn(params, &out);
   return out;
 }
+// Only the return reads out after the call, so the forward sweep leaves the
+// call out.
 // CHECK: void fn33_grad(double *params, double *_d_params) {
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0;
-// CHECK-NEXT:     inner_fn(params, &out);
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     inner_fn_pullback(params, &out, _d_params, &_d_out);
 // CHECK-NEXT: }
