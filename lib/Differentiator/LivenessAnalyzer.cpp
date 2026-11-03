@@ -1,6 +1,7 @@
 #include "LivenessAnalyzer.h"
 
 #include "Analyses.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <set>
 
 using namespace clang;
 
@@ -293,7 +295,83 @@ static bool returnsOnly(const Stmt* S,
   return VD && Vars.contains(VD) && VD->getType()->isArithmeticType();
 }
 
+/// The pointer parameter \p E indexes, as in `p[i]`.
+static const ParmVarDecl* indexedParam(const Expr* E) {
+  const auto* ASE = dyn_cast<ArraySubscriptExpr>(E->IgnoreParenImpCasts());
+  if (!ASE)
+    return nullptr;
+  const auto* DRE =
+      dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreParenImpCasts());
+  return DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+}
+
+/// Whether \p S names \p P.
+static bool namesParam(const Stmt* S, const ParmVarDecl* P) {
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+    return DRE->getDecl() == P;
+  return llvm::any_of(S->children(),
+                      [P](const Stmt* C) { return C && namesParam(C, P); });
+}
+
+/// Whether \p E is a sum of terms, each a bare `P[i]` or an expression that
+/// does not name \p P, without side effects. A call counts as a side effect.
+static bool isSumOfTerms(const Expr* E, const ParmVarDecl* P,
+                         const ASTContext& C) {
+  E = E->IgnoreParenImpCasts();
+  if (const auto* BO = dyn_cast<BinaryOperator>(E))
+    if (BO->getOpcode() == BO_Add || BO->getOpcode() == BO_Sub)
+      return isSumOfTerms(BO->getLHS(), P, C) &&
+             isSumOfTerms(BO->getRHS(), P, C);
+  if (E->HasSideEffects(C))
+    return false;
+  if (indexedParam(E) == P)
+    return true;
+  return !namesParam(E, P);
+}
+
+/// Collects into \p Stores the statements `P[i] = e;` of \p S with e a sum
+/// as above. Whether \p P appears nowhere else in \p S.
+static bool onlyInStores(const Stmt* S, const ParmVarDecl* P,
+                         const ASTContext& C,
+                         llvm::SmallVectorImpl<const Stmt*>& Stores) {
+  if (!S)
+    return true;
+  if (const auto* BO = dyn_cast<BinaryOperator>(S))
+    if (BO->getOpcode() == BO_Assign && indexedParam(BO->getLHS()) == P &&
+        !BO->getLHS()->HasSideEffects(C) && isSumOfTerms(BO->getRHS(), P, C)) {
+      Stores.push_back(BO);
+      return true;
+    }
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+    return DRE->getDecl() != P;
+  return llvm::all_of(S->children(), [&](const Stmt* Child) {
+    return onlyInStores(Child, P, C, Stores);
+  });
+}
+
+/// Adds to \p Dead the stores `p[i] = e;` of a pullback into a restrict
+/// pointer parameter p whose values nothing reads: p appears only in such
+/// stores and as terms of their sums. The pullback's reverse sweep does not
+/// read p, and its caller restores what the call wrote where it reads it.
+static void findDeadOutputStores(const DiffRequest& R,
+                                 std::set<const Stmt*>& Dead) {
+  const FunctionDecl* Fn = R.Function->getDefinition();
+  const ASTContext& C = Fn->getASTContext();
+  for (const ParmVarDecl* P : Fn->parameters()) {
+    QualType T = P->getType();
+    if (!T->isPointerType() || !T.isRestrictQualified() ||
+        T->getPointeeType().isConstQualified() ||
+        !T->getPointeeType()->isArithmeticType())
+      continue;
+    llvm::SmallVector<const Stmt*, 4> Stores;
+    if (onlyInStores(Fn->getBody(), P, C, Stores))
+      Dead.insert(Stores.begin(), Stores.end());
+  }
+}
+
 void findUnreadCalls(const DiffRequest& R, std::set<const Stmt*>& Unread) {
+  if (R.Mode == DiffMode::pullback)
+    findDeadOutputStores(R, Unread);
   const FunctionDecl* Fn = R.Function->getDefinition();
   // A function body is a compound statement ([dcl.fct.def.general]).
   const auto* Body = cast<CompoundStmt>(Fn->getBody());
