@@ -231,6 +231,13 @@ private:
     bool HasAnalysisRun = false;
   } m_UnreadCallInfo;
 
+  /// The calls of the primal's body that write their arguments inside a
+  /// larger expression. A property of the Function, so worked out once.
+  mutable struct CallInExpressionInfo {
+    std::set<const clang::Stmt*> Calls;
+    bool HasAnalysisRun = false;
+  } m_CallInExpressionInfo;
+
   /// What the loop analysis proved about the primal, worked out once on first
   /// use. Held by pointer: a request is copied often, and every copy of a
   /// function has the same facts.
@@ -331,6 +338,10 @@ public:
   /// nothing reads, so the forward sweep need not run it. False where the
   /// liveness analysis is off.
   bool isUnreadCall(const clang::Stmt* S) const;
+  /// Whether \p CE writes its arguments and its value is an operand of
+  /// another expression, not a whole statement, an initializer or the
+  /// right-hand side of an assignment.
+  bool isCallInExpression(const clang::CallExpr* CE) const;
 
   /// What is known about the loop \p S, or an empty result when nothing is.
   /// Reading the facts does not build anything: a caller that wants a

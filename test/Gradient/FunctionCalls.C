@@ -1447,6 +1447,54 @@ double fn37(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// A call that writes its argument, inside a larger expression, runs in place:
+// the next call sees what it wrote, also when nothing reads its value.
+double bump(double& n, double t) {
+  ++n;
+  return n * t;
+}
+double fn38(double x) {
+  double n = 1;
+  double y = bump(n, x) + bump(n, x);
+  return y + bump(n, x) + bump(n, x);
+}
+
+// CHECK: void fn38_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_n = 0.;
+// CHECK-NEXT:     double n = 1;
+// CHECK-NEXT:     double _t0 = n;
+// CHECK-NEXT:     double _t1 = bump(n, x);
+// CHECK-NEXT:     double _t2 = n;
+// CHECK-NEXT:     double _t3 = bump(n, x);
+// CHECK-NEXT:     double _d_y = 0.;
+// CHECK-NEXT:     double y = _t1 + _t3;
+// CHECK-NEXT:     double _t4 = n;
+// CHECK-NEXT:     double _t5 = bump(n, x);
+// CHECK-NEXT:     double _t6 = n;
+// CHECK-NEXT:     double _t7 = bump(n, x);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_y += 1;
+// CHECK-NEXT:         n = _t4;
+// CHECK-NEXT:         double _r2 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, 1, &_d_n, &_r2);
+// CHECK-NEXT:         *_d_x += _r2;
+// CHECK-NEXT:         n = _t6;
+// CHECK-NEXT:         double _r3 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, 1, &_d_n, &_r3);
+// CHECK-NEXT:         *_d_x += _r3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         n = _t0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, _d_y, &_d_n, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         n = _t2;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, _d_y, &_d_n, &_r1);
+// CHECK-NEXT:         *_d_x += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1578,6 +1626,11 @@ int main() {
 
   INIT(fn37);
   TEST2(fn37, 3, 2);  // CHECK-EXEC: {12.00, 9.00}
+
+  // 2x + 3x + 4x + 5x
+  double d38 = 0;
+  clad::gradient(fn38).execute(2, &d38);
+  printf("%.2f\n", d38); // CHECK-EXEC: 14.00
 }
 
 double sq_defined_later(double x) {
