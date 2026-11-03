@@ -1082,7 +1082,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       // A call whose results nothing reads need not run: its reverse puts
       // back what it changed.
-      if (!m_DiffReq.isUnreadCall(S))
+      // A dead store is left out only as the plain assignment: anything else
+      // records a value its reverse sweep reads back.
+      bool skip = m_DiffReq.isUnreadCall(S);
+      if (skip && isa<BinaryOperator>(S)) {
+        const auto* Fwd = dyn_cast_or_null<BinaryOperator>(SDiff.getStmt());
+        skip = Fwd && Fwd->getOpcode() == BO_Assign;
+      }
+      if (!skip)
         addToCurrentBlock(SDiff.getStmt(), direction::forward);
       Stmt* rev = SDiff.getStmt_dx();
       if (rev && skipRestAlways) {

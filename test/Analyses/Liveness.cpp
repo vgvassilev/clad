@@ -264,6 +264,109 @@ double throughLocalRef(double x) {
   return t * x;
 }
 
+// The pullback leaves out the stores into out: its reverse sweep reads only Q
+// and x, and the caller restores out where it reads it.
+void matvec(const double* __restrict__ Q, const double* __restrict__ x,
+            double* __restrict__ out) {
+  for (int i = 0; i < 2; i++) {
+    out[i] = Q[2 * i] * x[0];
+    out[i] = out[i] + Q[2 * i + 1] * x[1];
+  }
+}
+
+double useMatvec(double a) {
+  double Q[4] = {a, 1, 2, a};
+  double x[2] = {a, 3};
+  double out[2];
+  matvec(Q, x, out);
+  return out[0] * out[1];
+}
+
+// CHECK: void matvec_pullback(const double *__restrict Q, const double *__restrict x, double *__restrict out, double *_d_Q, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; i++) {
+// CHECK-NEXT:     }
+
+// Without restrict, out may alias Q or x, which the reverse sweep reads, so
+// the stores stay.
+void matvecAlias(const double* Q, const double* x, double* out) {
+  for (int i = 0; i < 2; i++) {
+    out[i] = Q[2 * i] * x[0];
+    out[i] = out[i] + Q[2 * i + 1] * x[1];
+  }
+}
+
+double useMatvecAlias(double a) {
+  double Q[4] = {a, 1, 2, a};
+  double x[2] = {a, 3};
+  double out[2];
+  matvecAlias(Q, x, out);
+  return out[0] * out[1];
+}
+
+// CHECK: void matvecAlias_pullback(const double *Q, const double *x, double *out, double *_d_Q, double *_d_x, double *_d_out) {
+// CHECK:     for (i = 0; i < 2; i++) {
+// CHECK-NEXT:         out[i] = Q[2 * i] * x[0];
+// CHECK-NEXT:         out[i] = out[i] + Q[2 * i + 1] * x[1];
+// CHECK-NEXT:     }
+
+// The reverse sweep of the product reads out, so the stores stay.
+void scaleOut(const double* __restrict__ x, double* __restrict__ out) {
+  out[0] = x[0];
+  out[0] = out[0] * x[1];
+}
+
+double useScaleOut(double a) {
+  double x[2] = {a, a};
+  double out[1];
+  scaleOut(x, out);
+  return out[0];
+}
+
+// CHECK: void scaleOut_pullback(const double *__restrict x, double *__restrict out, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     out[0] = x[0];
+// CHECK-NEXT:     double _t0 = out[0];
+// CHECK-NEXT:     out[0] = out[0] * x[1];
+
+double twice(double v) { return 2 * v; }
+
+// A call or a side effect in a stored value keeps the stores.
+void callOut(const double* __restrict__ x, double* __restrict__ out) {
+  out[0] = twice(x[0]);
+}
+
+void stepOut(const double* __restrict__ x, double* __restrict__ out) {
+  int k = 1;
+  out[0] = x[0] * k++;
+  out[1] = x[1] * k;
+}
+
+double useCallOut(double a) {
+  double x[1] = {a};
+  double out[1];
+  callOut(x, out);
+  return out[0] * a;
+}
+
+double useStepOut(double a) {
+  double x[2] = {a, a};
+  double out[2];
+  stepOut(x, out);
+  return out[0] * out[1];
+}
+
+// CHECK: void callOut_pullback(const double *__restrict x, double *__restrict out, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     out[0] = twice(x[0]);
+
+// CHECK: void stepOut_pullback(const double *__restrict x, double *__restrict out, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     int _d_k = 0;
+// CHECK-NEXT:     int k = 1;
+// CHECK-NEXT:     double _t0 = k++;
+// CHECK-NEXT:     out[0] = x[0] * _t0;
+// CHECK-NEXT:     out[1] = x[1] * k;
+
 int main() {
   double dx = 0;
   clad::gradient(square).execute(3, &dx);
@@ -304,6 +407,25 @@ int main() {
   dx = 0;
   clad::gradient(throughLocalRef).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 108.00
+  // 15 a^2 + 15
+  dx = 0;
+  clad::gradient(useMatvec).execute(2, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 75.00
+  dx = 0;
+  clad::gradient(useMatvecAlias).execute(2, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 75.00
+  // 2 a
+  dx = 0;
+  clad::gradient(useScaleOut).execute(2, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 4.00
+  // 4 a
+  dx = 0;
+  clad::gradient(useCallOut).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 12.00
+  // 4 a
+  dx = 0;
+  clad::gradient(useStepOut).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 12.00
 #ifdef REMARKS
   clad::gradient(noBody);
   clad::gradient(globals);
