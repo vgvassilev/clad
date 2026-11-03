@@ -29,6 +29,7 @@
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/IgnoreExpr.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
@@ -2976,6 +2977,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
           PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
           DeclRefExpr* dBaseRef = BuildDeclRef(dBaseDecl);
+          llvm::SaveAndRestore<const Expr*> discardAdjoint(
+              m_UnusedAdjointExpr,
+              IgnoreExprNodes(baseOriginalE, IgnoreImplicitSingleStep,
+                              IgnoreParensSingleStep));
           baseDiff = Visit(baseOriginalE, dBaseRef);
           baseDiff.updateStmtDx(Clone(dBaseRef));
         } else
@@ -3882,6 +3887,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                            /*forceDeclCreation=*/true);
       };
       Expr* callRef = storeForReverse(call, /*prefix=*/"_t");
+      if (CE == m_UnusedAdjointExpr)
+        return StmtDiff(callRef);
 
       llvm::SmallVector<Expr*, 1> args{CloneNode(callRef)};
       Expr* adjoint = BuildCallExpr(BuildDeclRef(zeroLike), args);
