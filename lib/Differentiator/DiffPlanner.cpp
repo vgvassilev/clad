@@ -539,6 +539,52 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return TraverseStmt(Def->getBody());
   }
 
+  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
+                               bool* foundAnyDecl, bool quiet);
+
+  /// Whether \p FD is declared in clad::custom_derivatives, as a derivative
+  /// the user provides, which may be defined in another translation unit.
+  static bool isCustomDerivativeDecl(const FunctionDecl* FD) {
+    for (const DeclContext* DC = FD->getDeclContext(); DC;
+         DC = DC->getParent()) {
+      const auto* NS = dyn_cast<NamespaceDecl>(DC);
+      const auto* Parent =
+          NS ? dyn_cast<NamespaceDecl>(NS->getParent()) : nullptr;
+      if (Parent && NS->getName() == "custom_derivatives" &&
+          Parent->getName() == "clad")
+        return true;
+    }
+    return false;
+  }
+
+  void DiffCollector::PlanAsTopMost(DiffRequest& request) {
+    // Nothing ran the varied or useful analysis for it.
+    request.EnableVariedAnalysis = false;
+    request.EnableUsefulAnalysis = false;
+    // A function with no definition, such as a custom derivative only declared
+    // here, may have its own derivative declared next to it: use that one.
+    if (request.Function && !request.Function->getDefinition() &&
+        !request.CustomDerivative) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      auto* DC = const_cast<DeclContext*>(request.Function->getDeclContext());
+      request.CustomDerivative =
+          getOverloadExpr(m_Sema, DC, request, /*foundAnyDecl=*/nullptr,
+                          /*quiet=*/true);
+    }
+    // Its callees are planned as a gradient's are, even for a pullback.
+    DiffRequest Top = request;
+    Top.Mode = DiffMode::reverse;
+    llvm::SaveAndRestore<const DiffRequest*> SavedTop(m_TopMostReq, &Top);
+    llvm::SaveAndRestore<bool> SavedGlobals(m_PlansGlobalAdjoints, false);
+    // Not a top-level declaration: what it calls must not end it.
+    llvm::SaveAndRestore<bool> SavedTU(m_IsTraversingTopLevelDecl, false);
+    PlanNestedRequest(request);
+    // TBR runs lazily, given the context PlanNestedRequest builds.
+    request.EnableTBRAnalysis =
+        request.EnableTBRAnalysis && request.m_AnalysisDC != nullptr;
+    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+  }
+
   /// Whether \p Loc lies where clad was switched on. Anything reporting on a
   /// call clad would have collected reads this, so that it agrees with the
   /// collector about which calls those are.
@@ -935,6 +981,78 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return pushforwardRequest;
   }
 
+  void DiffRequest::forEachHessianDirection(
+      Sema& S, llvm::function_ref<void(DiffRequest&, bool FirstRow)> Fn) const {
+    DiffRequest forwRequest = *this;
+    forwRequest.Mode = DiffMode::forward;
+    forwRequest.CallUpdateRequired = false;
+    if (Mode == DiffMode::hessian_diagonal)
+      forwRequest.RequestedDerivativeOrder = 2;
+    for (const auto& dParam : DVI) {
+      const auto* PVD = cast<ParmVarDecl>(dParam.param);
+      auto indexInterval = dParam.paramIndexInterval;
+      bool perIndex = utils::isArrayOrPointerType(PVD->getType());
+      std::size_t start = perIndex ? indexInterval.Start : 0;
+      std::size_t finish = perIndex ? indexInterval.Finish : 1;
+      for (std::size_t i = start; i < finish; ++i) {
+        // FIXME: We shouldn't synthesize Args strings.
+        std::string independentArgString = PVD->getNameAsString();
+        if (perIndex)
+          independentArgString += "[" + std::to_string(i) + "]";
+        forwRequest.Args =
+            utils::CreateStringLiteral(S.getASTContext(), independentArgString);
+        forwRequest.UpdateDiffParamsInfo(S);
+        if (perIndex && !forwRequest.DVI.empty())
+          forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
+        Fn(forwRequest, i == start);
+      }
+    }
+  }
+
+  DiffRequest
+  DiffRequest::hessianReversePass(const FunctionDecl* FirstDerivative) const {
+    DiffRequest pass{};
+    pass.Function = FirstDerivative;
+    pass.BaseFunctionName = FirstDerivative->getNameAsString();
+    pass.EnableTBRAnalysis = EnableTBRAnalysis;
+    pass.EnableLoopAnalysis = EnableLoopAnalysis;
+    pass.inheritFallbacksFrom(*this);
+    // The user's checkpointing pragmas address the reverse pass.
+    pass.m_CladLoopCheckpoints = m_CladLoopCheckpoints;
+    // A custom derivative defined in another translation unit has its own
+    // derivative declared here, to be defined along with it.
+    pass.DeclarationOnly = !FirstDerivative->getDefinition() &&
+                           isCustomDerivativeDecl(FirstDerivative);
+    if (!UseHessianVectorProducts) {
+      // The gradient of the forward derivative in one direction.
+      pass.Mode = DiffMode::reverse;
+      pass.Args = Args;
+      return pass;
+    }
+    // The pullback of the pushforward, with adjoints for the parameters the
+    // hessian was requested for, in parameter order: those are the rows the
+    // wrapper fills in.
+    pass.Mode = DiffMode::pullback;
+    pass.EnableVariedAnalysis = EnableVariedAnalysis;
+    std::string subsetSuffix;
+    for (unsigned i = 0, e = Function->getNumParams(); i != e; ++i) {
+      const ParmVarDecl* PVD = Function->getParamDecl(i);
+      bool requested = !Args || llvm::any_of(DVI, [PVD](const auto& dParam) {
+        return dParam.param == PVD;
+      });
+      if (requested) {
+        pass.DVI.push_back(FirstDerivative->getParamDecl(i));
+        subsetSuffix += "_" + std::to_string(i);
+      }
+    }
+    // A pullback w.r.t. a subset of the parameters is its own function: two
+    // subsets of equal size would otherwise produce two inline definitions
+    // with one signature and different bodies.
+    if (pass.DVI.size() != Function->getNumParams())
+      pass.BaseFunctionName += subsetSuffix;
+    return pass;
+  }
+
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
     // Diff info for pullbacks is generated automatically,
     // its parameters are not provided by the user.
@@ -950,7 +1068,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // have bodies and information about defition. Therefore, we have to force
     // the instantiation.
     semaRef.PerformPendingInstantiations();
-    if (!DeclarationOnly)
+    // A function defined elsewhere, such as a custom derivative only declared
+    // here, takes the parameters its declaration names.
+    if (!DeclarationOnly && FD->getDefinition())
       FD = FD->getDefinition();
     if (!diffArgs || !FD) {
       return;
@@ -1957,6 +2077,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                              !R.EnableErrorEstimation;
 
     ASTContext& C = S.getASTContext();
+    // A request clad makes itself, such as a hessian's reverse pass, has no
+    // call to point at.
+    SourceLocation Loc =
+        R.CallContext ? R.CallContext->getBeginLoc() : utils::GetValidSLoc(S);
     auto LookupPropagator = [&C, &S, &DC](const std::string& Name) {
       IdentifierInfo* II = &C.Idents.get(Name);
       DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
@@ -2037,7 +2161,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         R.PullbackStateParam = stateArg;
       }
 
-    TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
+    TemplateSpecCandidateSet FailedCandidates(Loc,
                                               /*ForTakingAddress=*/false);
     if (Expr* overload =
             utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
@@ -2072,7 +2196,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           QualType relaxedDTy = C.getFunctionType(
               relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
           TemplateSpecCandidateSet RelaxedCandidates(
-              R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
+              Loc, /*ForTakingAddress=*/false);
           if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
                                                         RelaxedCandidates))
             return overload;
@@ -2088,8 +2212,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         DiagnosticsEngine::Error,
         "user-defined derivative for %0 was provided but not used; "
         "expected signature %1 does not match");
-    S.Diag(R.CallContext->getBeginLoc(), errId) << R.Function << dTy;
-    FailedCandidates.NoteCandidates(S, R.CallContext->getBeginLoc());
+    S.Diag(Loc, errId) << R.Function << dTy;
+    FailedCandidates.NoteCandidates(S, Loc);
     utils::DiagnoseSignatureMismatch(S, dTy, Found);
 
     return nullptr;
@@ -2593,8 +2717,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
             if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE))
               PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+            // The planner walks the function itself, so its parameters are
+            // the ones in DVI: no name matching, which would take the tangent
+            // `_d_x` of a pushforward for the adjoint of `x`.
             bool IsDifferentiableArg =
-                !PVD || m_ParentReq->HasIndependentParameter(PVD);
+                !PVD || llvm::any_of(m_ParentReq->DVI,
+                                     [PVD](const DiffInputVarInfo& dParam) {
+                                       return dParam.param == PVD;
+                                     });
 
             if (!utils::isArrayOrPointerType(paramDecl->getType()) ||
                 IsDifferentiableArg)
@@ -2718,6 +2848,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         nonDiff = true;
     }
 
+    // Whether a hessian is built from reverse passes over the first-order
+    // derivatives planned below.
+    bool hasReversePasses = false;
     // Enzyme differentiates the emitted IR, so the only thing clad produces
     // for such a request is the __enzyme_autodiff call. Analysing the body and
     // recursing into the call graph would schedule pullbacks nothing consumes,
@@ -2827,40 +2960,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         // which only the per-direction scheme honors.
         llvm::SmallVector<DiffRequest, 8> forwRequests;
         bool hasCustomForwardDerivative = false;
-        DiffRequest forwRequest = request;
-        forwRequest.Mode = DiffMode::forward;
-        forwRequest.CallUpdateRequired = false;
-        if (request.Mode == DiffMode::hessian_diagonal)
-          forwRequest.RequestedDerivativeOrder = 2;
-        for (const auto& dParam : request.DVI) {
-          const auto* PVD = cast<ParmVarDecl>(dParam.param);
-          auto indexInterval = dParam.paramIndexInterval;
-          bool perIndex = utils::isArrayOrPointerType(PVD->getType());
-          std::size_t start = perIndex ? indexInterval.Start : 0;
-          std::size_t finish = perIndex ? indexInterval.Finish : 1;
-          for (std::size_t i = start; i < finish; ++i) {
-            // FIXME: We shouldn't synthesize Args strings.
-            std::string independentArgString = PVD->getNameAsString();
-            if (perIndex)
-              independentArgString += "[" + std::to_string(i) + "]";
-            forwRequest.Args = utils::CreateStringLiteral(
-                m_Sema.getASTContext(), independentArgString);
-            forwRequest.UpdateDiffParamsInfo(m_Sema);
-            if (perIndex && !forwRequest.DVI.empty())
-              forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
-            // Every row of an array parameter seeds the same VarDecl, so the
-            // first row's analysis holds for all of them.
-            if (i == start)
-              analyzeDirection(forwRequest, request.m_AnalysisDC);
-            // The request is reused across directions and the lookup only
-            // writes on success; without this reset a direction with a
-            // custom derivative leaks it into every direction after it.
-            forwRequest.CustomDerivative = nullptr;
-            hasCustomForwardDerivative |=
-                LookupCustomDerivativeDecl(forwRequest);
-            forwRequests.push_back(forwRequest);
-          }
-        }
+        request.forEachHessianDirection(m_Sema, [&](DiffRequest& forwRequest,
+                                                    bool FirstRow) {
+          // Every row of an array parameter seeds the same VarDecl, so the
+          // first row's analysis holds for all of them.
+          if (FirstRow)
+            analyzeDirection(forwRequest, request.m_AnalysisDC);
+          // The request is reused across directions and the lookup only
+          // writes on success; without this reset a direction with a
+          // custom derivative leaks it into every direction after it.
+          forwRequest.CustomDerivative = nullptr;
+          hasCustomForwardDerivative |= LookupCustomDerivativeDecl(forwRequest);
+          forwRequests.push_back(forwRequest);
+        });
         if (hasCustomForwardDerivative)
           request.UseHessianVectorProducts = false;
 
@@ -2870,15 +2982,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           // A custom pushforward is free to take any signature, and the
           // wrapper builds its calls by position; derive per direction
           // instead.
-          if (LookupCustomDerivativeDecl(pushforwardRequest))
+          if (LookupCustomDerivativeDecl(pushforwardRequest)) {
             request.UseHessianVectorProducts = false;
-          else
+          } else {
             m_DiffRequestGraph.addNode(pushforwardRequest, /*isSource=*/true);
+            hasReversePasses = true;
+          }
         }
 
-        if (!request.UseHessianVectorProducts)
+        if (!request.UseHessianVectorProducts) {
           for (DiffRequest& fr : forwRequests)
             m_DiffRequestGraph.addNode(fr, /*isSource=*/true);
+          // A diagonal is derived in forward mode only.
+          hasReversePasses = request.Mode == DiffMode::hessian;
+        }
       }
     }
 
@@ -2960,7 +3077,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           m_DiffRequestGraph.findNode(request);
       if (Planned.first && !Planned.second)
         Planned.first->mergeAnalyses(request);
-      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+      // A hessian waits for its reverse passes, which an entry after its
+      // first-order derivatives plans once they exist.
+      DiffRequest entry = request;
+      entry.PlansReversePasses = true;
+      if (hasReversePasses &&
+          !m_DiffRequestGraph.addNode(entry, /*isSource=*/true).first)
+        m_DiffRequestGraph.addEdge(entry, request);
+      else
+        m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
 
     if (m_IsTraversingTopLevelDecl) {
@@ -3205,7 +3330,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // m_TopMostReq is dereferenced below; it is null when PlanNestedRequest
     // walks a lazy request's body just to record its early-return flag, and no
     // global-adjoint discovery is wanted there.
-    if (!m_ParentReq || !m_TopMostReq)
+    if (!m_ParentReq || !m_TopMostReq || !m_PlansGlobalAdjoints)
       return true;
     // FIXME: Add support for globals in other modes.
     if (m_ParentReq->Mode != DiffMode::reverse &&

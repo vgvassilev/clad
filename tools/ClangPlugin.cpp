@@ -767,6 +767,12 @@ void InitTimers();
               *m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
       }
 
+      // Not a derivative: it plans those a hessian is built from.
+      if (request.PlansReversePasses) {
+        getScheduler().PlanReversePasses(request);
+        return nullptr;
+      }
+
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
         auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);

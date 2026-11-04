@@ -503,6 +503,11 @@ public:
   /// pushforward); HessianModeVisitor only consumes the decision. Derived
   /// from Function, Mode and Args, so excluded from request equality.
   bool UseHessianVectorProducts = false;
+  /// Marks a copy of a hessian request that the planner adds after the
+  /// first-order derivatives the hessian is built from. The reverse passes
+  /// over them can be planned only once they exist; when the graph reaches
+  /// this entry, they do.
+  bool PlansReversePasses = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -597,6 +602,17 @@ public:
   /// scheduled derivative, so the two must stay structurally identical.
   [[nodiscard]] DiffRequest
   pushforwardRequestForHessian(clang::Sema& semaRef) const;
+  /// Calls \p Fn with the forward request of each direction this hessian,
+  /// assembled per direction, differentiates along. The request is reused:
+  /// \p FirstRow says whether it starts a parameter, an array's first row.
+  void forEachHessianDirection(
+      clang::Sema& S,
+      llvm::function_ref<void(DiffRequest&, bool FirstRow)> Fn) const;
+  /// The reverse pass over \p FirstDerivative this hessian calls: the
+  /// pullback of its pushforward, or the gradient of its forward derivative
+  /// in one direction.
+  DiffRequest
+  hessianReversePass(const clang::FunctionDecl* FirstDerivative) const;
 
   /// Whether \p Other takes the same fallbacks. A fallback changes the values
   /// a derivative computes, so two requests that differ in one are two
@@ -634,6 +650,7 @@ public:
            takesSameFallbacks(other) && DVI == other.DVI &&
            use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
+           PlansReversePasses == other.PlansReversePasses &&
            CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
 
@@ -794,6 +811,9 @@ public:
     /// add them for implicit diff.
     ///
     const DiffRequest* m_TopMostReq = nullptr;
+    /// Off while planning a hessian's reverse passes: they keep no adjoints
+    /// for globals, as before they were planned.
+    bool m_PlansGlobalAdjoints = true;
 
     DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
@@ -914,6 +934,9 @@ public:
     /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
     /// its early-return flag by walking the request's own body.
     bool PlanNestedRequest(DiffRequest& request);
+    /// Plans \p request as a top-level request is planned: what it calls
+    /// first, then itself.
+    void PlanAsTopMost(DiffRequest& request);
     /// Walks the body of the function of \p request, once for each request.
     bool TraverseFunctionDeclOnce(const DiffRequest& request);
     /// Records in \p request the operator[] calls in its body whose custom

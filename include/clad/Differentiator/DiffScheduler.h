@@ -52,6 +52,28 @@ public:
   /// Plan a single lazily-scheduled request (a nested or higher-order
   /// derivative) that the static walk never reached.
   void Plan(DiffRequest& R) { m_Collector.PlanNestedRequest(R); }
+
+  /// Plans the reverse passes a hessian is built from, now that the
+  /// first-order derivatives they differentiate exist (see
+  /// DiffRequest::PlansReversePasses).
+  void PlanReversePasses(const DiffRequest& Hessian) {
+    // The derivatives call templates, such as custom derivatives, that are
+    // not instantiated yet; their bodies are walked here.
+    m_Sema.PerformPendingInstantiations();
+    auto PlanPass = [&](const DiffRequest& First) {
+      // A first derivative clad could not build has no reverse pass.
+      if (const clang::FunctionDecl* FD = m_DFC.Find(First).DerivedFn()) {
+        DiffRequest Pass = Hessian.hessianReversePass(FD);
+        Pass.UpdateDiffParamsInfo(m_Sema);
+        m_Collector.PlanAsTopMost(Pass);
+      }
+    };
+    if (Hessian.UseHessianVectorProducts)
+      PlanPass(Hessian.pushforwardRequestForHessian(m_Sema));
+    else
+      Hessian.forEachHessianDirection(
+          m_Sema, [&](DiffRequest& First, bool) { PlanPass(First); });
+  }
 };
 
 } // namespace clad

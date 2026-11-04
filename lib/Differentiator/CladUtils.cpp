@@ -1593,6 +1593,16 @@ namespace clad {
       // caller writes, const or not, lvalue or rvalue.
       if (T->isReferenceType() && T.getNonReferenceType()->isRealFloatingType())
         return true;
+      // So does a class of such references, as the pushforward of a function
+      // returning one is.
+      if (const auto* RD = T->getAsCXXRecordDecl())
+        if (RD->hasDefinition() && !RD->field_empty() &&
+            llvm::all_of(RD->fields(), [](const FieldDecl* F) {
+              QualType FT = F->getType();
+              return FT->isReferenceType() &&
+                     FT.getNonReferenceType()->isRealFloatingType();
+            }))
+          return true;
       return isMemoryType(T);
     }
 

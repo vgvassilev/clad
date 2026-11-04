@@ -56,8 +56,8 @@ HessianModeVisitor::HessianModeVisitor(DerivativeBuilder& builder,
 static FunctionDecl* DeriveUsingForwardAndReverseMode(
     Sema& SemaRef, clad::plugin::CladPlugin& CP,
     clad::DerivativeBuilder& Builder, DiffRequest IndependentArgRequest,
-    const Expr* ForwardModeArgs, const Expr* ReverseModeArgs,
-    DerivedFnCollector& DFC) {
+    const Expr* ForwardModeArgs, DerivedFnCollector& DFC) {
+  const DiffRequest Hessian = IndependentArgRequest;
   // Derives function once in forward mode w.r.t to ForwardModeArgs
   IndependentArgRequest.Args = ForwardModeArgs;
   IndependentArgRequest.Mode = DiffMode::forward;
@@ -67,26 +67,11 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   FunctionDecl* firstDerivative =
       Builder.FindDerivedFunction(IndependentArgRequest);
 
-  // Further derives function w.r.t to ReverseModeArgs
-  DiffRequest ReverseModeRequest{};
-  ReverseModeRequest.Mode = DiffMode::reverse;
-  ReverseModeRequest.Function = firstDerivative;
-  ReverseModeRequest.Args = ReverseModeArgs;
-  ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
-  ReverseModeRequest.m_CladLoopCheckpoints =
-      IndependentArgRequest.m_CladLoopCheckpoints;
-  // This reverse pass is the bulk of a hessian: it runs once per direction
-  // over a function the size of the first-order derivative. Let it use TBR so
-  // it only tapes what the reverse sweep reads back.
-  ReverseModeRequest.EnableTBRAnalysis =
-      IndependentArgRequest.EnableTBRAnalysis;
-  ReverseModeRequest.EnableLoopAnalysis =
-      IndependentArgRequest.EnableLoopAnalysis;
-  ReverseModeRequest.inheritFallbacksFrom(IndependentArgRequest);
-
-  FunctionDecl* secondDerivative =
-      Builder.HandleNestedDiffRequest(ReverseModeRequest);
-  return secondDerivative;
+  // Planned and derived before this hessian (see
+  // DiffRequest::PlansReversePasses).
+  DiffRequest ReverseModeRequest = Hessian.hessianReversePass(firstDerivative);
+  ReverseModeRequest.UpdateDiffParamsInfo(SemaRef);
+  return Builder.FindDerivedFunction(ReverseModeRequest);
 }
 
 /// Derives the function two times with forward mode AD and returns the
@@ -108,7 +93,7 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
 }
 
 std::pair<FunctionDecl*, FunctionDecl*>
-HessianModeVisitor::DeriveVectorProductFunctions(const DiffParams& args) {
+HessianModeVisitor::DeriveVectorProductFunctions() {
   const FunctionDecl* FD = m_DiffReq.Function;
 
   // The same factory built the request the planner scheduled, so this finds
@@ -119,38 +104,11 @@ HessianModeVisitor::DeriveVectorProductFunctions(const DiffParams& args) {
   if (!pushforwardFD || pushforwardFD->getNumParams() != 2 * FD->getNumParams())
     return {nullptr, nullptr}; // LCOV_EXCL_LINE
 
-  DiffRequest pullbackReq{};
-  pullbackReq.Function = pushforwardFD;
-  pullbackReq.BaseFunctionName = pushforwardFD->getNameAsString();
-  pullbackReq.Mode = DiffMode::pullback;
-  pullbackReq.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-  pullbackReq.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-  pullbackReq.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
-  pullbackReq.inheritFallbacksFrom(m_DiffReq);
-  // The user's checkpointing pragmas address the reverse pass, which in this
-  // scheme is the pullback; the per-direction scheme forwarded them to its
-  // reverse requests just the same.
-  pullbackReq.m_CladLoopCheckpoints = m_DiffReq.m_CladLoopCheckpoints;
-  // Adjoints for the parameters the hessian was requested for, in parameter
-  // order: those are the rows the wrapper fills in.
-  size_t numAdjoints = 0;
-  std::string subsetSuffix;
-  for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
-    if (std::find(args.begin(), args.end(), FD->getParamDecl(i)) !=
-        args.end()) {
-      pullbackReq.DVI.push_back(pushforwardFD->getParamDecl(i));
-      ++numAdjoints;
-      subsetSuffix += "_" + std::to_string(i);
-    }
-  // A pullback w.r.t. a subset of the parameters is its own function: two
-  // subsets of equal size would otherwise produce two inline definitions
-  // with one signature and different bodies, of which the linker silently
-  // keeps one for both. Encode the subset the way restricted grads and
-  // hessians encode theirs.
-  if (numAdjoints != FD->getNumParams())
-    pullbackReq.BaseFunctionName += subsetSuffix;
-
-  FunctionDecl* pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackReq);
+  // Planned and derived before this hessian (see
+  // DiffRequest::PlansReversePasses).
+  DiffRequest pullbackReq = m_DiffReq.hessianReversePass(pushforwardFD);
+  size_t numAdjoints = pullbackReq.DVI.size();
+  FunctionDecl* pullbackFD = m_Builder.FindDerivedFunction(pullbackReq);
   // The wrapper builds the call by position, so anything but
   // `(pushforward parameters..., _d_y, adjoints...)` is not ours to call.
   if (!pullbackFD || pullbackFD->getNumParams() !=
@@ -459,7 +417,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
   if (m_DiffReq.UseHessianVectorProducts) {
     FunctionDecl* pushforwardFD = nullptr;
     FunctionDecl* pullbackFD = nullptr;
-    std::tie(pushforwardFD, pullbackFD) = DeriveVectorProductFunctions(args);
+    std::tie(pushforwardFD, pullbackFD) = DeriveVectorProductFunctions();
     if (!pullbackFD) {
       // LCOV_EXCL_START
       diag(DiagnosticsEngine::Error, m_DiffReq.CallContext->getBeginLoc(),
@@ -504,7 +462,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
         else
           DFD = DeriveUsingForwardAndReverseMode(
               m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
-              m_DiffReq.Args, m_Builder.m_Scheduler.getDerivedFns());
+              m_Builder.m_Scheduler.getDerivedFns());
         secondDerivativeFuncs.push_back(DFD);
       }
     } else {
@@ -520,7 +478,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
       else
         DFD = DeriveUsingForwardAndReverseMode(
             m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
-            m_DiffReq.Args, m_Builder.m_Scheduler.getDerivedFns());
+            m_Builder.m_Scheduler.getDerivedFns());
       secondDerivativeFuncs.push_back(DFD);
     }
   }

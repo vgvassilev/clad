@@ -4,6 +4,7 @@
 // RUN: ./Hessians.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
+#include <utility>
 
 __attribute__((always_inline)) double f_cubed_add1(double a, double b) {
   return a * a * a + b * b * b;
@@ -14,9 +15,36 @@ __attribute__((always_inline)) double f_cubed_add1(double a, double b) {
 //CHECK-NEXT:    return {_t0 * a + _t1 * b, (_d_a * a + a * _d_a) * a + _t0 * _d_a + (_d_b * b + b * _d_b) * b + _t1 * _d_b};
 //CHECK-NEXT:}
 
-//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}};
-
 void f_cubed_add1_hessian(double a, double b, double *hessianMatrix);
+//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}} {
+//CHECK-NEXT:    double _d_t0 = 0.;
+//CHECK-NEXT:    double _t00 = a * a;
+//CHECK-NEXT:    double _d_t1 = 0.;
+//CHECK-NEXT:    double _t10 = b * b;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _d_t0 += _d_y.value * a;
+//CHECK-NEXT:        *_d_a0 += _t00 * _d_y.value;
+//CHECK-NEXT:        _d_t1 += _d_y.value * b;
+//CHECK-NEXT:        *_d_b0 += _t10 * _d_y.value;
+//CHECK-NEXT:        *_d_a0 += _d_a * _d_y.pushforward * a;
+//CHECK-NEXT:        *_d_a0 += _d_y.pushforward * a * _d_a;
+//CHECK-NEXT:        *_d_a0 += (_d_a * a + a * _d_a) * _d_y.pushforward;
+//CHECK-NEXT:        _d_t0 += _d_y.pushforward * _d_a;
+//CHECK-NEXT:        *_d_b0 += _d_b * _d_y.pushforward * b;
+//CHECK-NEXT:        *_d_b0 += _d_y.pushforward * b * _d_b;
+//CHECK-NEXT:        *_d_b0 += (_d_b * b + b * _d_b) * _d_y.pushforward;
+//CHECK-NEXT:        _d_t1 += _d_y.pushforward * _d_b;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    {
+//CHECK-NEXT:        *_d_b0 += _d_t1 * b;
+//CHECK-NEXT:        *_d_b0 += b * _d_t1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    {
+//CHECK-NEXT:        *_d_a0 += _d_t0 * a;
+//CHECK-NEXT:        *_d_a0 += a * _d_t0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 //CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_hessian(double a, double b, double *hessianMatrix){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
@@ -221,6 +249,38 @@ double byValueMembers(M2 m, double k1, double k2) {
 }
 
 
+// The reverse pass of a hessian differentiates the pushforward, which builds
+// objects. Their constructors' derivatives are derived then.
+struct Pt {
+  double a, b;
+  Pt(double x, double y) : a(x), b(y) {}
+};
+double viaCtor(double x) {
+  Pt p{x, 2 * x};
+  return p.a * p.b;
+}
+double viaPair(double x) {
+  std::pair<double, double> p{x, 2 * x};
+  return p.first * p.second;
+}
+// So are those of a call whose result carries a reference, such as the
+// pushforward of an element access.
+struct Vec2 {
+  double v[2];
+  double& operator()(int i) { return v[i]; }
+  const double& at(int i) const { return v[i]; }
+};
+double viaRef(double x) {
+  Vec2 m{{x, 2 * x}};
+  m(0) *= x;
+  return m(0) * m(1);
+}
+// Through a reference to const too.
+double viaConstRef(double x) {
+  const Vec2 m{{x, 2 * x}};
+  return m.at(0) * m.at(1) * x;
+}
+
 int main() {
   double result[10];
 
@@ -241,34 +301,17 @@ int main() {
   result[0] = result[1] = result[2] = result[3] = 0;
   clad::hessian(byValueMembers, "k1, k2").execute(m2, 3, 5, result);
   printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3]); // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
-
-//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}} {
-//CHECK-NEXT:    double _d_t0 = 0.;
-//CHECK-NEXT:    double _t00 = a * a;
-//CHECK-NEXT:    double _d_t1 = 0.;
-//CHECK-NEXT:    double _t10 = b * b;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _d_t0 += _d_y.value * a;
-//CHECK-NEXT:        *_d_a0 += _t00 * _d_y.value;
-//CHECK-NEXT:        _d_t1 += _d_y.value * b;
-//CHECK-NEXT:        *_d_b0 += _t10 * _d_y.value;
-//CHECK-NEXT:        *_d_a0 += _d_a * _d_y.pushforward * a;
-//CHECK-NEXT:        *_d_a0 += _d_y.pushforward * a * _d_a;
-//CHECK-NEXT:        *_d_a0 += (_d_a * a + a * _d_a) * _d_y.pushforward;
-//CHECK-NEXT:        _d_t0 += _d_y.pushforward * _d_a;
-//CHECK-NEXT:        *_d_b0 += _d_b * _d_y.pushforward * b;
-//CHECK-NEXT:        *_d_b0 += _d_y.pushforward * b * _d_b;
-//CHECK-NEXT:        *_d_b0 += (_d_b * b + b * _d_b) * _d_y.pushforward;
-//CHECK-NEXT:        _d_t1 += _d_y.pushforward * _d_b;
-//CHECK-NEXT:    }
-//CHECK-NEXT:    {
-//CHECK-NEXT:        *_d_b0 += _d_t1 * b;
-//CHECK-NEXT:        *_d_b0 += b * _d_t1;
-//CHECK-NEXT:    }
-//CHECK-NEXT:    {
-//CHECK-NEXT:        *_d_a0 += _d_t0 * a;
-//CHECK-NEXT:        *_d_a0 += a * _d_t0;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+  result[0] = result[1] = 0;
+  clad::hessian(viaCtor).execute(3, result);
+  clad::hessian(viaPair).execute(3, result + 1);
+  printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {4.00, 4.00}
+  // 2x^3: 12x
+  result[0] = 0;
+  clad::hessian(viaRef).execute(3, result);
+  printf("Result is = {%.2f}\n", result[0]); // CHECK-EXEC: Result is = {36.00}
+  // 2x^3: 12x
+  result[0] = 0;
+  clad::hessian(viaConstRef).execute(3, result);
+  printf("Result is = {%.2f}\n", result[0]); // CHECK-EXEC: Result is = {36.00}
 
 }
