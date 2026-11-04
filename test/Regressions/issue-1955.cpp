@@ -60,7 +60,9 @@ double ref_to_literal(double* params) {
 }
 
 // CHECK: void ref_to_literal_grad(double *params, double *_d_params) {
+// CHECK-NEXT: double _d_r = {};
 // CHECK-NEXT: const double &r = 5.;
+// CHECK-NEXT: {
 // CHECK-NEXT: _d_params[0] += 1 * r;
 
 // Outside the hessian there is no tangent to inherit: the alias gets none,

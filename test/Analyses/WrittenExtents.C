@@ -45,13 +45,24 @@ void qtimesx(int d, const double* Qd, const double* x, double* out) {
 // CHECK-NEXT: written-extent: qtimesx: x = none
 // CHECK-NEXT: written-extent: qtimesx: out = [0, d)
 
-// Two different constant offsets do not describe one range, so they widen to
-// unknown rather than to a guessed hull.
+// Two different constant offsets do not describe one range. Every run writes
+// v[2], so v has three elements, and the prefix up to v[2] is a range:
+// putting back v[1], which nothing writes, leaves it as it was.
 void constIdx(double* v) {
   v[0] = 1.0;
   v[2] = 3.0;
 }
-// CHECK: written-extent: constIdx: v = unknown (two writes here cover ranges that are not one range at line [[@LINE-2]])
+// CHECK: written-extent: constIdx: v = [0, 3)
+
+// Here only some runs write v[2]: nothing says v has three elements, and the
+// two writes widen to unknown rather than to a guessed range.
+void condIdx(bool c, double* v) {
+  v[0] = 1.0;
+  if (c)
+    v[2] = 3.0;
+}
+// CHECK: written-extent: condIdx: c = none
+// CHECK-NEXT: written-extent: condIdx: v = unknown (two writes here cover ranges that are not one range at line [[@LINE-3]])
 
 // A constant bound is as usable as a parameter one.
 void fixedLoop(double* v) {
@@ -293,6 +304,7 @@ double f(double a) {
   subtract(4, x, y, o);
   qtimesx(4, x, y, o2);
   constIdx(o);
+  condIdx(a > 0, o);
   fixedLoop(o);
   dataDependent(4, x, o);
   plusEqualOne(4, o);

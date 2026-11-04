@@ -535,7 +535,6 @@ void fn15(const double *x, int n, double *y) {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
 // CHECK-NEXT:                      _d_x[i] += _r_d0 * scale;
-// CHECK-NEXT:                      _d_scale += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -627,7 +626,6 @@ void fn17(const double *x, int n, double *y) {
 // CHECK-NEXT:                      double _r_d0 = _d_temp;
 // CHECK-NEXT:                      _d_temp = 0.;
 // CHECK-NEXT:                      _d_x[i] += _r_d0 * scale;
-// CHECK-NEXT:                      _d_scale += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }

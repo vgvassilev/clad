@@ -86,9 +86,57 @@ double f2(double x, double y){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// A callee that writes through an argument: the pullback of the hessian's
+// pushforward restores what it overwrote before the callee's pullback runs.
+void scale(double k, const double* a, double* b) { b[0] = k * a[0]; }
+
+double chain(double k1, double k2) {
+  double s[1] = {1.}, t[1];
+  scale(k1, s, t);
+  scale(k2, t, s);
+  return s[0];
+}
+
+// Past the first element, which needs the callee's recorded stores.
+void scale2(double k, const double* a, double* b) {
+  b[0] = k * a[0];
+  b[1] = k * a[1];
+}
+
+double looped(double k1, double k2) {
+  double s[2] = {1., 1.}, t[2];
+  for (int n = 0; n < 2; n++) {
+    scale2(k1, s, t);
+    scale2(k2, t, s);
+  }
+  return s[0] * s[1];
+}
+
+// One that also returns a value.
+double accum(double k, double* b) {
+  b[1] = b[0] * k;
+  return b[1];
+}
+
+double returning(double k1, double k2) {
+  double s[2] = {1., 1.};
+  double r = accum(k1, s);
+  r += accum(k2, s);
+  return r * s[1];
+}
+
 int main() {
     auto f_hess = clad::hessian(f2);
     double mat_f[4] = {0};
     f_hess.execute(3, 4, mat_f);
     printf("[%.2f, %.2f, %.2f, %.2f]\n", mat_f[0], mat_f[1], mat_f[2], mat_f[3]); //CHECK-EXEC: [2.00, 0.00, 0.00, 2.00]
+    double H[4] = {0};
+    clad::hessian(chain).execute(3, 5, H);
+    printf("[%.2f, %.2f, %.2f, %.2f]\n", H[0], H[1], H[2], H[3]); //CHECK-EXEC: [0.00, 1.00, 1.00, 0.00]
+    double G[4] = {0};
+    clad::hessian(looped).execute(2, 0.5, G);
+    printf("[%.2f, %.2f, %.2f, %.2f]\n", G[0], G[1], G[2], G[3]); //CHECK-EXEC: [3.00, 16.00, 16.00, 48.00]
+    double R[4] = {0};
+    clad::hessian(returning).execute(2, 3, R);
+    printf("[%.2f, %.2f, %.2f, %.2f]\n", R[0], R[1], R[2], R[3]); //CHECK-EXEC: [0.00, 1.00, 1.00, 2.00]
 }

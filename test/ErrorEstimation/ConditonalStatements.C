@@ -122,9 +122,8 @@ float func3(float x, float y) { return x > 30 ? x * y : x + y; }
 
 //CHECK: void func3_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     double _ret_value0 = 0.;
-//CHECK-NEXT:     bool _cond0 = x > 30;
-//CHECK-NEXT:     _ret_value0 = _cond0 ? x * y : x + y;
-//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:     _ret_value0 = x > 30 ? x * y : x + y;
+//CHECK-NEXT:     if (x > 30) {
 //CHECK-NEXT:         *_d_x += 1 * y;
 //CHECK-NEXT:         *_d_y += x * 1;
 //CHECK-NEXT:     } else {

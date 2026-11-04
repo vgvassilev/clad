@@ -18,8 +18,8 @@ double* nested(double* p, int n) {
 
 //CHECK: clad::ValueAndAdjoint<double *, double *> nested_reverse_forw(double *p, int n, double *_d_p, int _d_n, clad::restore_tracker &_tracker0) {
 //CHECK-NEXT:     bool _cond0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i;
+//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = n > 0;
 //CHECK-NEXT:         if (_cond0)

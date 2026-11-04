@@ -354,7 +354,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: inline void cos_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
-// CHECK-NEXT:     float _t0 = ::std::sin(x);
+// CHECK-NEXT:     float _t0 = -1 * ::std::sin(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         _r0 += _d_y.value * clad::custom_derivatives::std::cos_pushforward(x, 1.F).pushforward;
@@ -362,7 +362,7 @@ int main() {
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         _r1 += -1 * _d_y.pushforward * d_x * clad::custom_derivatives::std::sin_pushforward(x, 1.F).pushforward;
 // CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         *_d_d_x += -1 * _t0 * _d_y.pushforward;
+// CHECK-NEXT:         *_d_d_x += _t0 * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -435,6 +435,7 @@ int main() {
 // CHECK-NEXT:             _d_derivative += _d_y.pushforward;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     });
+// CHECK-NEXT:     if (!_cond2)
 // CHECK-NEXT:     if (_cond3) {
 // CHECK-NEXT:         float _r4 = 0.F;
 // CHECK-NEXT:         float _r5 = 0.F;
@@ -446,7 +447,7 @@ int main() {
 // CHECK-NEXT:         *_d_x += _r6;
 // CHECK-NEXT:         *_d_d_exponent += (_t2 * _t1) * _d_derivative;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
+// CHECK-NEXT:     if (!_cond2) {
 // CHECK-NEXT:         *_d_exponent += _d_derivative * d_x * _t0;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;

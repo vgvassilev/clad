@@ -6,6 +6,7 @@
 
 #include <complex>
 #include <numeric>
+#include <stdexcept>
 #include <vector>
 
 #include "../TestUtils.h"
@@ -478,7 +479,7 @@ double fn6(TensorD5 t, double i) {
 // CHECK-NEXT: }
 
 // CHECK: double fn6_darg1(TensorD5 t, double i) {
-// CHECK-NEXT:     TensorD5 _d_t;
+// CHECK-NEXT:     TensorD5 _d_t = {};
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = t.sum_pushforward(& _d_t);
 // CHECK-NEXT:     double _d_res = 3 * _t0.pushforward;
@@ -528,7 +529,7 @@ complexD fn8(double i, TensorD5 t) {
 
 // CHECK: complexD fn8_darg0(double i, TensorD5 t) {
 // CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     TensorD5 _d_t;
+// CHECK-NEXT:     TensorD5 _d_t = {};
 // CHECK-NEXT:     t.updateTo_pushforward(i * i, & _d_t, _d_i * i + i * _d_i);
 // CHECK-NEXT:     complexD _d_c{0., 0.};
 // CHECK-NEXT:     complexD c{0., 0.};
@@ -558,7 +559,7 @@ complexD fn9(double i, complexD c) {
 
 // CHECK: complexD fn9_darg0(double i, complexD c) {
 // CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     complexD _d_c;
+// CHECK-NEXT:     complexD _d_c = clad::zero_like(c);
 // CHECK-NEXT:     complexD _d_r{0., 0.};
 // CHECK-NEXT:     complexD r{0., 0.};
 // CHECK-NEXT:     c.real_pushforward(i * i, &_d_c, _d_i * i + i * _d_i);
@@ -1162,9 +1163,9 @@ double fn15(pairdd u, pairdd v) {
 }
 
 // CHECK: double fn15_darg0_first(pairdd u, pairdd v) {
-// CHECK-NEXT:     pairdd _d_u;
+// CHECK-NEXT:     pairdd _d_u = clad::zero_like(u);
 // CHECK-NEXT:     _d_u.first = 1;
-// CHECK-NEXT:     pairdd _d_v;
+// CHECK-NEXT:     pairdd _d_v = clad::zero_like(v);
 // CHECK-NEXT:     return _d_u.first + 2 * _d_v.first;
 // CHECK-NEXT: }
 
@@ -1173,8 +1174,8 @@ double fn16(pair_of_pairdd u, pair_of_pairdd v) {
 }
 
 // CHECK: double fn16_darg1_second_second(pair_of_pairdd u, pair_of_pairdd v) {
-// CHECK-NEXT:     pair_of_pairdd _d_u;
-// CHECK-NEXT:     pair_of_pairdd _d_v;
+// CHECK-NEXT:     pair_of_pairdd _d_u = clad::zero_like(u);
+// CHECK-NEXT:     pair_of_pairdd _d_v = clad::zero_like(v);
 // CHECK-NEXT:     _d_v.second.second = 1;
 // CHECK-NEXT:     return _d_u.first.first + 2 * _d_v.second.second;
 // CHECK-NEXT: }
@@ -1195,8 +1196,8 @@ double fn17(A a, B b) {
 }
 
 // CHECK: double fn17_darg1_mem(A a, B b) {
-// CHECK-NEXT:     A _d_a;
-// CHECK-NEXT:     B _d_b;
+// CHECK-NEXT:     A _d_a = clad::zero_like(a);
+// CHECK-NEXT:     B _d_b = clad::zero_like(b);
 // CHECK-NEXT:     _d_b.mem = 1;
 // CHECK-NEXT:     double &_t0 = a.mem;
 // CHECK-NEXT:     double &_t1 = b.mem;
@@ -1227,6 +1228,99 @@ void print(const Tensor<double, N>& t) {
   }
 }
 
+// The tangent of a default-initialized aggregate starts at zero, not at the
+// values its default member initializers give.
+struct Gain {
+  double k = 3;
+  double scale(double x) const { return k * x * x; }
+};
+double fn19(double x) {
+  Gain g;
+  return g.scale(x);
+}
+
+// An integer has no tangent to construct with: the tangent object takes the
+// integer's value, which the constructor checks.
+struct Sliced {
+  double ds;
+  int n;
+  Sliced(double ds_, int n_) : ds(ds_), n(n_) {
+    if (n_ <= 0)
+      throw std::invalid_argument("n must be > 0");
+  }
+  double step() const { return ds / n; }
+};
+double fnSliced(double x) {
+  Sliced s(x, 4);
+  return s.step();
+}
+
+// CHECK: double fnSliced_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     Sliced _d_s{_d_x, 4};
+// CHECK-NEXT:     Sliced s{x, 4};
+
+// An integer that sets a real is a constant: its tangent stays 0.
+struct FromInt {
+  double v;
+  FromInt(int n) : v(n) {}
+};
+double fnFromInt(double x) {
+  FromInt s(3);
+  return s.v * x;
+}
+
+// CHECK: double fnFromInt_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     FromInt _d_s(0);
+// CHECK-NEXT:     FromInt s(3);
+
+// An integer handed on to a member's constructor that only counts with it.
+struct Count {
+  int n;
+  Count(int n_) : n(n_) {
+    if (n_ <= 0)
+      throw std::invalid_argument("n must be > 0");
+  }
+};
+struct Mesh {
+  double ds;
+  Count c;
+  Mesh(double ds_, int n_) : ds(ds_), c(n_) {}
+};
+double fnMesh(double x) {
+  Mesh m(x, 4);
+  return m.ds / m.c.n;
+}
+
+// CHECK: double fnMesh_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     Mesh _d_m{_d_x, 4};
+// CHECK-NEXT:     Mesh m{x, 4};
+
+// Handed on to a constructor that makes a real of it, or computed with, the
+// integer is not only a count: its tangent stays 0.
+struct HoldsFromInt {
+  FromInt f;
+  HoldsFromInt(int n) : f(n) {}
+};
+struct MeshNext {
+  Count c;
+  MeshNext(int n) : c(n + 1) {}
+};
+double fnNotCounts(double x) {
+  HoldsFromInt h(3);
+  MeshNext m(0);
+  return h.f.v * m.c.n * x;
+}
+
+// CHECK: double fnNotCounts_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     HoldsFromInt _d_h(0);
+// CHECK-NEXT:     HoldsFromInt h(3);
+// CHECK-NEXT:     MeshNext _d_m(0);
+// CHECK-NEXT:     MeshNext m(0);
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
@@ -1246,6 +1340,7 @@ int main() {
   INIT_DIFFERENTIATE(fn16, "v.second.second");
   INIT_DIFFERENTIATE(fn17, "b.mem");
   INIT_DIFFERENTIATE(fn18, "i");
+  INIT_DIFFERENTIATE(fn19, "x");
 
   TensorD5 t;
   t.updateTo(5);
@@ -1269,4 +1364,10 @@ int main() {
   TEST_DIFFERENTIATE(fn16, pair_of_pairdd(), pair_of_pairdd());   // CHECK-EXEC: {2.00}
   TEST_DIFFERENTIATE(fn17, A(3.00), B(5.00));   // CHECK-EXEC: {3.00}
   TEST_DIFFERENTIATE(fn18, 7, 3);   // CHECK-EXEC: {9.00}
+  TEST_DIFFERENTIATE(fn19, 2);   // CHECK-EXEC: {12.00}
+
+  printf("%.2f\n", clad::differentiate(fnSliced, 0).execute(2)); // CHECK-EXEC: 0.25
+  printf("%.2f\n", clad::differentiate(fnFromInt, 0).execute(2)); // CHECK-EXEC: 3.00
+  printf("%.2f\n", clad::differentiate(fnMesh, 0).execute(2)); // CHECK-EXEC: 0.25
+  printf("%.2f\n", clad::differentiate(fnNotCounts, 0).execute(2)); // CHECK-EXEC: 3.00
 }

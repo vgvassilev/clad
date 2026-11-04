@@ -5,8 +5,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
-
 class SimpleFunctions {
 public:
   SimpleFunctions(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
@@ -360,7 +358,6 @@ public:
   // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
-  // CHECK-NEXT:         _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -557,11 +554,11 @@ class SafeTestClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) elidable_reverse_forw;
+    CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y);
     
-    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) elidable_reverse_forw;
+    CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x);
 
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
     constructor_reverse_forw(clad::Tag<SafeTestClass>) {
@@ -661,7 +658,7 @@ double fn9(double x, double y) {
 // CHECK-NEXT:      double res = s->getVal();
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      s->getVal_pullback(_d_res, _d_s);
-// CHECK-NEXT:      *_d_x += *_d_s.val;
+// CHECK-NEXT:      *_d_x += (*_d_s).val;
 // CHECK-NEXT:      delete s;
 // CHECK-NEXT:      delete _d_s;
 // CHECK-NEXT:  }
@@ -740,7 +737,6 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
 // CHECK-NEXT:      _tracker0.clear();
-// CHECK-NEXT:      a.increment_reverse_forw(&_d_a, _tracker0);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _tracker0.restore();
@@ -864,6 +860,26 @@ double fn14(double x) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+// A derivative declared in a class nested in a namespace and a class.
+namespace phys {
+struct Body {
+  class Weight {
+    double m_k = 3;
+
+  public:
+    double scale(double x) const { return m_k * x * x; }
+    void scale_pullback(double x, double _d_y, Weight* _d_this,
+                        double* _d_x) const;
+  };
+};
+} // namespace phys
+double fn15(double x) {
+  phys::Body::Weight w;
+  return w.scale(x);
+}
+
+// CHECK: void phys::Body::Weight::scale_pullback(double x, double _d_y, phys::Body::Weight *_d_this, double *_d_x) const {
+
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -973,6 +989,11 @@ int main() {
   double d_fn14_x = 0;
   d_fn14.execute(2, &d_fn14_x);
   printf("%.2f", d_fn14_x); //CHECK-EXEC: 3.00
+
+  auto d_fn15 = clad::gradient(fn15);
+  double d_fn15_x = 0;
+  d_fn15.execute(2, &d_fn15_x);
+  printf("%.2f", d_fn15_x); //CHECK-EXEC: 12.00
   
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
@@ -984,7 +1005,6 @@ int main() {
   // CHECK-NEXT:           _d_this->y += 1 * i;
   // CHECK-NEXT:           *_d_i += _t0 * 1;
   // CHECK-NEXT:           *_d_i += 1 * j;
-  // CHECK-NEXT:           _d_j += i * 1;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }
 
@@ -992,12 +1012,9 @@ int main() {
 
   // CHECK:   void const_volatile_rval_ref_mem_fn_grad_1(double i, double j, volatile SimpleFunctions *_d_this, double *_d_j) const volatile && {
   // CHECK-NEXT:       double _d_i = 0.;
-  // CHECK-NEXT:       double _t0 = (this->x + this->y);
   // CHECK-NEXT:       {
   // CHECK-NEXT:           _d_this->x += 1 * i;
   // CHECK-NEXT:           _d_this->y += 1 * i;
-  // CHECK-NEXT:           _d_i += _t0 * 1;
-  // CHECK-NEXT:           _d_i += 1 * j;
   // CHECK-NEXT:           *_d_j += i * 1;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }

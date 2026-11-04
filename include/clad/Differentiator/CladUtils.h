@@ -10,6 +10,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
@@ -129,6 +130,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \returns  type with namespace specifier added.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
 
+    /// The context to look up the custom derivative of a call in: that of the
+    /// declaration the call found, or, for a block-scope using-declaration,
+    /// that of the declaration it names.
+    const clang::DeclContext*
+    GetCustomDerivativeLookupContext(const clang::Decl* Found);
     /// Finds declaration context associated with the DC1::DC2, but doesn't
     /// replicate the common part of the declaration contexts.
     /// For example, consider DC1 corresponds to the following declaration
@@ -197,6 +203,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(clang::QualType QT);
 
+    /// Returns true if A and B are the same parameter, otherwise returns false.
+    bool IsSameParam(const clang::ValueDecl* A, const clang::ValueDecl* B);
+
     /// \returns whether a hessian of \p FD can be assembled from
     /// hessian-vector products rather than derived once per direction.
     ///
@@ -237,8 +246,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                    const clang::LookupResult& Overloads);
 
     /// Returns true if the function has only real non-reference parameters and
-    /// returns a real number.
-    bool IsRealFunction(const clang::FunctionDecl* FD);
+    /// returns a real number. A variadic function counts unless the call \p CE
+    /// passes something past its parameters: numerical_diff, like a
+    /// pushforward, calls it through them, and would drop the rest. A null CE
+    /// asks about the function, for its declared parameters.
+    bool IsRealFunction(const clang::FunctionDecl* FD,
+                        const clang::CallExpr* CE);
+
+    /// The function the numerical-diff fallback passes as a pointer to
+    /// differentiate \p FD: FD itself, or, for a builtin whose address cannot
+    /// be taken, the library function it stands for (`exp` for
+    /// `__builtin_exp`). Null when there is none, or FD is not a real
+    /// function for the call \p CE (see IsRealFunction).
+    const clang::FunctionDecl* GetNumDiffTarget(clang::Sema& S,
+                                                const clang::FunctionDecl* FD,
+                                                const clang::CallExpr* CE);
 
     /// Returns true if `arg` is an argument passed by reference or is of
     /// pointer/array type.
@@ -264,6 +286,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Given an expression `E`, this function builds and returns the expression
     /// `(E)`.
     clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
+
+    /// Returns `base` wrapped in a `ParenExpr` if it needs parentheses to be
+    /// printed as the base of a member access, e.g. `(*p).x`; otherwise
+    /// returns `base`.
+    clang::Expr* ParenthesizeMemberBase(clang::Sema& semaRef,
+                                        clang::Expr* base);
 
     /// Returns `IdentifierInfo` that represents the value in the `identifier`
     /// parameter.
@@ -326,6 +354,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
 
+    /// The lambda \p VD is initialized with, through the cleanups and
+    /// conversions around it -- a lambda capturing an object with a
+    /// non-trivial destructor is wrapped -- or null.
+    const clang::LambdaExpr* getLambdaInit(const clang::VarDecl* VD);
+
     /// A reference to what \p R found, qualified by \p SS and followed by
     /// \p TemplateArgs when given. Null when Sema rejects it.
     clang::Expr* BuildDeclarationNameExpr(
@@ -375,6 +408,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     // static_cast<T&&>(E)
     // ```
     clang::Expr* BuildStaticCastToRValue(clang::Sema& semaRef, clang::Expr* E);
+    /// The member \p Name of \p Base, a clad::ValueAndPushforward or
+    /// clad::ValueAndAdjoint: an xvalue when declared as an rvalue reference,
+    /// as the call that returned it was.
+    clang::Expr* BuildResultMember(clang::Sema& S, clang::Scope* Sc,
+                                   clang::Expr* Base, llvm::StringRef Name);
 
     /// Returns true if expression `E` is PRValue or XValue.
     bool IsRValue(const clang::Expr* E);
@@ -485,6 +523,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isNonDifferentiableType(clang::Sema& S,
                                  const clang::CXXRecordDecl* RD);
 
+    /// Whether a type explicitly opts out of saving its pre-call value when
+    /// passed through a mutable reference. The marker may be on the type or
+    /// its clad::Tag specialization.
+    bool hasNoPrimalTapeAttribute(clang::Sema& S,
+                                  const clang::CXXRecordDecl* RD);
+
     /// Returns true if the type \p CE fundamentally operates on -- the object
     /// of a member call, or the first argument of a free operator (`os << x`)
     /// -- is non-differentiable (Tag-aware, so it honors clad::Tag\<T\>
@@ -531,6 +575,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns type clad::Tag\<T\>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 
+    /// Whether a derivative of \p Mode is one clad calls from another
+    /// derivative, and so takes the template tags of its function.
+    bool TakesTemplateTags(DiffMode Mode);
+    /// The tags a called derivative of \p FD takes first, one for each
+    /// template argument of FD that a call does not deduce: clad::Tag\<T\>
+    /// for a type, std::integral_constant\<T, V\> for a value, as
+    /// std::in_place_type_t and std::in_place_index_t carry them. The
+    /// derivatives of pick\<0\> and pick\<1\> are not templates; the tags
+    /// tell them apart. An argument that is its parameter's default, such as
+    /// an enable_if parameter, is not part of the call and takes no tag.
+    /// \returns false if an argument has no tag yet: a template template
+    /// argument.
+    bool GetTemplateTagTypes(clang::Sema& S, const clang::FunctionDecl* FD,
+                             llvm::SmallVectorImpl<clang::QualType>& Tags);
+
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
@@ -575,11 +634,27 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool CanReturnOutputTangent(const clang::FunctionDecl* FD);
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
+    /// Whether a copy of an object of type \p T holds everything a function
+    /// can change through a reference to it: \p T reaches no other memory.
+    bool reachesNoOtherMemory(const clang::ASTContext& C, clang::QualType T);
+    /// Whether \p RD declares a const operator[] that returns a reference.
+    /// The standard containers follow this convention: such an operator[]
+    /// returns an element and does not modify the container. std::map, whose
+    /// operator[] inserts, has no const operator[].
+    bool hasElementAccessor(const clang::CXXRecordDecl* RD);
+    /// Whether \p E is `v[i]` on a class with an element accessor, where v
+    /// and i have no side effects. Such an expression refers to the same
+    /// element every time it is evaluated, like an array subscript.
+    bool isPureElementAccess(const clang::Expr* E, const clang::ASTContext& C);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
+
+    /// Whether \p CE destroys an object without running any code: a pseudo
+    /// destructor call on a scalar, or a call to a trivial destructor.
+    bool isNoOpDestructorCall(const clang::CallExpr* CE);
 
     /// Returns true if the reverse-forward propagator for constructor \p CD is
     /// structurally elidable -- clad need not synthesize one because the plain
@@ -587,7 +662,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// it. This holds for a trivial copy/move constructor (a shallow share of
     /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
     /// initializer. A non-trivial constructor can additionally opt in with the
-    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// CLAD_ELIDABLE_REVERSE_FORW attribute on its custom reverse_forw (see
     /// hasElidableReverseForwAttribute) -- both paths are combined where the
     /// propagator is consumed.
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
@@ -599,10 +674,14 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool returnsAdjoint(clang::QualType T);
 
     /// Resolve clad::zero_like(value), returning null without diagnostics
-    /// when no usable overload exists.
+    /// when no usable overload returns the primal type by value.
     clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
+
+    /// Whether FD writes into a record argument that owns memory, whose adjoint
+    /// only its reverse_forw can shape.
+    bool allocatesIntoRecordParam(const clang::FunctionDecl* FD);
 
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
     /// Returns true when E designates storage with automatic storage
@@ -612,16 +691,35 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \param E the expression to judge.
     /// \param asPointerValue E is a pointer rvalue passed to a callee, so
     /// the pointee is judged rather than the pointer variable's own slot.
+    /// \param followLocalReferences judge a local reference by what it is
+    /// bound to: right for lifetime, not for aliasing.
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue = false);
+                                       bool asPointerValue = false,
+                                       bool followLocalReferences = false);
 
     bool IsDifferentiableType(clang::QualType T);
+
+    /// Whether the parameter \p Idx of the constructor \p Ctor does nothing
+    /// but set integer members, compare, and go on to constructors that do no
+    /// more with it. Its value then never reaches a real, and a tangent object
+    /// may be built with it.
+    bool OnlyCountsWith(const clang::CXXConstructorDecl* Ctor, unsigned Idx);
+    /// If \p CE is a memcpy or memmove whose destination or source, before
+    /// its conversion to `void*`, holds floating-point data, that type.
+    clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);
+
+    /// If \p CE is a memcpy or memmove from an array of a real floating type
+    /// to an array of the same type, a call to clad::byte_copy that copies
+    /// the same elements. Null otherwise.
+    clang::CallExpr* BuildTypedByteCopy(clang::Sema& S,
+                                        const clang::CallExpr* CE);
 
     bool hasElidableReverseForwAttribute(const clang::Decl* D);
 
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
-    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD,
+                                    const clang::CallExpr* CE);
 
     ///\returns a fully qualified type that is as close as coders would write.
     clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);
@@ -637,8 +735,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
-    /// Returns true if the function is empty
-    bool hasEmptyBody(const clang::FunctionDecl* FD);
+    /// Whether the derivative \p FD is marked CLAD_NOOP_DERIVATIVE.
+    bool hasNoopDerivativeAttribute(const clang::FunctionDecl* FD);
+    /// Whether the derivative \p FD does nothing: it is marked
+    /// CLAD_NOOP_DERIVATIVE or its body is empty.
+    bool isNoopDerivative(const clang::FunctionDecl* FD);
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);

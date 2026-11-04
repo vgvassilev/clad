@@ -39,11 +39,8 @@ void viaCall(int n, const double* x, double* out) {
 // CHECK-NEXT: written-extent: viaCall: out = unknown (this writes through a pointer that cannot be traced back to a parameter at line [[@LINE-4]])
 
 // The same call shape, but the buffer handed over belongs to this function, so
-// nothing the callee does to it can reach `out`. `out` is nonetheless reported
-// unknown: designatesLocallyOwnedStorage does not see through a local array
-// decaying to a pointer, only through accessors and subscripts. Conservative
-// in the safe direction -- a caller keeps the tracker where it need not have.
-// Widening that helper would turn this line into `[0, n)`.
+// nothing the callee does to it can reach `out`, and neither can the writes
+// into it here.
 void viaLocal(int n, const double* x, double* out) {
   double scratch[8];
   for (int i = 0; i < n; i++)
@@ -54,7 +51,7 @@ void viaLocal(int n, const double* x, double* out) {
 }
 // CHECK: written-extent: viaLocal: n = none
 // CHECK-NEXT: written-extent: viaLocal: x = none
-// CHECK-NEXT: written-extent: viaLocal: out = unknown (this writes through a pointer that cannot be traced back to a parameter at line [[@LINE-7]])
+// CHECK-NEXT: written-extent: viaLocal: out = [0, n)
 
 // A member call keeps its object out of the argument list, so the write below
 // is invisible to a walk over the arguments alone.
@@ -103,6 +100,6 @@ int main() {
 
 // What the same refusal reads like when the user asks about it: the cost is
 // on the write, and the note says what a caller would have needed.
-// CHECK-WHY: WrittenExtentsOpaque.C:[[# @LINE - 71]]:12: remark: 'out': clad watches every address written here instead of copying one range
+// CHECK-WHY: WrittenExtentsOpaque.C:[[# @LINE - 68]]:12: remark: 'out': clad watches every address written here instead of copying one range
 // CHECK-WHY: note: this writes through a pointer that cannot be traced back to a parameter
 // CHECK-WHY: note: to avoid this, make it a bounded write (CLAD1003)

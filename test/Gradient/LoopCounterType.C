@@ -3,6 +3,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+// expected-no-diagnostics
+
 #include <cstddef>
 #include <cstdio>
 
@@ -59,7 +61,7 @@ double pub(double x) {
 
 // decltype is spelled as its expression, whose names may resolve only where
 // it was written; the counter takes what it stands for.
-std::size_t count = 3; // expected-warning {{gradient uses a global variable 'count'}}
+std::size_t count = 3;
 double decl(double x) {
   double r = 0;
   for (decltype(count) i = 0; i < 3; ++i)
@@ -80,6 +82,28 @@ double size(double x) {
 // CHECK-LABEL: void size_grad(double x, double *_d_x) {
 // CHECK: unsigned {{int|long|long long}} _t0;
 
+double declParam(double x, std::size_t n) {
+  double r = 0;
+  for (decltype(n) i = 0; i < n; ++i)
+    r += x;
+  return r;
+}
+// CHECK-LABEL: void declParam_grad_0(double x, std::size_t n, double *_d_x) {
+// CHECK-NEXT:     std::size_t _d_n = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     decltype(n) _d_i = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     decltype(n) i = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     double _d_r = 0.;
+// CHECK-NEXT:     double r = 0;
+// CHECK-NEXT:     {{std::size_t|unsigned int|unsigned long|unsigned long long}} _t0;
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
+// CHECK-NEXT:         r += x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_r += 1;
+// CHECK-NEXT:     for (_t0 = n > 0 ? ({{std::size_t|unsigned int|unsigned long|unsigned long long}})n : {{0U|0UL|0ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         *_d_x += _d_r;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double d = 0;
   clad::gradient(local).execute(2, &d);
@@ -96,5 +120,8 @@ int main() {
   printf("%.1f\n", d); // CHECK-EXEC: 3.0
   d = 0;
   clad::gradient(size).execute(2, &d);
+  printf("%.1f\n", d); // CHECK-EXEC: 3.0
+  d = 0;
+  clad::gradient(declParam, "x").execute(2, 3, &d);
   printf("%.1f\n", d); // CHECK-EXEC: 3.0
 }

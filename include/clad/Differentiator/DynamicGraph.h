@@ -107,6 +107,15 @@ public:
   /// \returns True if currently processing a node, false otherwise.
   bool isProcessingNode() { return m_currentId != -1; }
 
+  /// The node equal to \p node if the graph has one, and whether it has been
+  /// processed.
+  std::pair<T*, bool> findNode(const T& node) {
+    auto It = m_nodeMap.find(node);
+    if (It == m_nodeMap.end())
+      return {nullptr, false};
+    return {&m_nodes[It->second.second], It->second.first};
+  }
+
   /// Get the nodes in the graph.
   const std::vector<T>& getNodes() const { return m_nodes; }
   std::vector<T>& getNodes() { return m_nodes; }

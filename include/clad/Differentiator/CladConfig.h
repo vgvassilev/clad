@@ -39,6 +39,14 @@ enum order {
   static_assert(ORDER_BITS + (FirstBit) + 1 < sizeof(unsigned) * 8,            \
                 "clad::opts has run out of bits: the pair for " #Legacy        \
                 " does not fit. Widen the type the bitmask is carried in.");
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  static_assert((FirstBit) >= 0,                                               \
+                "clad::opts: the position for " #Opt " is below the "          \
+                "order, so its bits would be read as a derivative order "      \
+                "rather than as options.");                                    \
+  static_assert(ORDER_BITS + (FirstBit) + 1 < sizeof(unsigned) * 8,            \
+                "clad::opts has run out of bits: the pair for " #Opt           \
+                " does not fit. Widen the type the bitmask is carried in.");
 #include "clad/Differentiator/Analyses.def"
 
 /// What a single request asks of clad, over and above what the command line
@@ -72,6 +80,12 @@ enum opts : unsigned {
   enable_##Legacy = enable_##Name##_analysis,                                  \
   disable_##Legacy = disable_##Name##_analysis,
 #include "clad/Differentiator/Analyses.def"
+
+// What clad may do where it cannot differentiate a call, one pair each.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  enable_##Opt = 1 << (ORDER_BITS + (FirstBit)),                               \
+  disable_##Opt = 1 << (ORDER_BITS + (FirstBit) + 1),
+#include "clad/Differentiator/Analyses.def"
 }; // enum opts
 
 /// Only the check below reads these; they are not part of clad's interface.
@@ -87,11 +101,14 @@ constexpr unsigned AllOpts = 0
 #define CLAD_OPT_RESERVED(Name, FirstBit) | Name
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   | enable_##Name##_analysis | disable_##Name##_analysis
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  | enable_##Opt | disable_##Opt
 #include "clad/Differentiator/Analyses.def"
     ;
 constexpr unsigned NumOpts = 0
 #define CLAD_OPT_RESERVED(Name, FirstBit) +1
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc) +2
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc) +2
 #include "clad/Differentiator/Analyses.def"
     ;
 } // namespace opts_detail

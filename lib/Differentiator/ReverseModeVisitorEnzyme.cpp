@@ -198,9 +198,7 @@ void ReverseModeVisitor::DifferentiateWithEnzyme() {
       llvm::APSInt V = m_Context.MakeIntValue(i, m_Context.UnsignedIntTy);
       Expr* gradIndex = dyn_cast<Expr>(
           IntegerLiteral::Create(m_Context, V, m_Context.UnsignedIntTy, noLoc));
-      Expr* RHSExpr =
-          m_Sema.CreateBuiltinArraySubscriptExpr(ME, noLoc, gradIndex, noLoc)
-              .get();
+      Expr* RHSExpr = BuildArraySubscript(ME, gradIndex);
 
       auto* assignExpr = BuildOp(BO_Assign, LHSExpr, RHSExpr);
       addToCurrentBlock(assignExpr, direction::forward);

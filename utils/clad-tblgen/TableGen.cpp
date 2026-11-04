@@ -13,6 +13,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -363,14 +364,33 @@ static void checkMisses(CladRecordKeeper& Records, const Record* Clad) {
 }
 
 /// Every analysis the table defines, in the order their positions put them.
-static std::vector<const Record*> analysesOf(CladRecordKeeper& Records) {
+static std::vector<const Record*> byPosition(CladRecordKeeper& Records,
+                                             StringRef Class) {
   std::vector<const Record*> Out;
-  for (const Record* A : Records.getAllDerivedDefinitions("Analysis"))
+  for (const Record* A : Records.getAllDerivedDefinitions(Class))
     Out.push_back(A);
   llvm::sort(Out, [](const Record* L, const Record* R) {
     return L->getValueAsInt("RequestBit") < R->getValueAsInt("RequestBit");
   });
   return Out;
+}
+static std::vector<const Record*> analysesOf(CladRecordKeeper& Records) {
+  return byPosition(Records, "Analysis");
+}
+
+/// Every fallback the table defines, in the order their positions put them.
+static std::vector<const Record*> fallbacksOf(CladRecordKeeper& Records) {
+  return byPosition(Records, "Fallback");
+}
+
+/// The clad::opts suffix of a fallback: its name with the dashes the command
+/// line spells it with made into the underscores an identifier needs.
+static std::string optOf(const Record* F) {
+  std::string Opt = F->getValueAsString("Name").str();
+  for (char& C : Opt)
+    if (C == '-')
+      C = '_';
+  return Opt;
 }
 
 /// A pair takes two adjacent bits, so no two analyses may come within one of
@@ -404,7 +424,14 @@ static void checkRequestBits(CladRecordKeeper& Records, const Record* Clad) {
   for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
     claim(R->getValueAsInt("FirstBit"), R->getValueAsString("Name"),
           R->getLoc());
-  for (const Record* A : Records.getAllDerivedDefinitions("Analysis")) {
+  // An analysis and a fallback both take a pair. Collected one by one: what
+  // getAllDerivedDefinitions returns is a vector of Record* before LLVM 20.
+  std::vector<const Record*> Pairs;
+  for (const Record* A : Records.getAllDerivedDefinitions("Analysis"))
+    Pairs.push_back(A);
+  for (const Record* F : Records.getAllDerivedDefinitions("Fallback"))
+    Pairs.push_back(F);
+  for (const Record* A : Pairs) {
     int64_t B = A->getValueAsInt("RequestBit");
     // Counted from ORDER_BITS, so below zero is inside the derivative order:
     // the pair would not collide with another option and the bitmask would
@@ -445,19 +472,25 @@ static void checkAnalyses(CladRecordKeeper& Records) {
 
 static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
   OS << cxxBanner("lib/Differentiator/Analyses.td") << R"(
-// One sequence, in the order the clad::opts bits are laid out: an analysis,
-// or an option that is not one. Define whichever you came for; the other then
-// expands to nothing.
+// One sequence, in the order the clad::opts bits are laid out: an analysis, a
+// fallback, or an option that is neither. Define whichever you came for; the
+// others then expand to nothing.
 //
 // FirstBit is a position, not a value: an analysis takes
 // 1 << (ORDER_BITS + FirstBit) for enable_<legacy> and the bit above it for
-// disable_<legacy>; anything else takes the one.
-#if !defined(CLAD_ANALYSIS) && !defined(CLAD_OPT_RESERVED)
-#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc) or CLAD_OPT_RESERVED(Name, FirstBit) before including"
+// disable_<legacy>, a fallback the same for enable_<opt> and disable_<opt>;
+// anything else takes the one. A fallback's Flag is how the command line
+// spells it after -f and -fno-, and Opt the same with underscores.
+#if !defined(CLAD_ANALYSIS) && !defined(CLAD_FALLBACK) && !defined(CLAD_OPT_RESERVED)
+#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc), CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc) or CLAD_OPT_RESERVED(Name, FirstBit) before including"
 #endif
 
 #ifndef CLAD_ANALYSIS
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)
+#endif
+
+#ifndef CLAD_FALLBACK
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)
 #endif
 
 #ifndef CLAD_OPT_RESERVED
@@ -481,6 +514,12 @@ static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
     StringRef L = A->getValueAsString("Legacy");
     Space[B] = ("enable_" + L).str();
     Space[B + 1] = ("disable_" + L).str();
+  }
+  std::vector<const Record*> Fallbacks = fallbacksOf(Records);
+  for (const Record* F : Fallbacks) {
+    int64_t B = F->getValueAsInt("RequestBit");
+    Space[B] = "enable_" + optOf(F);
+    Space[B + 1] = "disable_" + optOf(F);
   }
   OS << "// Where the positions have gone, counted from ORDER_BITS. They are\n"
         "// not consecutive: each option took the next one free when it was\n"
@@ -540,12 +579,25 @@ static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
          Twine(A->getValueAsInt("RequestBit") + 1) + "\n    " +
          cxxString(A->getValueAsString("Summary")) + ")")
             .str()};
+  for (const Record* F : Fallbacks)
+    Entries[F->getValueAsInt("RequestBit")] = {
+        ("CLAD_FALLBACK(" + F->getName() + ", " + optOf(F) + ", " +
+         cxxString(F->getValueAsString("Name")) + ", " +
+         (F->getValueAsBit("Default") ? "true" : "false") + ", " +
+         Twine(F->getValueAsInt("RequestBit")) + ",")
+            .str(),
+        ("// enable_" + optOf(F) + " at ORDER_BITS+" +
+         Twine(F->getValueAsInt("RequestBit")) + ", disable_" + optOf(F) +
+         " at +" + Twine(F->getValueAsInt("RequestBit") + 1) + "\n    " +
+         cxxString(F->getValueAsString("Summary")) + ")")
+            .str()};
   for (const auto& E : Entries) {
     const std::string& Entry = E.second.first;
     OS << Entry << std::string(Entry.size() < 38 ? 38 - Entry.size() : 1, ' ')
        << E.second.second << "\n";
   }
-  OS << "\n#undef CLAD_ANALYSIS\n#undef CLAD_OPT_RESERVED\n";
+  OS << "\n#undef CLAD_ANALYSIS\n#undef CLAD_FALLBACK\n#undef "
+        "CLAD_OPT_RESERVED\n";
 }
 
 static void emitAnalysisDescs(raw_ostream& OS, CladRecordKeeper& Records) {
@@ -618,6 +670,28 @@ below, and each analysis also has a switch of its own.
        << A->getValueAsString("Summary")
        << ". Default: " << (A->getValueAsBit("Default") ? "on" : "off")
        << ".\n\n";
+
+  OS << R"(
+Falling back where clad cannot differentiate
+
+Where clad cannot differentiate a call -- the function has no body, say -- it
+can fall back to something else. Unlike an analysis, a fallback changes the
+values a derivative computes, so ``-fdisable-analysis=all`` leaves it alone.
+Each one is switched on its own, the last switch deciding, and one request can
+override it with the matching ``clad::opts`` pair.
+
+)";
+  for (const Record* F : fallbacksOf(Records))
+    OS << "``-f" << F->getValueAsString("Name") << "`` / ``-fno-"
+       << F->getValueAsString("Name") << "``\n"
+       << wrapped(("Where clad cannot differentiate a call, it " +
+                   F->getValueAsString("Summary") + "; ``clad::opts::enable_" +
+                   optOf(F) + "`` and ``disable_" + optOf(F) +
+                   "`` decide for one request. Default: " +
+                   (F->getValueAsBit("Default") ? "on" : "off") + ".")
+                      .str(),
+                  "  ", RSTProseWidth)
+       << "\n";
 }
 
 static void emitDiagnostics(raw_ostream& OS, CladRecordKeeper& Records) {

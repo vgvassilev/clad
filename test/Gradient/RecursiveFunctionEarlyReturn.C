@@ -45,11 +45,12 @@ double func(double* A, int n, std::vector<double>& v) {
 // CHECK-NEXT:             return A[0] * _t0.value;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     _t2 = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     for (int i = 0; i < n; i++) {
+// CHECK-NEXT:     for (; i < n; i++) {
 // CHECK-NEXT:         _t2++;
 // CHECK-NEXT:         clad::ValueAndAdjoint<{{.*}}> _t3 = v.operator_subscript_reverse_forw(0, &_d_v, 0);
 // CHECK-NEXT:         _tracker0.store(v[0]);

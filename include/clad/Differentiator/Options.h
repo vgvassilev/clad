@@ -43,6 +43,11 @@ struct Options {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Dump##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
+  /// Whether clad takes each fallback, -f\<name\> and -fno-\<name\>
+  /// resolved against the default the table gives it.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  bool Enable##Id##Fallback = Default;
+#include "clad/Differentiator/Analyses.def"
 
   /// Reads the arguments the plugin was given, in order. False where one of
   /// them was wrong, having already said so; the caller then declines to

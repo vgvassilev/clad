@@ -2,7 +2,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#undef CLAD_NO_NUM_DIFF
 #include "clad/Differentiator/NumericalDiff.h" // for the numerical comparison
 
 #include "BenchmarkedFunctions.h"

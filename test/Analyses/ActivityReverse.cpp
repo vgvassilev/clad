@@ -2,6 +2,8 @@
 // RUN: ./Activity.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oActivity.out 2>&1 | %filecheck --check-prefix=CHECK-TBR %s
+// RUN: ./Activity.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -189,9 +191,8 @@ double f5(double x){
   return g;
 }
 // CHECK: void f5_grad(double x, double *_d_x) {
-// CHECK-NEXT:     bool _cond0 = x;
 // CHECK-NEXT:     double _d_g = 0.;
-// CHECK-NEXT:     double g = _cond0 ? 1 : 2;
+// CHECK-NEXT:     double g = x ? 1 : 2;
 // CHECK-NEXT:     _d_g += 1;
 // CHECK-NEXT: }
 
@@ -595,6 +596,17 @@ double f15_1(double x, int (*f)(double)) { return x * x; }
 
 double f15(double x) { return f15_1(x, pick); }
 
+// A buffer from new that holds only constants has no adjoint: neither its
+// new nor its delete has one to build.
+double f21(double x) {
+  double* w = new double[2];
+  w[0] = 1;
+  w[1] = 2;
+  double r = x * w[1];
+  delete[] w;
+  return r;
+}
+
 // CHECK: void f15_grad(double x, double *_d_x) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     _tracker0.clear();
@@ -611,6 +623,91 @@ double f15(double x) { return f15_1(x, pick); }
 // only the pointer holding its address. Leaving the pointee passive used to
 // deny it an adjoint, which both crashed the reverse mode on the adjoint's
 // missing initializer and dropped the dependency `return y` carries.
+// f22 calls h22 with a constant s, f23 with a varied one. The two calls ask
+// for one pullback, which has to give the adjoint of s to f23 although f22,
+// differentiated first, has none to take.
+double h22(double& p, double s) {
+  double r = s * 1.0;
+  double v = p * r;
+  p = 0;
+  return v;
+}
+double f22(double x) {
+  double p = x;
+  double v = h22(p, 2.0);
+  return v + p;
+}
+double f23(double x) {
+  double p = 3;
+  double v = h22(p, x);
+  return v + p;
+}
+
+// One gradient calls m24 twice, first with a constant s. Planned for the
+// second call, m24 has to be walked again for h24 to learn that s varies.
+double h24(double& p, double s) {
+  double r = s * 1.0;
+  double v = p * r;
+  p = 0;
+  return v;
+}
+double m24(double& p, double s) { return h24(p, s); }
+double f24(double x) {
+  double p = x, q = 3;
+  double v = m24(p, 2.0) + m24(q, x);
+  return v + p + q;
+}
+
+// f28 calls h28 with a constant s, f29 with a varied one, and the two share
+// h28's pullback. k varies at neither call: q, read only for the adjoint of
+// k, is not put back after it is overwritten. r varies at f29's call alone,
+// so p, read for the adjoint of r, is put back for f29's sake.
+double h28(double& p, double& q, double s) {
+  double k = 2;
+  double r = s * 1.0;
+  double v = k * q + r * p;
+  p = 0;
+  q = 0;
+  return v;
+}
+double f28(double x) {
+  double p = x, q = 3;
+  double v = h28(p, q, 2.0);
+  return v + p + q;
+}
+double f29(double x) {
+  double p = 3, q = 1;
+  double v = h28(p, q, x);
+  return v + p + q;
+}
+
+// CHECK-TBR: void h28_pullback(double &p, double &q, double s, double _d_y, double *_d_p, double *_d_q, double *_d_s) {
+// CHECK-TBR-NEXT:     double k = 2;
+// CHECK-TBR-NEXT:     double _d_r = 0.;
+// CHECK-TBR-NEXT:     double r = s * 1.;
+// CHECK-TBR-NEXT:     double _d_v = 0.;
+// CHECK-TBR-NEXT:     double v = k * q + r * p;
+// CHECK-TBR-NEXT:     double _t0 = p;
+// CHECK-TBR-NEXT:     p = 0;
+// CHECK-TBR-NEXT:     q = 0;
+// CHECK-TBR-NEXT:     _d_v += _d_y;
+// CHECK-TBR-NEXT:     {
+// CHECK-TBR-NEXT:         double _r_d1 = *_d_q;
+// CHECK-TBR-NEXT:         *_d_q = 0.;
+// CHECK-TBR-NEXT:     }
+// CHECK-TBR-NEXT:     {
+// CHECK-TBR-NEXT:         p = _t0;
+// CHECK-TBR-NEXT:         double _r_d0 = *_d_p;
+// CHECK-TBR-NEXT:         *_d_p = 0.;
+// CHECK-TBR-NEXT:     }
+// CHECK-TBR-NEXT:     {
+// CHECK-TBR-NEXT:         *_d_q += k * _d_v;
+// CHECK-TBR-NEXT:         _d_r += _d_v * p;
+// CHECK-TBR-NEXT:         *_d_p += r * _d_v;
+// CHECK-TBR-NEXT:     }
+// CHECK-TBR-NEXT:     *_d_s += _d_r * 1.;
+// CHECK-TBR-NEXT: }
+
 double f16(double x) {
   double y = 0;
   double* p = &y;
@@ -620,6 +717,37 @@ double f16(double x) {
 
 // The same through an array element and one more level of indirection, so a
 // pointee reached transitively is not left behind either.
+// p starts as null and is pointed at a afterwards: writing through it writes
+// a, which is then varied, and has an adjoint.
+double f25(double x) {
+  double a[2] = {0, 0};
+  double* p = nullptr;
+  p = a;
+  p[0] = x;
+  return a[0] * a[0];
+}
+
+// The same through a field assigned after its record is declared.
+struct Buf25 {
+  double* p;
+};
+double f26(double x) {
+  double s[2] = {0, 0};
+  Buf25 b{nullptr};
+  b.p = s;
+  b.p[0] = x;
+  return s[0] * s[0] * 3;
+}
+
+// s is varied after b is declared to point to it: what is read through b
+// is varied, and b has the adjoint the derivative gets back to s through.
+double f27(double x) {
+  double s[2] = {0, 0};
+  Buf25 b{s};
+  s[0] = x;
+  return b.p[0] * b.p[0] * 3;
+}
+
 double f17(double x) {
   double y[2] = {0, 0};
   double* p = &y[1];
@@ -636,6 +764,17 @@ double f18(double x) {
   return y;
 }
 
+// What a pointer from new points to varies where it is written with what
+// varies.
+double f19(double x) {
+  double* s = new double[2];
+  s[0] = x;
+  s[1] = x * x;
+  double e = s[0] * s[1];
+  delete[] s;
+  return e;
+}
+
 int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
@@ -649,12 +788,20 @@ int main(){
     TEST1(f6, 3);// CHECK-EXEC: {0.00}
     TEST1(f7, 3);// CHECK-EXEC: {1.00}
     TEST1(f8, 3);// CHECK-EXEC: {1.00}
+    TEST1(f25, 3);// CHECK-EXEC: {6.00}
+    TEST1(f26, 3);// CHECK-EXEC: {18.00}
+    TEST1(f27, 3);// CHECK-EXEC: {18.00}
                  
     auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
     grad9.execute(3, arr, &dx, darr);
     printf("{%.2f}\n", dx);// CHECK-EXEC: {2.00}
     TEST1(f10, 3);// CHECK-EXEC: {1.00}
     TEST1(f11, 3);// CHECK-EXEC: {1.00}
+    TEST1(f22, 3);// CHECK-EXEC: {2.00}
+    TEST1(f23, 3);// CHECK-EXEC: {3.00}
+    TEST1(f24, 3);// CHECK-EXEC: {5.00}
+    TEST1(f28, 3);// CHECK-EXEC: {2.00}
+    TEST1(f29, 3);// CHECK-EXEC: {3.00}
     TEST2(f12, 3, 1);// CHECK-EXEC: {-0.27, 0.27}
     dx = 0;
     auto grad13 = clad::gradient<clad::opts::enable_va>(f13, "x");
@@ -662,7 +809,9 @@ int main(){
     printf("{%.2f}\n", dx); // CHECK-EXEC: {0.00}
     TEST1(f14, 3);// CHECK-EXEC: {1.00}
     TEST1(f15, 3);// CHECK-EXEC: {6.00}
+    TEST1(f21, 3);// CHECK-EXEC: {2.00}
     TEST1(f16, 3);// CHECK-EXEC: {6.00}
     TEST1(f17, 3);// CHECK-EXEC: {27.00}
     TEST1(f18, 3);// CHECK-EXEC: {6.00}
+    TEST1(f19, 3);// CHECK-EXEC: {27.00}
 }

@@ -4,6 +4,9 @@
 #include "clad/Differentiator/Differentiator.h"
 
 #include "../TestUtils.h"
+
+#include <utility>
+
 struct S {
   float get() { return 3.; }
 };
@@ -17,8 +20,32 @@ long double fn1(double i, double j) {
   return res + x;
 }
 
+// std::move and std::forward only cast their argument, and so the tangent of
+// what they return is that of the argument.
+struct D {
+  double v;
+};
+
+double moved(double x) {
+  D d{x * x};
+  const D& r = std::move(d);
+  return r.v * x;
+}
+
+template <class T> double square(T&& t) {
+  double&& u = std::forward<T>(t);
+  return u * u;
+}
+
+double forwarded(double x) { return square(x * x); }
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: {12.00}
+
+  INIT_DIFFERENTIATE(moved, "x");
+  INIT_DIFFERENTIATE(forwarded, "x");
+  TEST_DIFFERENTIATE(moved, 3);     // CHECK-EXEC: {27.00}
+  TEST_DIFFERENTIATE(forwarded, 3); // CHECK-EXEC: {108.00}
 }

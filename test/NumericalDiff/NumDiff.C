@@ -28,7 +28,7 @@ double test_2(double x){
 //CHECK: double test_2_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
 //CHECK-NEXT:     double _t0 = std::tgamma(x);
-//CHECK-NEXT:     return _d_x * _t0 + x * (numerical_diff::forward_central_difference<double (*)(double){{.*}}>(std::tgamma, x, 0, 0, x) * _d_x);
+//CHECK-NEXT:     return _d_x * _t0 + x * numerical_diff::forward_central_difference_tangent<double (*)(double){{.*}}>(std::tgamma, _d_x, x, 0, 0, x);
 //CHECK-NEXT: }
 
 int main(){

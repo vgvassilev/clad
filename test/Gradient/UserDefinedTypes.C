@@ -124,7 +124,7 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
 // CHECK-NEXT:     sum_pullback(t, 1, &_d_t);
@@ -229,11 +229,9 @@ double fn6(dcomplex c, double i) {
 
 // CHECK: void fn6_grad(dcomplex c, double i, dcomplex *_d_c, double *_d_i) {
 // CHECK-NEXT:     c.real(5 * i);
-// CHECK-NEXT:     double _t0 = c.imag();
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = c.real() + 3 * _t0 + 6 * i;
-// CHECK-NEXT:     double _t1 = c.real();
-// CHECK-NEXT:     res += 4 * _t1;
+// CHECK-NEXT:     double res = c.real() + 3 * c.imag() + 6 * i;
+// CHECK-NEXT:     res += 4 * c.real();
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_res;
@@ -257,16 +255,14 @@ double fn7(dcomplex c1, dcomplex c2) {
 }
 
 // CHECK: void fn7_grad(dcomplex c1, dcomplex c2, dcomplex *_d_c1, dcomplex *_d_c2) {
-// CHECK-NEXT:     double _t0 = c2.real();
-// CHECK-NEXT:     c1.real(c2.imag() + 5 * _t0);
-// CHECK-NEXT:     double _t1 = c1.imag();
+// CHECK-NEXT:     c1.real(c2.imag() + 5 * c2.real());
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c1.real_pullback(1, _d_c1);
 // CHECK-NEXT:         c1.imag_pullback(3 * 1, _d_c1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, _d_c1, &_r0);
+// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * c2.real(), _d_c1, &_r0);
 // CHECK-NEXT:         c2.imag_pullback(_r0, _d_c2);
 // CHECK-NEXT:         c2.real_pullback(5 * _r0, _d_c2);
 // CHECK-NEXT:     }
@@ -317,12 +313,11 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK: void fn9_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     double _t1[5];
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
-// CHECK-NEXT:         res += c.real() + 2 * (_t1[i] = c.imag());
+// CHECK-NEXT:         res += c.real() + 2 * c.imag();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     res += sum(t);
 // CHECK-NEXT:     _d_res += 1;
@@ -331,7 +326,6 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         sum_pullback(t, _r_d1, _d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
 // CHECK-NEXT:             c.real_pullback(_r_d0, _d_c);
@@ -378,7 +372,7 @@ double fn11(double x, double y) {
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = -y;
 // CHECK-NEXT:     operator_plus_pullback(x, t, 1, _d_x, &_d_t);
 // CHECK-NEXT:     {
@@ -711,7 +705,6 @@ void fn20(MyStruct s) {
 // CHECK: void fn20_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, _d_s, {0., 0.}, _tracker0);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
@@ -876,7 +869,7 @@ double fn24(double x, double y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
 // CHECK-NEXT:      Vector3 _d_v(0., 0., 0.);
 // CHECK-NEXT:      Vector3 w = 2 * v;
-// CHECK-NEXT:      Vector3 _d_w;
+// CHECK-NEXT:      Vector3 _d_w = {};
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r3 = 0.;
@@ -915,7 +908,7 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
 // CHECK-NEXT:      Vector3 _d_v{0., 0., 0.};
 // CHECK-NEXT:      Vector3 w = - v;
-// CHECK-NEXT:      Vector3 _d_w;
+// CHECK-NEXT:      Vector3 _d_w = {};
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      v.operator_minus_pullback(_d_w, &_d_v);
 // CHECK-NEXT:      {
@@ -929,6 +922,27 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct UnaryMinusMember {
+  double x;
+  UnaryMinusMember operator-() const { return UnaryMinusMember{-x}; }
+};
+
+double unaryMinusMember(double a) {
+  UnaryMinusMember v{a};
+  return (-v).x * a;
+}
+// CHECK: void unaryMinusMember_grad(double a, double *_d_a) {
+// CHECK-NEXT:     UnaryMinusMember _d_v = {0.};
+// CHECK-NEXT:     UnaryMinusMember v{a};
+// CHECK-NEXT:     double _t0 = (- v).x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         UnaryMinusMember _r0 = {0.};
+// CHECK-NEXT:         _r0.x += 1 * a;
+// CHECK-NEXT:         v.operator_minus_pullback(_r0, &_d_v);
+// CHECK-NEXT:         *_d_a += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_a += _d_v.x;
+// CHECK-NEXT: }
 struct ptrClass {
   double* ptr = nullptr;
   ptrClass() = default;
@@ -941,8 +955,8 @@ struct ptrClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-::clad::ValueAndAdjoint<ptrClass, ptrClass>
-constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ::clad::ValueAndAdjoint<ptrClass, ptrClass>
+constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr);
 }}}
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
@@ -1207,10 +1221,10 @@ double fn33(double x) {
 // CHECK-NEXT:         _d_tmp3 += 2 * _d_y;
 // CHECK-NEXT:         _d_tmp4 += 2 * _d_y;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
-// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, _d_this);
-// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, _d_this);
-// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
+// CHECK-NEXT:     ((PIBase *)this)->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
+// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, dynamic_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, reinterpret_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, static_cast<PIBase *>(_d_this));
 // CHECK-NEXT: }
 // CHECK-NEXT:void fn33_grad(double x, double *_d_x) {
 // CHECK-NEXT:    PI _d_pi = {};
@@ -1384,6 +1398,141 @@ void printArray(T* arr, int size) {
   printf("}\n");
 }
 
+class Matrix {
+public:
+  Matrix() : owner_(true), nrows(0), ncols(0), data(nullptr) {}
+  Matrix(int r, int c) : owner_(true), nrows(r), ncols(c) {
+    data = new double[r * c];
+  }
+  Matrix(const Matrix& o) : owner_(true), nrows(0), ncols(0), data(nullptr) {
+    resize(o.nrows, o.ncols);
+    for (int i = 0; i < nrows * ncols; ++i)
+      data[i] = o.data[i];
+  }
+  Matrix& operator=(const Matrix& o) {
+    if (this != &o) {
+      delete[] data;
+      nrows = o.nrows;
+      ncols = o.ncols;
+      data = o.data ? new double[nrows * ncols] : nullptr;
+      for (int i = 0; i < nrows * ncols; ++i)
+        data[i] = o.data[i];
+    }
+    return *this;
+  }
+  ~Matrix() { delete[] data; }
+  void resize(int r, int c) {
+    if (nrows * ncols != r * c) {
+      if (r * c > 0)
+        data = new double[r * c];
+      else
+        data = nullptr;
+    }
+    nrows = r;
+    ncols = c;
+  }
+  double& operator()(int i, int j) { return data[j * nrows + i]; }
+  const double& operator()(int i, int j) const { return data[j * nrows + i]; }
+  const double* col(int j) const { return &((*this)(0, j)); }
+  bool owner_;
+  int nrows, ncols;
+  double* data;
+};
+
+void mat_mult(const Matrix& lhs, const Matrix& rhs, Matrix* out) {
+  out->resize(lhs.nrows, rhs.ncols);
+  for (int i = 0; i < lhs.nrows; ++i)
+    for (int k = 0; k < rhs.ncols; ++k) {
+      (*out)(i, k) = 0;
+      for (int j = 0; j < lhs.ncols; ++j)
+        (*out)(i, k) += lhs(i, j) * rhs(j, k);
+    }
+}
+
+void fill(const double* const x, Matrix* pm) {
+  Matrix& m = *pm;
+  m.resize(2, 2);
+  m(0, 0) = x[0];
+  m(1, 0) = x[1];
+  m(0, 1) = x[2];
+  m(1, 1) = x[3];
+}
+
+void square(const Matrix& A, Matrix* out) {
+  Matrix T(2, 2);
+  for (int i = 0; i < 2; ++i)
+    for (int j = 0; j < 2; ++j)
+      T(i, j) = A(i, j);
+  mat_mult(T, T, out);
+}
+
+void trace_sq(const double* const x, double* out) {
+  Matrix A;
+  fill(x, &A);
+  Matrix B;
+  square(A, &B);
+  const double* c1 = B.col(1);
+  *out = B(0, 0) + c1[1];
+}
+
+double matTraceSq(const double* x) {
+  double r = 0;
+  trace_sq(x, &r);
+  return r;
+}
+
+struct Pair { double a, b; };
+Pair makePair(double x) { return {x, 2 * x}; }
+// The member of a call's result is read in a reverse_forw.
+double& scaleByB(double& v, double x) {
+  v *= makePair(x).b;
+  return v;
+}
+double fnMemberOfCall(double x) {
+  double y = x;
+  return scaleByB(y, x);
+}
+
+// CHECK: scaleByB_reverse_forw(double &v, double x, double &_d_v, double _d_x
+// CHECK:     v *= makePair(x).b;
+
+// The adjoint of a variable initialized from a call that returns an object by
+// value starts at zero, not with what the defaulted constructor leaves.
+struct Uninit {
+  double v[2];
+  Uninit() = default;
+  explicit Uninit(double s) : v{s, s} {}
+};
+Uninit operator*(double s, const Uninit& a) {
+  Uninit r;
+  r.v[0] = s * a.v[0];
+  r.v[1] = s * a.v[1];
+  return r;
+}
+double fnFromCall(double x) {
+  Uninit a;
+  a.v[0] = x;
+  a.v[1] = 1;
+  Uninit c = 2 * a;
+  return c.v[0];
+}
+
+// CHECK: void fnFromCall_grad(double x, double *_d_x) {
+// CHECK: Uninit c = 2 * a;
+// CHECK-NEXT: Uninit _d_c = {};
+
+// A function returning a reference to a const member of a const parameter
+// returns its adjoint as a reference into the adjoint of the parameter.
+struct Pt {
+  double a, b;
+};
+const double& firstOf(const Pt& p) { return p.a; }
+double fnConstRefReturn(double x) {
+  Pt p{x, 2 * x};
+  const double& r = firstOf(p);
+  return r * p.b;
+}
+
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1468,6 +1617,10 @@ int main() {
     INIT_GRADIENT(fn25);
     TEST_GRADIENT(fn25, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
 
+    auto unaryMinusMember_grad = clad::gradient(unaryMinusMember);
+    double d_unaryMinusMember = 0;
+    unaryMinusMember_grad.execute(2, &d_unaryMinusMember);
+    printf("{%.2f}\n", d_unaryMinusMember); // CHECK-EXEC: {-4.00}
     INIT_GRADIENT(fn26);
     TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 
@@ -1513,4 +1666,19 @@ int main() {
     auto fn_nested_grad = clad::gradient(fn_nested);
     fn_nested_grad.execute(nested_o, &d_nested_o);
     printf("{%.2f}\n", d_nested_o.inner.i);    // CHECK-EXEC: {6.00}
+
+    double xm[4] = {1, 2, 3, 4}, dxm[4] = {0, 0, 0, 0};
+    auto matTraceSq_grad = clad::gradient(matTraceSq, "x");
+    matTraceSq_grad.execute(xm, dxm);
+    printf("{%.2f, %.2f, %.2f, %.2f}\n", dxm[0], dxm[1], dxm[2], dxm[3]);    // CHECK-EXEC: {2.00, 6.00, 4.00, 8.00}
+
+    INIT_GRADIENT(fnMemberOfCall);
+    TEST_GRADIENT(fnMemberOfCall, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {12.00}
+
+  double dFromCall = 0;
+  clad::gradient(fnFromCall).execute(3, &dFromCall);
+  printf("%.2f\n", dFromCall); // CHECK-EXEC: 2.00
+    double d_fcr = 0;
+    clad::gradient(fnConstRefReturn).execute(3, &d_fcr);
+    printf("{%.2f}\n", d_fcr);    // CHECK-EXEC: {12.00}
 }

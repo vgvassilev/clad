@@ -53,6 +53,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// Stores the number of performed passes for a given CFG block index.
   std::vector<short> m_BlockPassCounter;
 
+  /// Whether the function calls itself, found by the last pass.
+  bool m_CallsItself = false;
+
   //// Setters
   /// Marks S if it is required to store.
   /// E could be DeclRefExpr, ArraySubscriptExpr, MemberExpr, or DeclStmt.
@@ -61,6 +64,11 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// required/not required. For isReq==true, checks if the current mode is
   /// markingMode and nonLinearMode. E could be DeclRefExpr,
   /// ArraySubscriptExpr or MemberExpr.
+  /// Records every pointer or reference parameter as modified.
+  void markAllMemoryParamsModified();
+  /// Records that the function writes PVD, unless its caller cannot see the
+  /// write. A null PVD stands for the object or a target not known.
+  void markParamModified(const clang::ParmVarDecl* PVD);
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   //// Modes Setters
@@ -99,6 +107,8 @@ public:
 
   /// Visitors
   void Analyze(const DiffRequest& request);
+  /// One pass of the analysis over the body of the function of \p request.
+  void AnalyzeOnce(const DiffRequest& request);
 
   void VisitCFGBlock(const clang::CFGBlock& block);
 

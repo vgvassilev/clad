@@ -27,6 +27,18 @@ double stored_ptr(double* params, double const* xlArr) {
 // CHECK-NEXT: const double *_d_q = (_d_xlArr ? _d_xlArr + 1 : nullptr);
 // CHECK-NEXT: const double *q = xlArr + 1;
 
+double addressed(double* params, double const* xlArr) {
+  double const* q = &xlArr[1];
+  return params[0] * params[0] * q[0] + params[0] * params[1] * xlArr[0];
+}
+double addr_ptr(double* params, double const* xlArr) {
+  return addressed(params, xlArr);
+}
+
+// CHECK: clad::ValueAndPushforward<double, double> addressed_pushforward(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr) {
+// CHECK-NEXT: const double *_d_q = (_d_xlArr ? &_d_xlArr[1] : nullptr);
+// CHECK-NEXT: const double *q = &xlArr[1];
+
 // A read on the arithmetic itself is guarded on the root, so the check does
 // not repeat the arithmetic.
 double deref(double* params, double const* xlArr) {
@@ -151,6 +163,11 @@ int main() {
   clad::hessian(stored_ptr, "params[0:1]").execute(params, xlArr, m);
   printf("stored_ptr %.2f %.2f %.2f %.2f\n", m[0], m[1], m[2], m[3]);
   // CHECK-EXEC: stored_ptr 14.00 5.00 5.00 0.00
+
+  double ma[4] = {};
+  clad::hessian(addr_ptr, "params[0:1]").execute(params, xlArr, ma);
+  printf("addr_ptr %.2f %.2f %.2f %.2f\n", ma[0], ma[1], ma[2], ma[3]);
+  // CHECK-EXEC: addr_ptr 14.00 5.00 5.00 0.00
 
   double m2[1] = {};
   clad::hessian(deref_arith, "params[0]").execute(params, xlArr, m2);

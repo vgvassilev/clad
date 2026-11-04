@@ -41,6 +41,19 @@ public:
   bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
   bool VisitDeclStmt(clang::DeclStmt* DS);
   bool VisitCallExpr(clang::CallExpr* CE);
+  bool TraverseCallExpr(clang::CallExpr* CE);
+  bool TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE);
+  bool TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE);
+
+private:
+  /// Whether \p E names a useful variable anywhere in it, as the left side of
+  /// an assignment is read.
+  bool namesUseful(const clang::Expr* E);
+  /// Whether \p CE writes a useful variable through an argument or its
+  /// object. It reads all of its arguments to do so.
+  bool writesUseful(const clang::CallExpr* CE);
+  /// Traverses \p CE, marking its arguments when it writes a useful variable.
+  template <class F> bool traverseCall(const clang::CallExpr* CE, F Base);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_USEFULANALYZER_H

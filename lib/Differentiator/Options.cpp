@@ -85,6 +85,22 @@ static bool setAnalysisFromFlag(AnalysisFlags& F, llvm::StringRef Arg) {
   return false;
 }
 
+/// Match -f or -fno- followed by a fallback's name. The last one given
+/// decides, as it does for clang's own -f options.
+static bool setFallbackFromFlag(Options& O, llvm::StringRef Arg) {
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  if (Arg == "-f" Flag) {                                                      \
+    O.Enable##Id##Fallback = true;                                             \
+    return true;                                                               \
+  }                                                                            \
+  if (Arg == "-fno-" Flag) {                                                   \
+    O.Enable##Id##Fallback = false;                                            \
+    return true;                                                               \
+  }
+#include "clad/Differentiator/Analyses.def"
+  return false;
+}
+
 /// Says which analyses there are, where an option named one clad does not
 /// have. \p Also names whatever else that option accepts.
 static bool unknownAnalysis(llvm::StringRef Name, const char* Also) {
@@ -257,6 +273,16 @@ static void printHelp() {
                   ". Default: "                                                \
                << ((Default) ? "on" : "off") << ".\n";
 #include "clad/Differentiator/Analyses.def"
+  llvm::errs() << "Where clad cannot differentiate a call it may fall back to "
+                  "something else, which changes the values the derivative "
+                  "computes, so -fdisable-analysis=all leaves it alone.\n";
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  llvm::errs() << "-f" Flag " / -fno-" Flag " - Where clad cannot "            \
+                  "differentiate a call, it " Desc                             \
+                  ", unless an individual request specifies otherwise. "       \
+                  "Default: "                                                  \
+               << ((Default) ? "on" : "off") << ".\n";
+#include "clad/Differentiator/Analyses.def"
   llvm::errs() << "\n";
 }
 
@@ -298,7 +324,7 @@ bool Options::read(llvm::ArrayRef<std::string> Args) {
       llvm::errs() << getCladFullVersion() << "\n";
       break;
     case OptionID::Unknown:
-      if (setAnalysisFromFlag(Switches, Arg))
+      if (setAnalysisFromFlag(Switches, Arg) || setFallbackFromFlag(*this, Arg))
         break;
       llvm::errs() << "clad: Error: invalid option " << Arg;
       if (llvm::StringRef Near = nearestOption(Arg); !Near.empty())

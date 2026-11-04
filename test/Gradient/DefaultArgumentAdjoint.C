@@ -53,7 +53,7 @@ double use_global_default(double value) {
 }
 
 // CHECK-LABEL: void use_default_factor_grad(double value, double *_d_value) {
-// CHECK: OptionalFactor _r1 = {{[{]}}{}, 0};
+// CHECK: OptionalFactor _r1 = {clad::zero_like(defaultFactor), 0};
 // CHECK: clad::custom_derivatives::configured_scale_pullback(value, {defaultFactor, 0}, 1, &_r0, &_r1);
 // CHECK: *_d_value += _r0;
 // CHECK-LABEL: void use_global_default_grad(double value, double *_d_value) {
@@ -229,7 +229,7 @@ double f4(double x) {
 // It must not inherit the local variable's constructor context.
 double f5(double x) {
   global_default = x;
-  double a = f1(x, (global_default *= 2, defaultFactor));
+  double a = f1(x, (global_default *= 2, defaultFactor)); // expected-warning {{clad evaluates this argument more than once, and repeats what it writes each time}}
   return a + global_default;
 }
 

@@ -3,6 +3,7 @@
 #include "Analyses.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -16,13 +17,17 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/MathExtras.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <set>
 #include <unordered_map>
 
@@ -607,42 +612,47 @@ private:
   }
 };
 
-/// Whether a loop's body changes what its header promised: assigning to the
-/// induction variable or the bound, stepping either itself, or taking an
-/// address through which something else could.
-///
-/// recogniseCountedForLoop reads the header alone, deliberately, and leaves
-/// this to whoever acts on the result. An extent has to add it twice over: an
-/// index the body moves need not stay under the bound, and a bound the body
-/// raises is not the value a caller substituting its argument would get.
-class LoopShapeBreaker : public RecursiveASTVisitor<LoopShapeBreaker> {
-  const VarDecl* m_IndVar;
-  const VarDecl* m_Bound;
-  bool m_Broken = false;
-
-  bool isWatched(const Expr* E) const {
-    const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
-    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
-    return VD && (VD == m_IndVar || VD == m_Bound);
-  }
+/// The variables a statement only ever reads: every mention of one is
+/// loaded as a value on the spot. A mention that is assigned, stepped, has its
+/// address taken, is bound to a reference or is in an unevaluated operand is
+/// not such a load, and disqualifies the variable.
+class ReadOnlyVars : public RecursiveASTVisitor<ReadOnlyVars> {
+  llvm::DenseMap<const VarDecl*, std::pair<unsigned, unsigned>> m_Uses;
 
 public:
-  LoopShapeBreaker(const VarDecl* IndVar, const VarDecl* Bound)
-      : m_IndVar(IndVar), m_Bound(Bound) {}
-  [[nodiscard]] bool broken() const { return m_Broken; }
-
-  bool VisitBinaryOperator(BinaryOperator* BO) {
-    if (BO->isAssignmentOp() && isWatched(BO->getLHS()))
-      m_Broken = true;
+  explicit ReadOnlyVars(const Stmt* S) { TraverseStmt(const_cast<Stmt*>(S)); }
+  bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+      m_Uses[VD].first++;
     return true;
   }
-  bool VisitUnaryOperator(UnaryOperator* UO) {
-    if ((UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf) &&
-        isWatched(UO->getSubExpr()))
-      m_Broken = true;
+  bool VisitImplicitCastExpr(ImplicitCastExpr* ICE) {
+    if (ICE->getCastKind() == CK_LValueToRValue)
+      if (const auto* DRE =
+              dyn_cast<DeclRefExpr>(ICE->getSubExpr()->IgnoreParens()))
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          m_Uses[VD].second++;
     return true;
+  }
+  [[nodiscard]] bool onlyRead(const VarDecl* VD) const {
+    auto it = m_Uses.find(VD);
+    return it == m_Uses.end() || it->second.first == it->second.second;
   }
 };
+
+/// An integer index as `C + sum(a_k * v_k)`, with constant `C` and `a_k`, and
+/// each `v_k` the index of an enclosing counted loop with constant bounds.
+/// Such loops range over a product of intervals, so the extremes of the sum
+/// are the corners: no interval arithmetic guesses, and the bound computed is
+/// a value the index really takes.
+struct AffineIndex {
+  llvm::SmallVector<std::pair<const VarDecl*, int64_t>, 4> Terms;
+  int64_t C = 0;
+};
+
+/// Each coefficient and constant is kept below this, so no sum or product of
+/// two of them overflows int64_t on the way to the next check.
+constexpr int64_t AffineLimit = int64_t(1) << 40;
 
 class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   llvm::SmallVectorImpl<WrittenExtent>& m_Extents;
@@ -652,23 +662,130 @@ class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   /// The first write this analysis could not attribute; the later ones say
   /// nothing more, since every parameter is already reported unbounded.
   clang::SourceLocation m_OpaqueAt;
-  const Stmt* m_FnBody;
   const ASTContext& m_Context;
+  /// The variables the function never writes after their initialiser.
+  ReadOnlyVars m_ReadOnly;
+  /// The enclosing loops whose index takes every value of a constant
+  /// interval, innermost last.
+  struct IndexRange {
+    const VarDecl* Var;
+    int64_t Lo, Hi;
+  };
+  llvm::SmallVector<IndexRange, 4> m_Ranges;
+  /// A local the function never writes again, as an affine form of the loop
+  /// indices around its declaration, which are still around every use of it.
+  llvm::DenseMap<const VarDecl*, AffineIndex> m_LocalForms;
+  /// Per parameter, one past the last element every complete run writes, by
+  /// a statement of the body itself ahead of anything that may leave early:
+  /// the elements below it exist.
+  llvm::DenseMap<unsigned, uint64_t> m_UncondEnd;
+  /// Per parameter, one past the last element any constant extent covers,
+  /// and the parameters some write of which is not constant.
+  llvm::DenseMap<unsigned, uint64_t> m_ConstEnd;
+  llvm::DenseSet<unsigned> m_NonConst;
+
+  /// Raises \p M's entry for \p K to at least \p V.
+  static void raise(llvm::DenseMap<unsigned, uint64_t>& M, unsigned K,
+                    uint64_t V) {
+    auto [It, Inserted] = M.try_emplace(K, V);
+    if (!Inserted)
+      It->second = std::max(It->second, V);
+  }
+
+  static bool mayLeave(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt, GotoStmt, IndirectGotoStmt, LabelStmt, CXXThrowExpr>(S))
+      return true;
+    return llvm::any_of(S->children(), mayLeave);
+  }
+
+  void noteUnconditionalWrites(const Stmt* Body) {
+    const auto* CS = dyn_cast<CompoundStmt>(Body);
+    // Both arms of the same type: LLVM 23 converts body_const_range and
+    // ArrayRef<Stmt*> into each other, which makes a mix ambiguous.
+    for (const Stmt* S :
+         CS ? CS->body() : CompoundStmt::body_const_range(nullptr, nullptr)) {
+      if (mayLeave(S))
+        return;
+      const auto* BO = dyn_cast<BinaryOperator>(S);
+      if (!BO || !BO->isAssignmentOp())
+        continue;
+      const Expr* LHS = BO->getLHS()->IgnoreParenImpCasts();
+      const Expr* Base = nullptr;
+      int64_t At = 0;
+      Expr::EvalResult R;
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(LHS)) {
+        if (!ASE->getIdx()->EvaluateAsInt(R, m_Context) ||
+            R.Val.getInt().isNegative())
+          continue;
+        At = R.Val.getInt().getExtValue();
+        Base = ASE->getBase();
+      } else if (const auto* UO = dyn_cast<UnaryOperator>(LHS);
+                 UO && UO->getOpcode() == UO_Deref) {
+        Base = UO->getSubExpr();
+      } else {
+        continue;
+      }
+      const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
+      const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+      auto It = PVD ? m_ParamIdx.find(PVD) : m_ParamIdx.end();
+      if (It != m_ParamIdx.end())
+        raise(m_UncondEnd, It->second, At + 1);
+    }
+  }
 
 public:
   ExtentVisitor(const FunctionDecl* FD,
                 llvm::SmallVectorImpl<WrittenExtent>& Extents)
-      : m_Extents(Extents), m_FnBody(FD->getBody()),
-        m_Context(FD->getASTContext()) {
+      : m_Extents(Extents), m_Context(FD->getASTContext()),
+        m_ReadOnly(FD->getBody()) {
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
       m_ParamIdx[FD->getParamDecl(i)] = i;
+    noteUnconditionalWrites(FD->getBody());
+  }
+
+  /// Constant extents that disagree, `p[0]` and `p[1]` say, are covered by
+  /// `[0, n)` where every complete run writes up to `p[n - 1]`: those
+  /// elements exist, and putting back one the call did not write leaves it
+  /// as it was.
+  void coverPrefix() {
+    for (auto E : llvm::enumerate(m_Extents)) {
+      auto i = static_cast<unsigned>(E.index());
+      WrittenExtent& W = E.value();
+      auto End = m_ConstEnd.find(i);
+      auto Uncond = m_UncondEnd.find(i);
+      if (W.K != WrittenExtent::Kind::Unknown ||
+          W.Why != AnalysisMiss::WritesDisagree || m_NonConst.contains(i) ||
+          End == m_ConstEnd.end() || Uncond == m_UncondEnd.end() ||
+          End->second > Uncond->second)
+        continue;
+      W.K = WrittenExtent::Kind::Range;
+      W.Why = AnalysisMiss::None;
+      W.BoundIsParam = false;
+      W.BoundConst = End->second;
+    }
   }
 
   bool TraverseForStmt(ForStmt* FS) {
     bool Entered = !breaksShape(FS) && m_Loops.enter(FS);
+    bool Ranged = Entered && pushIndexRange(FS);
     bool res = RecursiveASTVisitor::TraverseForStmt(FS);
+    if (Ranged)
+      m_Ranges.pop_back();
     m_Loops.leave(Entered);
     return res;
+  }
+
+  bool VisitVarDecl(VarDecl* VD) {
+    if (isa<ParmVarDecl>(VD) || !VD->hasLocalStorage() || !VD->getInit() ||
+        !VD->getType()->isIntegerType() ||
+        VD->getType().isVolatileQualified() || !m_ReadOnly.onlyRead(VD))
+      return true;
+    AffineIndex F;
+    if (affineOf(VD->getInit(), F) && fits(F, VD->getType()))
+      m_LocalForms[VD] = F;
+    return true;
   }
 
   bool VisitBinaryOperator(BinaryOperator* BO) {
@@ -736,7 +853,10 @@ public:
 
   /// Whether acting on \p FS's recognised construct would be unsound here.
   ///
-  /// The index and the bound are watched over different reaches. The index
+  /// recogniseCountedForLoop reads the header alone. An index the body moves
+  /// need not stay under the bound, and a bound the function changes is not
+  /// the value a caller substitutes. The two are watched over different
+  /// reaches. The index
   /// only has to hold still while the loop runs. The bound has to hold still
   /// for the whole call, because a call site works the range out from the
   /// argument it passed and reads it much later.
@@ -745,18 +865,14 @@ public:
     if (!V)
       return false; // Not recognised anyway; nothing to break.
     const LoopFacts& L = *V;
-    LoopShapeBreaker InLoop(L.IndVar, /*Bound=*/nullptr);
-    InLoop.TraverseStmt(const_cast<Stmt*>(cast<Stmt>(FS->getBody())));
-    if (InLoop.broken())
+    // Only a read keeps a variable still; a reference or address handed on,
+    // e.g. to a callee taking `int&`, can move it.
+    if (!ReadOnlyVars(FS->getBody()).onlyRead(L.IndVar))
       return true;
     const auto* BoundDRE = dyn_cast<DeclRefExpr>(L.Bound);
     const auto* BoundVD =
         BoundDRE ? dyn_cast<VarDecl>(BoundDRE->getDecl()) : nullptr;
-    if (!BoundVD)
-      return false;
-    LoopShapeBreaker InFn(/*IndVar=*/nullptr, BoundVD);
-    InFn.TraverseStmt(const_cast<Stmt*>(m_FnBody));
-    return InFn.broken();
+    return BoundVD && !m_ReadOnly.onlyRead(BoundVD);
   }
 
   [[nodiscard]] bool sawOpaqueWrite() const { return m_Opaque; }
@@ -765,6 +881,188 @@ public:
   }
 
 private:
+  /// \p V as an int64_t inside AffineLimit, or false.
+  static bool toSmall(const llvm::APSInt& V, int64_t& Out) {
+    if (V.isSigned() ? !V.isSignedIntN(41) : !V.isIntN(40))
+      return false;
+    Out = V.getExtValue();
+    return Out > -AffineLimit && Out < AffineLimit;
+  }
+
+  /// Pushes the interval \p FS's index takes every value of, in order, when
+  /// there is one: the loop declares the index, so nothing before it can hold
+  /// its address; both ends fold to constants, so the interval does not move
+  /// with an enclosing loop; it runs at least once; nothing leaves the body
+  /// early; and the body only reads the index. Returns whether it pushed.
+  bool pushIndexRange(const ForStmt* FS) {
+    Proven<LoopFacts> V = recogniseCountedForLoop(FS);
+    if (!V || !isa_and_nonnull<DeclStmt>(FS->getInit()) ||
+        findEarlyExit(FS->getBody()))
+      return false;
+    const LoopFacts& L = *V;
+    Expr::EvalResult Start;
+    Expr::EvalResult Bound;
+    int64_t Lo = 0;
+    int64_t Hi = 0;
+    if (!L.Init->EvaluateAsInt(Start, m_Context) ||
+        !L.Bound->EvaluateAsInt(Bound, m_Context) ||
+        !toSmall(Start.Val.getInt(), Lo) || !toSmall(Bound.Val.getInt(), Hi))
+      return false;
+    if (!L.Inclusive)
+      --Hi;
+    if (Lo > Hi || !ReadOnlyVars(FS->getBody()).onlyRead(L.IndVar))
+      return false;
+    m_Ranges.push_back({L.IndVar, Lo, Hi});
+    return true;
+  }
+
+  /// The least and the greatest value \p F takes, or false if it names a
+  /// variable whose interval is not known here or the values do not stay
+  /// inside AffineLimit.
+  bool rangeOf(const AffineIndex& F, int64_t& Lo, int64_t& Hi) const {
+    Lo = Hi = F.C;
+    for (const auto& T : F.Terms) {
+      const auto* R = llvm::find_if(
+          m_Ranges, [&](const IndexRange& IR) { return IR.Var == T.first; });
+      if (R == m_Ranges.end())
+        return false;
+      int64_t A = T.second;
+      int64_t L = A > 0 ? R->Lo : R->Hi;
+      int64_t H = A > 0 ? R->Hi : R->Lo;
+      // Each factor is inside AffineLimit, so the products cannot overflow.
+      Lo += A * L;
+      Hi += A * H;
+      if (Lo <= -AffineLimit || Hi >= AffineLimit || Lo >= AffineLimit ||
+          Hi <= -AffineLimit)
+        return false;
+    }
+    return true;
+  }
+
+  /// Whether every value \p F takes is representable in \p Ty, so the
+  /// expression computed it without wrapping and means what the sum says.
+  bool fits(const AffineIndex& F, QualType Ty) const {
+    int64_t Lo = 0;
+    int64_t Hi = 0;
+    if (!Ty->isIntegerType() || !rangeOf(F, Lo, Hi))
+      return false;
+    unsigned W = m_Context.getIntWidth(Ty);
+    if (W >= 64)
+      return Ty->isSignedIntegerOrEnumerationType() || Lo >= 0;
+    if (!Ty->isSignedIntegerOrEnumerationType())
+      return Lo >= 0 && Hi < (int64_t(1) << W);
+    return Lo >= -(int64_t(1) << (W - 1)) && Hi < (int64_t(1) << (W - 1));
+  }
+
+  /// `F += K * G`, or false if a coefficient leaves AffineLimit.
+  static bool addScaled(AffineIndex& F, const AffineIndex& G, int64_t K) {
+    auto mulAdd = [K](int64_t& Acc, int64_t X) {
+      int64_t P = 0;
+      if (llvm::MulOverflow(X, K, P) || llvm::AddOverflow(Acc, P, Acc))
+        return false;
+      return Acc > -AffineLimit && Acc < AffineLimit;
+    };
+    if (!mulAdd(F.C, G.C))
+      return false;
+    for (const auto& T : G.Terms) {
+      auto* It = llvm::find_if(
+          F.Terms, [&](const auto& FT) { return FT.first == T.first; });
+      if (It == F.Terms.end()) {
+        F.Terms.emplace_back(T.first, 0);
+        It = &F.Terms.back();
+      }
+      if (!mulAdd(It->second, T.second))
+        return false;
+    }
+    llvm::erase_if(F.Terms, [](const auto& T) { return T.second == 0; });
+    return true;
+  }
+
+  /// Reads \p E as an AffineIndex. A whitelist: integer constants, `+`, `-`,
+  /// a product with a constant, value-preserving integer conversions, the
+  /// index of a loop on m_Ranges, and a local in m_LocalForms. Every
+  /// intermediate value has to fit its own type, which is what rules out a
+  /// wrap the sum would not see.
+  bool affineOf(const Expr* E, AffineIndex& F) const {
+    E = E->IgnoreParens();
+    if (E->isValueDependent() || !E->getType()->isIntegerType())
+      return false;
+    Expr::EvalResult R;
+    if (!E->HasSideEffects(m_Context) && E->EvaluateAsInt(R, m_Context)) {
+      F = AffineIndex();
+      return toSmall(R.Val.getInt(), F.C);
+    }
+    if (const auto* ICE = dyn_cast<ImplicitCastExpr>(E)) {
+      CastKind K = ICE->getCastKind();
+      if (K != CK_LValueToRValue && K != CK_IntegralCast && K != CK_NoOp)
+        return false;
+      return affineOf(ICE->getSubExpr(), F) && fits(F, E->getType());
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      UnaryOperatorKind Op = UO->getOpcode();
+      AffineIndex G;
+      if ((Op != UO_Plus && Op != UO_Minus) || !affineOf(UO->getSubExpr(), G))
+        return false;
+      F = AffineIndex();
+      return addScaled(F, G, Op == UO_Minus ? -1 : 1) && fits(F, E->getType());
+    }
+    if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+      BinaryOperatorKind Op = BO->getOpcode();
+      AffineIndex L;
+      AffineIndex Rt;
+      if ((Op != BO_Add && Op != BO_Sub && Op != BO_Mul) ||
+          !affineOf(BO->getLHS(), L) || !affineOf(BO->getRHS(), Rt))
+        return false;
+      F = AffineIndex();
+      bool OK = false;
+      if (Op != BO_Mul)
+        OK = addScaled(F, L, 1) && addScaled(F, Rt, Op == BO_Sub ? -1 : 1);
+      else if (L.Terms.empty())
+        OK = addScaled(F, Rt, L.C);
+      else if (Rt.Terms.empty())
+        OK = addScaled(F, L, Rt.C);
+      return OK && fits(F, E->getType());
+    }
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+      const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+      if (!VD)
+        return false;
+      F = AffineIndex();
+      if (llvm::any_of(m_Ranges,
+                       [&](const IndexRange& IR) { return IR.Var == VD; }))
+        F.Terms.push_back({VD, 1});
+      else {
+        auto It = m_LocalForms.find(VD);
+        if (It == m_LocalForms.end())
+          return false;
+        F = It->second;
+      }
+      return fits(F, E->getType());
+    }
+    return false;
+  }
+
+  /// Records in \p E what an index read by affineOf covers: the element, if
+  /// it takes one value, and otherwise `[0, Hi]`. Leaves \p E alone and
+  /// returns false when the index is not affine or can go below zero.
+  bool classifyAffine(const Expr* Idx, WrittenExtent& E) const {
+    AffineIndex F;
+    int64_t Lo = 0;
+    int64_t Hi = 0;
+    if (!affineOf(Idx, F) || !rangeOf(F, Lo, Hi) || Lo < 0)
+      return false;
+    E.Why = AnalysisMiss::None;
+    if (Lo == Hi) {
+      E.K = WrittenExtent::Kind::Element;
+      E.Offset = static_cast<uint64_t>(Lo);
+    } else {
+      E.K = WrittenExtent::Kind::Range;
+      E.BoundIsParam = false;
+      E.BoundConst = static_cast<uint64_t>(Hi) + 1;
+    }
+    return true;
+  }
+
   /// Records `[0, Bound)` in \p E when a call site can work Bound out for
   /// itself -- when it folds to a constant, or names a by-value parameter it
   /// passed. Marks \p E BoundNotReadable otherwise, leaving it Unknown.
@@ -801,9 +1099,16 @@ private:
   }
 
   /// Widens the recorded extent for `Idx` so it also covers `New`. Two
-  /// descriptions that are not identical widen to Unknown rather than to a
-  /// guessed union: a wrong union would under-record.
+  /// descriptions widen to the larger only when it provably contains the
+  /// other, and to Unknown otherwise rather than to a guessed union: a wrong
+  /// union would under-record.
   void widen(unsigned Idx, const WrittenExtent& New) {
+    if (New.K == WrittenExtent::Kind::Element)
+      raise(m_ConstEnd, Idx, New.Offset + 1);
+    else if (New.K == WrittenExtent::Kind::Range && !New.BoundIsParam)
+      raise(m_ConstEnd, Idx, New.BoundConst);
+    else
+      m_NonConst.insert(Idx);
     WrittenExtent& Cur = m_Extents[Idx];
     if (Cur.K == WrittenExtent::Kind::None) {
       Cur = New;
@@ -829,11 +1134,74 @@ private:
                                : Cur.BoundIsParam == New.BoundIsParam &&
                                      Cur.BoundParamIdx == New.BoundParamIdx &&
                                      Cur.BoundConst == New.BoundConst);
-    if (!same) {
+    if (same)
+      return;
+    // With the bound a constant it is known, and every range starts at zero,
+    // so of a range and anything inside it the range is the exact union:
+    // `[0, 36)` followed by `[7]` is still `[0, 36)`, and two constant ranges
+    // always nest. Two separate elements do not make a range, and neither
+    // does an element past the range's end; the hull of either would claim
+    // elements nothing writes.
+    auto constRange = [](const WrittenExtent& W) {
+      return W.K == WrittenExtent::Kind::Range && !W.BoundIsParam;
+    };
+    auto contains = [&](const WrittenExtent& Outer, const WrittenExtent& In) {
+      if (!constRange(Outer))
+        return false;
+      if (In.K == WrittenExtent::Kind::Element)
+        return In.Offset < Outer.BoundConst;
+      return constRange(In) && In.BoundConst <= Outer.BoundConst;
+    };
+    if (contains(Cur, New))
+      return;
+    if (contains(New, Cur)) {
+      Cur = New;
+      return;
+    }
+    {
       Cur.K = WrittenExtent::Kind::Unknown;
       Cur.Why = AnalysisMiss::WritesDisagree;
       Cur.RefusedAt = New.RefusedAt;
     }
+  }
+
+  /// Whether \p E names storage inside one of this function's own automatic
+  /// objects, reached without loading a pointer on the way: subscripts of
+  /// arrays that decay in place, and members reached with `.`.
+  ///
+  /// Narrower than utils::designatesLocallyOwnedStorage on purpose. That one
+  /// peels any subscript, so it would also accept `ptrs[0][1]` for a local
+  /// array of pointers, which writes wherever `ptrs[0]` points -- possibly a
+  /// parameter's buffer. Here every subscript's base has to be an array.
+  static bool isInsideLocalObject(const Expr* E) {
+    E = E->IgnoreParens();
+    while (true) {
+      const Expr* Arr = nullptr;
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+        Arr = ASE->getBase();
+      else if (const auto* UO = dyn_cast<UnaryOperator>(E);
+               UO && UO->getOpcode() == UO_Deref)
+        Arr = UO->getSubExpr();
+      else if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+        if (ME->isArrow())
+          return false;
+        E = ME->getBase()->IgnoreParens();
+        continue;
+      } else
+        break;
+      // `a[i]` and `*a` stay inside `a` only when `a` is an array in place,
+      // not a pointer value that was loaded from somewhere.
+      const auto* ICE = dyn_cast<ImplicitCastExpr>(Arr->IgnoreParens());
+      if (!ICE || ICE->getCastKind() != CK_ArrayToPointerDecay)
+        return false;
+      E = ICE->getSubExpr()->IgnoreParens();
+    }
+    const auto* DRE = dyn_cast<DeclRefExpr>(E);
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    // A by-value parameter is a local too, but an array parameter is a
+    // pointer, and a reference names someone else's object.
+    return VD && VD->hasLocalStorage() && !isa<ParmVarDecl>(VD) &&
+           !VD->getType()->isReferenceType();
   }
 
   /// Attributes a write to a parameter and classifies the range it covers.
@@ -862,7 +1230,11 @@ private:
         // Not Inclusive: `i <= d` reaches out[d], which [0, d) excludes.
         if (L && L->InitIsNonNegative && !L->Inclusive)
           classifyBound(L->Bound, E);
-      } else {
+        // A variable that is not, or not usably, a loop's own index may still
+        // be one with constant bounds, or a local computed from such.
+        if (E.K == WrittenExtent::Kind::Unknown)
+          classifyAffine(Idx, E);
+      } else if (!classifyAffine(Idx, E)) {
         E.K = WrittenExtent::Kind::Unknown;
         E.Why = AnalysisMiss::IndexNotUnderstood;
         E.RefusedAt = Idx->getBeginLoc();
@@ -880,12 +1252,13 @@ private:
     }
 
     // Reached through a pointer, but not one of this function's parameters:
-    // it may alias any of them, and nothing here rules that out.
+    // it may alias any of them, and nothing here rules that out -- unless the
+    // pointer is a local array decaying, which is storage of this frame.
     const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
     const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
     auto it = PVD ? m_ParamIdx.find(PVD) : m_ParamIdx.end();
     if (it == m_ParamIdx.end()) {
-      if (Base->getType()->isPointerType()) {
+      if (Base->getType()->isPointerType() && !isInsideLocalObject(LHS)) {
         m_Opaque = true;
         if (m_OpaqueAt.isInvalid())
           m_OpaqueAt = LHS->getBeginLoc();
@@ -932,6 +1305,7 @@ computeWrittenExtents(const FunctionDecl* FD,
   }
   ExtentVisitor V(FD, Extents);
   V.TraverseStmt(FD->getBody());
+  V.coverPrefix();
   // Something in the body could write through a parameter without this
   // analysis seeing which one. Report every parameter it could have been as
   // unbounded rather than as untouched, so a caller that gates on isProven()
@@ -964,6 +1338,85 @@ void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out) {
   const FunctionDecl* Def = R.Function->getDefinition();
   if (Def && Def->hasBody())
     collectCountedLoops(R, Out.Loops);
+}
+
+void findRecomputableLocals(const DiffRequest& R,
+                            llvm::SmallPtrSetImpl<const VarDecl*>& Out) {
+  const FunctionDecl* Fn = R.Function ? R.Function->getDefinition() : nullptr;
+  // The initializer loads the same values as in the forward pass only if the
+  // function stores to nothing but its own locals.
+  if (!Fn || !Fn->hasBody() || R.Mode == DiffMode::reverse_mode_forward_pass ||
+      !R.writesOnlyLocals())
+    return;
+  // The counted loops around the statement being looked at, innermost last.
+  llvm::SmallVector<const LoopFacts*, 4> Loops;
+  // An unwritten parameter, or the index of an enclosing loop that the
+  // reverse pass restores before it enters the body: by the reverse of the
+  // increment, or else from the loop's slots, which need a literal count.
+  auto holds = [&](const VarDecl* Read) {
+    if (!R.writesVariable(Read))
+      return isa<ParmVarDecl>(Read);
+    for (const LoopFacts* F : llvm::reverse(Loops))
+      if (F->IndVar == Read)
+        return F->Step && (R.shouldBeRecorded(F->Step->getSubExpr()) ||
+                           (F->Count >= 0 && F->OwnsIndVar));
+    return false;
+  };
+  // A few operations on such values and on elements they point to are
+  // cheaper to recompute than to store.
+  unsigned Ops = 0;
+  std::function<bool(const Expr*)> ok = [&](const Expr* E) -> bool {
+    E = E->IgnoreParens();
+    if (!isa<CastExpr>(E) && ++Ops > 8)
+      return false;
+    if (isa<IntegerLiteral, FloatingLiteral>(E))
+      return true;
+    if (const auto* CE = dyn_cast<CastExpr>(E)) {
+      if (CE->getCastKind() != CK_LValueToRValue)
+        return ok(CE->getSubExpr());
+      const Expr* Sub = CE->getSubExpr()->IgnoreParens();
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(Sub))
+        return ok(ASE->getBase()) && ok(ASE->getIdx());
+      const auto* DRE = dyn_cast<DeclRefExpr>(Sub);
+      const auto* Read = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      return Read && holds(Read);
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return UO->getOpcode() == UO_Minus && ok(UO->getSubExpr());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      return (BO->isAdditiveOp() || BO->isMultiplicativeOp()) &&
+             ok(BO->getLHS()) && ok(BO->getRHS());
+    return false;
+  };
+  // Every iteration the reverse pass enters ran the declaration: it is
+  // directly in the body of a counted loop, which no statement leaves early.
+  std::function<void(const Stmt*)> walk = [&](const Stmt* S) {
+    if (!S)
+      return;
+    const auto* FS = dyn_cast<ForStmt>(S);
+    const LoopFacts* F = FS ? &R.getLoopFacts(FS) : nullptr;
+    if (!F || !F->IndVar || !F->BoundsAreStable) {
+      for (const Stmt* Child : S->children())
+        walk(Child);
+      return;
+    }
+    Loops.push_back(F);
+    if (const auto* Body = dyn_cast<CompoundStmt>(FS->getBody()))
+      for (const Stmt* B : Body->body())
+        if (const auto* DS = dyn_cast<DeclStmt>(B))
+          for (const Decl* D : DS->decls()) {
+            const auto* VD = dyn_cast<VarDecl>(D);
+            // A local written after its declaration no longer holds the
+            // initial value at the end of the iteration.
+            Ops = 0;
+            if (VD && VD->getInit() && VD->getType()->isArithmeticType() &&
+                !R.writesVariable(VD) && ok(VD->getInit()))
+              Out.insert(VD);
+          }
+    walk(FS->getBody());
+    Loops.pop_back();
+  };
+  walk(Fn->getBody());
 }
 
 } // namespace clad

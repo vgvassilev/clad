@@ -3,6 +3,10 @@
 #include "gtest/gtest.h"
 
 #include <cstddef>
+#include <cstring>
+#include <new>
+#include <set>
+#include <vector>
 
 // A tape small enough for a handful of pushes to cross several slabs: four
 // elements inline, four per slab.
@@ -55,6 +59,45 @@ TEST(Tape, IndexAfterPop) {
     EXPECT_EQ(t[i], static_cast<int>(i)) << "at " << i;
 }
 
+// A tape reuses the slabs released by the previous tape of the same type and
+// sees only the elements it pushes. Pooled slabs are handed only to tapes,
+// not to other allocations of the same size.
+TEST(Tape, NextTapeTakesReleasedSlabs) {
+  std::set<const int*> released;
+  {
+    SmallTape t = {};
+    fill(t, /*n=*/24); // the inline four, and five whole slabs
+    for (const int& v : t)
+      released.insert(&v);
+  }
+  std::vector<std::vector<char>> between;
+  between.reserve(5);
+  for (int i = 0; i < 5; ++i)
+    between.emplace_back(sizeof(SmallTape::Slab));
+  SmallTape u = {};
+  for (int i = 0; i < 24; ++i)
+    clad::push(u, 100 + i);
+  int i = 0;
+  for (const int& v : u) {
+    EXPECT_EQ(v, 100 + i) << "at " << i;
+    // Past the four elements kept inline.
+    if (i >= 4)
+      EXPECT_TRUE(released.count(&v)) << "slab of " << i << " is new";
+    ++i;
+  }
+}
+
+// A tape destroyed after its thread's pool deletes its slabs directly. This
+// static tape is constructed before the pool, which its first slab
+// constructs. At exit, the main thread's thread_local objects, the pool
+// included, are destroyed before objects with static storage duration
+// ([basic.start.term]), so the pool is destroyed first. No thread is needed,
+// so this also runs on targets without threads.
+TEST(Tape, TapeOutlivesThePool) {
+  static SmallTape t = {};
+  fill(t, /*n=*/23);
+}
+
 TEST(Tape, IteratorFollowsPushOrder) {
   SmallTape t = {};
   fill(t, 23);
@@ -89,4 +132,28 @@ TEST(Tape, NoMutexUnlessMultithreaded) {
   // The lock lives in the multithreaded instantiation only.
   EXPECT_LT(sizeof(clad::tape<double>),
             sizeof(clad::tape<double, 64, 1024, /*is_multithread=*/true>));
+}
+
+// Filled and counted out of line, so that the compiler cannot drop the fill
+// as a store to an object whose lifetime has not begun yet.
+using DoubleTape = clad::tape<double>;
+alignas(DoubleTape) static unsigned char raw[sizeof(DoubleTape)];
+__attribute__((noinline)) static void fillRaw() {
+  std::memset(raw, 0x5a, sizeof raw);
+}
+__attribute__((noinline)) static std::size_t countUntouched() {
+  std::size_t n = 0;
+  for (unsigned char b : raw)
+    n += b == 0x5a;
+  return n;
+}
+
+TEST(Tape, ValueInitLeavesInlineBufferAlone) {
+  // Generated code value-initializes every tape it declares. The inline
+  // buffer must not be zero-filled for that: it is written by the pushes.
+  fillRaw();
+  auto* t = new (raw) DoubleTape{};
+  EXPECT_GE(countUntouched(), 64 * sizeof(double));
+  EXPECT_EQ(t->size(), 0u);
+  t->~DoubleTape();
 }

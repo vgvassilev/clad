@@ -16,6 +16,7 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
@@ -230,6 +231,11 @@ inline clang::QualType getCanonicalTagType(clang::ASTContext& /*C*/,
   return TD->getTypeForDecl()->getCanonicalTypeInternal();
 }
 
+inline bool hasSameUnqualifiedType(const clang::ASTContext& C,
+                                   clang::QualType T1, clang::QualType T2) {
+  return C.hasSameUnqualifiedType(T1, T2);
+}
+
 inline clang::QualType
 CheckTemplateIdType(clang::Sema& S, clang::TemplateName T,
                     clang::SourceLocation Loc,
@@ -343,6 +349,12 @@ inline clang::QualType getCanonicalTagType(clang::ASTContext& C,
   return C.getCanonicalTagType(TD);
 }
 
+// Clang 22 made this type comparison a static member.
+inline bool hasSameUnqualifiedType(const clang::ASTContext& /*C*/,
+                                   clang::QualType T1, clang::QualType T2) {
+  return clang::ASTContext::hasSameUnqualifiedType(T1, T2);
+}
+
 // Clang 22: CheckTemplateIdType gained Keyword + Scope* +
 // ForNestedNameSpecifier params; default them to match pre-22 behavior.
 inline clang::QualType
@@ -395,6 +407,30 @@ inline clang::QualType getTypeDeclType(clang::ASTContext& C,
 #else
   return C.getTypeDeclType(clang::ElaboratedTypeKeyword::None, std::nullopt,
                            TD);
+#endif
+}
+
+// The argument the default of \p Param gives, after the arguments
+// \p Converted of the parameters before it; null if it has none. Clang 16
+// split the converted arguments into sugared and canonical ones; clang 22
+// added the location of the template keyword.
+inline clang::TemplateArgumentLoc SubstDefaultTemplateArgument(
+    clang::Sema& S, clang::TemplateDecl* TD, clang::NamedDecl* Param,
+    llvm::ArrayRef<clang::TemplateArgument> Converted) {
+  clang::SourceLocation Loc = TD->getLocation();
+  bool HasDefault = false;
+#if CLANG_VERSION_MAJOR < 16
+  llvm::SmallVector<clang::TemplateArgument, 4> C(Converted.begin(),
+                                                  Converted.end());
+  return S.SubstDefaultTemplateArgumentIfAvailable(TD, Loc, Loc, Param, C,
+                                                   HasDefault);
+#elif CLANG_VERSION_MAJOR < 22
+  return S.SubstDefaultTemplateArgumentIfAvailable(
+      TD, Loc, Loc, Param, Converted, Converted, HasDefault);
+#else
+  return S.SubstDefaultTemplateArgumentIfAvailable(
+      TD, /*TemplateKWLoc=*/clang::SourceLocation(), Loc, Loc, Param, Converted,
+      Converted, HasDefault);
 #endif
 }
 
@@ -820,6 +856,18 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
 #else
 #define CLAD_COMPAT_TemplateSuccess Sema::TDK_Success
 #endif
+
+// Clang 15 added isDirectlyAddressable, for builtins in namespace std; before
+// it, the predefined library functions are the ones whose address can be
+// taken.
+static inline bool isDirectlyAddressable(const clang::Builtin::Context& BI,
+                                         unsigned ID) {
+#if CLANG_VERSION_MAJOR >= 15
+  return BI.isDirectlyAddressable(ID);
+#else
+  return BI.isPredefinedLibFunction(ID);
+#endif
+}
 
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

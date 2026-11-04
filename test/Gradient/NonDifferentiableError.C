@@ -32,7 +32,7 @@ non_differentiable double fn_s2_mem_fn(double i, double j) {
 double no_body(double x); 
 
 double fn1(double x) { return no_body(x); } //expected-warning {{attempted differentiation of function 'no_body' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-//expected-note@34 {{fallback to numerical differentiation is disabled}}
+//expected-note@34 {{the numerical-diff fallback is off for this request}}
 double fn2(double x) { return fn1(x); }
 
 #define INIT_EXPR(classname)                                                   \

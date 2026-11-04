@@ -51,8 +51,7 @@ double replace_fallback(CopyFallback values, double x) {
 }
 
 // CHECK: void replace_fallback_grad_1(CopyFallback values, double x, double *_d_x) {
-// CHECK-NEXT:     CopyFallback _d_values(values);
-// CHECK-NEXT:     clad::zero_init(_d_values);
+// CHECK-NEXT:     CopyFallback _d_values(clad::zero_like(values));
 
 int main() {
   std::vector<double> values{10.0};

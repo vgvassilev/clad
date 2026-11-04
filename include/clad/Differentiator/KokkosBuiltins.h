@@ -32,6 +32,51 @@ constructor_pushforward(clad::Tag<Kokkos::View<DataType, ViewParams...>>,
           Kokkos::View<DataType, ViewParams...>(
               "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
 }
+/// Kokkos >= 5 builds a View from a label and its runtime extents through a
+/// variadic constructor; clad passes those extents here (the Kokkos 4 overload
+/// above took eight fixed indices). Match them with an overload per runtime
+/// rank -- ranks 1 and 2 below; a higher runtime rank needs an analogous
+/// overload. One variadic overload cannot serve: the label between the value
+/// and derived extent packs leaves the leading pack a non-deduced context. The
+/// tangent is an independent, same-shape View; extents carry no derivative, so
+/// the derived label and extents are unused.
+template <class DataType, class... ViewParams>
+clad::ValueAndPushforward<Kokkos::View<DataType, ViewParams...>,
+                          Kokkos::View<DataType, ViewParams...>>
+constructor_pushforward(clad::Tag<Kokkos::View<DataType, ViewParams...>>,
+                        const ::std::string& name, const size_t& n0,
+                        const ::std::string& /*d_name*/,
+                        const size_t& /*d_n0*/) {
+  return {Kokkos::View<DataType, ViewParams...>(name, n0),
+          Kokkos::View<DataType, ViewParams...>("_diff_" + name, n0)};
+}
+template <class DataType, class... ViewParams>
+clad::ValueAndPushforward<Kokkos::View<DataType, ViewParams...>,
+                          Kokkos::View<DataType, ViewParams...>>
+constructor_pushforward(clad::Tag<Kokkos::View<DataType, ViewParams...>>,
+                        const ::std::string& name, const size_t& n0,
+                        const size_t& n1, const ::std::string& /*d_name*/,
+                        const size_t& /*d_n0*/, const size_t& /*d_n1*/) {
+  return {Kokkos::View<DataType, ViewParams...>(name, n0, n1),
+          Kokkos::View<DataType, ViewParams...>("_diff_" + name, n0, n1)};
+}
+/// All-static-extent View: every extent is a compile-time template argument,
+/// so the primal constructs it from a label alone and clad passes just that
+/// label (no runtime extents, any rank). Without this overload no
+/// constructor_pushforward matches and clad falls back to a direct tangent
+/// construction that misformats the label's std::string argument (the
+/// implicit std::string temporary is flattened into a View braced-init,
+/// yielding View{"name", allocator} -- no such constructor). The tangent is
+/// an independent, same-shape View.
+template <class DataType, class... ViewParams>
+clad::ValueAndPushforward<Kokkos::View<DataType, ViewParams...>,
+                          Kokkos::View<DataType, ViewParams...>>
+constructor_pushforward(clad::Tag<Kokkos::View<DataType, ViewParams...>>,
+                        const ::std::string& name,
+                        const ::std::string& /*d_name*/) {
+  return {Kokkos::View<DataType, ViewParams...>(name),
+          Kokkos::View<DataType, ViewParams...>("_diff_" + name)};
+}
 template <class DataType, size_t N, class... ViewParams>
 clad::ValueAndAdjoint<::Kokkos::View<DataType, ViewParams...>,
                       ::Kokkos::View<DataType, ViewParams...>>
@@ -49,7 +94,7 @@ constructor_reverse_forw(
               idx5, idx6, idx7)};
 }
 template <class DataType, size_t N, class... ViewParams>
-void constructor_pullback(
+CLAD_NOOP_DERIVATIVE void constructor_pullback(
     const char (&name)[N], const size_t idx0, const size_t idx1,
     const size_t idx2, const size_t idx3, const size_t idx4, const size_t idx5,
     const size_t idx6, const size_t idx7,
@@ -502,7 +547,8 @@ void resize_reverse_forw(
   ::Kokkos::resize(arg, v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-template <class... Args> void resize_pullback(Args... /*args*/);
+template <class... Args>
+CLAD_NOOP_DERIVATIVE void resize_pullback(Args... /*args*/);
 
 /// Fence
 template <typename S> void fence_pushforward(const S& s, const S& /*d_s*/) {

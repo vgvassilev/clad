@@ -19,6 +19,13 @@ struct DerivedFnInfo {
   std::vector<size_t> m_CUDAGlobalArgsIndexes;
   bool m_UsesEnzyme = false;
   bool m_DeclarationOnly = false;
+  /// Whether the derivative took each fallback. Not part of which request it
+  /// satisfies: clad gives one function one derivative name, so a request
+  /// differing only in a fallback is a conflict, not another derivative.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  bool m_Enable##Id##Fallback = Default;
+#include "clad/Differentiator/Analyses.def"
+  bool m_FallbacksSeeded = false;
 
   DerivedFnInfo() = default;
   DerivedFnInfo(const DiffRequest& request, clang::FunctionDecl* derivedFn,
@@ -27,6 +34,11 @@ struct DerivedFnInfo {
   /// Returns true if the derived function represented by the object,
   /// satisfies the requirements of the given differentiation request.
   bool SatisfiesRequest(const DiffRequest& request) const;
+  /// The fallback the derivative and \p request disagree on, as the command
+  /// line spells it, or null where they agree or either was built only to be
+  /// looked up. \p Taken says whether the derivative took it.
+  const char* DisagreeingFallback(const DiffRequest& request,
+                                  bool& Taken) const;
 
   /// Returns true if the object represents any derived function; otherwise
   /// returns false.

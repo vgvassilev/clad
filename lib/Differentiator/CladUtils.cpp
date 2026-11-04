@@ -38,9 +38,11 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <algorithm>
 #include <memory>
 #include <set>
 #include <vector>
@@ -169,16 +171,27 @@ namespace clad {
       return CS;
     }
 
-    bool hasEmptyBody(const clang::FunctionDecl* FD) {
+    bool hasNoopDerivativeAttribute(const clang::FunctionDecl* FD) {
       FD = FD->getCanonicalDecl();
       if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
         FD = TIP;
-      // Derivatives with real locations are user-provided ones. If a
-      // user-provided derivative doesn't have a body at this point, we consider
-      // it to be empty.
-      if (!FD->hasBody())
-        return FD->getLocation().isValid();
-      return utils::unwrapIfSingleStmt(FD->getBody()) == nullptr;
+      for (const auto* A :
+           FD->getMostRecentDecl()->specific_attrs<clang::AnnotateAttr>())
+        if (A->getAnnotation() == "noop_derivative")
+          return true;
+      return false;
+    }
+
+    bool isNoopDerivative(const clang::FunctionDecl* FD) {
+      if (hasNoopDerivativeAttribute(FD))
+        return true;
+      FD = FD->getCanonicalDecl();
+      if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
+        FD = TIP;
+      // A derivative without a body is defined elsewhere, e.g. in another
+      // translation unit, and has to be called.
+      Stmt* Body = FD->getBody();
+      return Body && utils::unwrapIfSingleStmt(Body) == nullptr;
     }
 
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
@@ -248,6 +261,14 @@ namespace clad {
               clad_compat::getNNSPrefix(NS), QT);
       }
       return QT;
+    }
+
+    const DeclContext* GetCustomDerivativeLookupContext(const Decl* Found) {
+      const DeclContext* DC = Found->getDeclContext();
+      if (DC->isFunctionOrMethod())
+        if (const auto* ND = dyn_cast<NamedDecl>(Found))
+          DC = ND->getUnderlyingDecl()->getDeclContext();
+      return DC;
     }
 
     DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
@@ -406,6 +427,15 @@ namespace clad {
           .get();
     }
 
+    const LambdaExpr* getLambdaInit(const VarDecl* VD) {
+      const Expr* Init = VD ? VD->getInit() : nullptr;
+      if (!Init)
+        return nullptr;
+      if (const auto* EWC = dyn_cast<ExprWithCleanups>(Init))
+        Init = EWC->getSubExpr();
+      return dyn_cast<LambdaExpr>(Init->IgnoreImplicit());
+    }
+
     QualType getUnsignedType(QualType T, const ASTContext& C) {
       T = T.getNonReferenceType().getUnqualifiedType();
       if (clad_compat::isPromotableIntegerType(C, T))
@@ -496,6 +526,17 @@ namespace clad {
       return SL;
     }
 
+    bool IsSameParam(const ValueDecl* A, const ValueDecl* B) {
+      const auto* PA = dyn_cast_or_null<ParmVarDecl>(A);
+      const auto* PB = dyn_cast_or_null<ParmVarDecl>(B);
+      if (A == B || !PA || !PB)
+        return A == B;
+      const auto* FA = dyn_cast<FunctionDecl>(PA->getDeclContext());
+      const auto* FB = dyn_cast<FunctionDecl>(PB->getDeclContext());
+      return FA && FB && FA->getCanonicalDecl() == FB->getCanonicalDecl() &&
+             PA->getFunctionScopeIndex() == PB->getFunctionScopeIndex();
+    }
+
     bool isArrayOrPointerType(clang::QualType QT) {
       return QT->isArrayType() || QT->isPointerType();
     }
@@ -544,6 +585,16 @@ namespace clad {
       return true;
     }
 
+    bool isNoOpDestructorCall(const clang::CallExpr* CE) {
+      if (isa<CXXPseudoDestructorExpr>(CE->getCallee()))
+        return true;
+      // A trivial destructor runs no code; Sema does not even define one
+      // unless it is exported.
+      const auto* DD =
+          dyn_cast_or_null<CXXDestructorDecl>(CE->getDirectCallee());
+      return DD && DD->isTrivial();
+    }
+
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
                                           const clang::ASTContext& C) {
       const CXXRecordDecl* RD = CD->getParent();
@@ -573,8 +624,16 @@ namespace clad {
             isZero = val->getFloat().isZero();
         }
 
-        if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
-              isZero)) {
+        // A base or member built by a constructor that does more than copy
+        // its arguments, such as check them, cannot be built again from
+        // zero adjoints either.
+        const auto* CCE = dyn_cast<CXXConstructExpr>(init);
+        if (CCE &&
+            !constructorReverseForwIsElidable(CCE->getConstructor(), C)) {
+          isZeroOrCopyCtor = false;
+          break;
+        }
+        if (!(isa<DeclRefExpr>(init) || CCE || isZero)) {
           isZeroOrCopyCtor = false;
           break;
         }
@@ -600,14 +659,45 @@ namespace clad {
       return DeclarationNameInfo(II, noLoc);
     }
 
-    bool IsRealFunction(const clang::FunctionDecl* FD) {
+    bool IsRealFunction(const clang::FunctionDecl* FD, const CallExpr* CE) {
       if (isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
+        return false;
+      if (FD->isVariadic() && CE && CE->getNumArgs() > FD->getNumParams())
         return false;
       for (auto PVD : FD->parameters()) {
         if (!PVD->getType()->isRealType())
           return false;
       }
       return true;
+    }
+
+    const FunctionDecl* GetNumDiffTarget(Sema& S, const FunctionDecl* FD,
+                                         const CallExpr* CE) {
+      if (!IsRealFunction(FD, CE))
+        return nullptr;
+      const Builtin::Context& BI = S.getASTContext().BuiltinInfo;
+      auto addressable = [&](const FunctionDecl* F) {
+        unsigned ID = F->getBuiltinID();
+        return !ID || clad_compat::isDirectlyAddressable(BI, ID);
+      };
+      if (addressable(FD))
+        return FD;
+      // A builtin with no `__builtin_` prefix names itself, which the lookup
+      // below finds and skips as unaddressable.
+      StringRef Name = FD->getName();
+      Name.consume_front("__builtin_");
+      LookupResult R(S, &S.getASTContext().Idents.get(Name), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, S.getASTContext().getTranslationUnitDecl());
+      // The library function itself, as clang knows it, not some other
+      // function that happens to share its name.
+      for (const NamedDecl* D : R) {
+        const auto* Lib = dyn_cast<FunctionDecl>(D->getUnderlyingDecl());
+        if (Lib && Lib->getBuiltinID() && addressable(Lib) &&
+            Lib->getNumParams() == FD->getNumParams())
+          return Lib;
+      }
+      return nullptr;
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
@@ -630,6 +720,7 @@ namespace clad {
       id.setIdentifier(GetIdentifierInfo(semaRef, memberName), noLoc);
       CXXScopeSpec SS;
       bool isArrow = base->getType()->isPointerType();
+      base = ParenthesizeMemberBase(semaRef, base);
       auto ME =
           semaRef
               .ActOnMemberAccessExpr(S, base, noLoc,
@@ -647,6 +738,23 @@ namespace clad {
 
     clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E) {
       return semaRef.ActOnParenExpr(noLoc, noLoc, E).getAs<ParenExpr>();
+    }
+
+    Expr* ParenthesizeMemberBase(Sema& semaRef, Expr* base) {
+      // A member access binds tighter than a prefix, binary or conditional
+      // operator, a C-style cast or a new-expression, so such a base needs
+      // parentheses to print back the same expression: `(&f)->x`, not `&f->x`.
+      const Expr* B = base->IgnoreImplicit();
+      const auto* UO = dyn_cast<UnaryOperator>(B);
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(B);
+      bool postfixOCE = OCE && (OCE->getOperator() == OO_Call ||
+                                OCE->getOperator() == OO_Subscript ||
+                                OCE->getOperator() == OO_Arrow);
+      if ((UO && !UO->isPostfix()) || (OCE && !postfixOCE) ||
+          isa<BinaryOperator, AbstractConditionalOperator, CStyleCastExpr,
+              CXXNewExpr>(B))
+        return BuildParenExpr(semaRef, base);
+      return base;
     }
 
     clang::IdentifierInfo* GetIdentifierInfo(Sema& semaRef,
@@ -810,6 +918,14 @@ namespace clad {
       return rvalueCastE;
     }
 
+    Expr* BuildResultMember(Sema& S, Scope* Sc, Expr* Base,
+                            llvm::StringRef Name) {
+      MemberExpr* ME = BuildMemberExpr(S, Sc, Base, Name);
+      if (ME && ME->getMemberDecl()->getType()->isRValueReferenceType())
+        return BuildStaticCastToRValue(S, ME);
+      return ME;
+    }
+
     bool IsRValue(const clang::Expr* E) {
       return clad_compat::IsPRValue(E) || E->isXValue();
     }
@@ -921,6 +1037,25 @@ namespace clad {
       S.isCompleteType(GetValidSLoc(S), TagTy);
       const auto* TagRD = TagTy->getAsCXXRecordDecl();
       return TagRD && hasNonDifferentiableAttribute(TagRD);
+    }
+
+    bool hasNoPrimalTapeAttribute(clang::Sema& S,
+                                  const clang::CXXRecordDecl* RD) {
+      if (!RD)
+        return false;
+      auto hasMarker = [](const CXXRecordDecl* Record) {
+        for (const auto* Attr : Record->specific_attrs<AnnotateAttr>())
+          if (Attr->getAnnotation() == "no_primal_tape")
+            return true;
+        return false;
+      };
+      if (hasMarker(RD))
+        return true;
+      QualType TagTy = GetCladTagOfType(
+          S, clad_compat::getRecordType(S.getASTContext(), RD));
+      S.isCompleteType(GetValidSLoc(S), TagTy);
+      const auto* TagRD = TagTy->getAsCXXRecordDecl();
+      return TagRD && hasMarker(TagRD);
     }
 
     bool callOperatesOnNonDifferentiableType(clang::Sema& S,
@@ -1076,6 +1211,12 @@ namespace clad {
       }
       if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
         return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
+      // A conversion between scalars, such as `double(2)`, costs no more than
+      // its operand.
+      if (const auto* CE = dyn_cast<CastExpr>(E))
+        if (CE->getType()->isScalarType() &&
+            CE->getSubExpr()->getType()->isScalarType())
+          return UsefulToStore(CE->getSubExpr());
       return true;
     }
 
@@ -1174,6 +1315,38 @@ namespace clad {
       }
     }
 
+    bool reachesNoOtherMemory(const ASTContext& C, QualType T) {
+      T = C.getBaseElementType(T);
+      if (T->isArithmeticType() || T->isEnumeralType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      return RD && RD->hasDefinition() && !RD->getNumBases() &&
+             !RD->isUnion() && !RD->isPolymorphic() &&
+             llvm::all_of(RD->fields(), [&C](const FieldDecl* F) {
+               return reachesNoOtherMemory(C, F->getType());
+             });
+    }
+
+    bool hasElementAccessor(const CXXRecordDecl* RD) {
+      RD = RD->getDefinition();
+      return llvm::any_of(RD->methods(), [](const CXXMethodDecl* MD) {
+        return MD->getOverloadedOperator() == OO_Subscript && MD->isConst() &&
+               MD->getReturnType()->isLValueReferenceType();
+      });
+    }
+
+    bool isPureElementAccess(const Expr* E, const ASTContext& C) {
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E->IgnoreParens());
+      if (!OCE || OCE->getOperator() != OO_Subscript)
+        return false;
+      const auto* MD = dyn_cast_or_null<CXXMethodDecl>(OCE->getDirectCallee());
+      return MD && MD->getReturnType()->isLValueReferenceType() &&
+             hasElementAccessor(MD->getParent()) &&
+             llvm::none_of(OCE->arguments(), [&C](const Expr* A) {
+               return A->HasSideEffects(C);
+             });
+    }
+
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;
@@ -1201,16 +1374,12 @@ namespace clad {
     }
 
     NamespaceDecl* GetCladNamespace(Sema& S) {
-      static NamespaceDecl* Result = nullptr;
-      if (Result)
-        return Result;
       DeclarationName CladName = &S.getASTContext().Idents.get("clad");
       LookupResult CladR(S, CladName, noLoc, Sema::LookupNamespaceName,
                          CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       S.LookupQualifiedName(CladR, S.getASTContext().getTranslationUnitDecl());
       assert(!CladR.empty() && "cannot find clad namespace");
-      Result = cast<NamespaceDecl>(CladR.getFoundDecl());
-      return Result;
+      return cast<NamespaceDecl>(CladR.getFoundDecl());
     }
 
     LookupResult tryLookupCladMethod(Sema& S, llvm::StringRef name) {
@@ -1257,9 +1426,6 @@ namespace clad {
     }
 
     clang::QualType GetRestoreTrackerType(clang::Sema& S) {
-      static QualType T;
-      if (!T.isNull())
-        return T;
       NamespaceDecl* CladNS = GetCladNamespace(S);
       CXXScopeSpec CSS;
       CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
@@ -1273,7 +1439,7 @@ namespace clad {
       // This will instantiate restore_tracker<T> type and return it.
       auto* RD = cast<RecordDecl>(TrackerR.getFoundDecl());
       ASTContext& C = S.getASTContext();
-      T = clad_compat::getRecordType(C, RD);
+      QualType T = clad_compat::getRecordType(C, RD);
       // Get clad namespace and its identifier clad::.
       clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
 
@@ -1404,6 +1570,10 @@ namespace clad {
     bool returnsAdjoint(QualType T) {
       if (T->isPointerType())
         return true;
+      // A reference to a real refers to storage the adjoint of which the
+      // caller writes, const or not, lvalue or rvalue.
+      if (T->isReferenceType() && T.getNonReferenceType()->isRealFloatingType())
+        return true;
       return isMemoryType(T);
     }
 
@@ -1435,7 +1605,17 @@ namespace clad {
       CXXScopeSpec CSS;
       Expr* lookup = BuildDeclarationNameExpr(S, CSS, R);
       llvm::SmallVector<Expr*, 1> args{value};
-      return ResolveOverload(S, lookup, args);
+      FunctionDecl* FD = ResolveOverload(S, lookup, args);
+      // A function template's deduced return type may still need instantiation.
+      if (FD && FD->getReturnType()->isUndeducedType() &&
+          S.DeduceReturnType(FD, value->getExprLoc(), /*Diagnose=*/false))
+        return nullptr;
+      // An implicit conversion can make an unrelated zero_like overload
+      // viable. Adjoint construction requires a new value of the primal type.
+      if (!FD || !clad_compat::hasSameUnqualifiedType(
+                     S.Context, FD->getReturnType(), value->getType()))
+        return nullptr;
+      return FD;
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {
@@ -1466,16 +1646,27 @@ namespace clad {
     }
 
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue) {
+                                       bool asPointerValue,
+                                       bool followLocalReferences) {
       bool peeled = asPointerValue;
       if (asPointerValue) {
         // `&lvalue` passed as a pointer designates that lvalue directly.
         const auto* UO =
             dyn_cast<clang::UnaryOperator>(E->IgnoreParenImpCasts());
         if (UO && UO->getOpcode() == clang::UO_AddrOf)
-          return designatesLocallyOwnedStorage(UO->getSubExpr());
+          return designatesLocallyOwnedStorage(UO->getSubExpr(),
+                                               /*asPointerValue=*/false,
+                                               followLocalReferences);
       }
       while (true) {
+        E = E->IgnoreParens();
+        // A pointer loaded from anything but a variable of its own, such as
+        // `ptrs[0]` or `h.p`, may point anywhere.
+        if (const auto* ICE = dyn_cast<clang::ImplicitCastExpr>(E))
+          if (ICE->getCastKind() == clang::CK_LValueToRValue &&
+              ICE->getType()->isPointerType() &&
+              !isa<clang::DeclRefExpr>(ICE->getSubExpr()->IgnoreParens()))
+            return false;
         E = E->IgnoreParenImpCasts();
         if (const auto* UO = dyn_cast<clang::UnaryOperator>(E)) {
           peeled |= UO->getOpcode() == clang::UO_Deref;
@@ -1492,6 +1683,9 @@ namespace clad {
           peeled = true;
           E = MCE->getImplicitObjectArgument();
         } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
+          // A reference member, such as `h.r`, may be bound anywhere.
+          if (ME->getMemberDecl()->getType()->isReferenceType())
+            return false;
           peeled |= ME->isArrow();
           E = ME->getBase();
         } else {
@@ -1500,6 +1694,15 @@ namespace clad {
       }
       const auto* DRE = dyn_cast<clang::DeclRefExpr>(E);
       const auto* VD = DRE ? dyn_cast<clang::VarDecl>(DRE->getDecl()) : nullptr;
+      // A local reference (not a parameter) designates whatever its
+      // initializer does: `int& r = i;` names i's storage. What was peeled
+      // off the reference applies to the initializer.
+      if (followLocalReferences && VD && VD->getType()->isReferenceType() &&
+          VD->hasLocalStorage() && !isa<clang::ParmVarDecl>(VD) &&
+          VD->getInit())
+        return designatesLocallyOwnedStorage(VD->getInit(),
+                                             /*asPointerValue=*/peeled,
+                                             followLocalReferences);
       if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
         return false;
       // The variable's own slot (no indirection peeled) always has automatic
@@ -1513,6 +1716,21 @@ namespace clad {
       if (!peeled)
         return true;
       return !VD->getType()->isPointerType();
+    }
+
+    bool allocatesIntoRecordParam(const FunctionDecl* FD) {
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        QualType T = PVD->getType().getCanonicalType();
+        if (T->isPointerType() || T->isReferenceType()) {
+          QualType pointee = T->isPointerType() ? T->getPointeeType()
+                                                : T.getNonReferenceType();
+          if (pointee.isConstQualified())
+            continue;
+          if (pointee->getAs<RecordType>() && isMemoryType(pointee))
+            return true;
+        }
+      }
+      return false;
     }
 
     bool hasMemoryTypeParams(const FunctionDecl* FD) {
@@ -1539,19 +1757,177 @@ namespace clad {
     }
 
     QualType GetCladMatrixOfType(Sema& S, clang::QualType T) {
-      static TemplateDecl* matrixDecl = nullptr;
-      if (!matrixDecl)
-        matrixDecl =
-            utils::LookupTemplateDeclInCladNamespace(S,
-                                                     /*ClassName=*/"matrix");
+      TemplateDecl* matrixDecl =
+          utils::LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"matrix");
       return InstantiateTemplate(S, matrixDecl, {T});
     }
 
     QualType GetCladArrayOfType(Sema& S, clang::QualType T) {
-      static TemplateDecl* arrayDecl = nullptr;
-      if (!arrayDecl)
-        arrayDecl = LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array");
+      TemplateDecl* arrayDecl =
+          LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array");
       return utils::InstantiateTemplate(S, arrayDecl, {T});
+    }
+
+    // Whether T holds floating-point data, directly, in an array, or in a
+    // field or base.
+    static bool holdsFloatingData(QualType T) {
+      T = T.getCanonicalType();
+      if (const Type* Elem = T->getBaseElementTypeUnsafe())
+        T = QualType(Elem, 0);
+      if (T->isRealFloatingType() || T->isAnyComplexType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      if (!RD || !RD->hasDefinition())
+        return false;
+      for (const FieldDecl* FD : RD->fields())
+        if (holdsFloatingData(FD->getType()))
+          return true;
+      for (const CXXBaseSpecifier& B : RD->bases())
+        if (holdsFloatingData(B.getType()))
+          return true;
+      return false;
+    }
+
+    static bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx,
+                               unsigned Depth);
+
+    /// Whether \p E is the parameter \p P itself, as it is converted.
+    static bool IsParamRef(const Expr* E, const ParmVarDecl* P) {
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+      return DRE && DRE->getDecl() == P;
+    }
+
+    /// Whether every use of \p P in \p S is a comparison, or an argument of
+    /// a constructor that only counts with it.
+    static bool UsedOnlyToCount(const Stmt* S, const ParmVarDecl* P,
+                                unsigned Depth) {
+      if (!S)
+        return true;
+      if (const auto* CCE = dyn_cast<CXXConstructExpr>(S)) {
+        for (unsigned I = 0, N = CCE->getNumArgs(); I < N; ++I) {
+          const Expr* Arg = CCE->getArg(I);
+          if (IsParamRef(Arg, P)) {
+            if (!OnlyCountsWith(CCE->getConstructor(), I, Depth + 1))
+              return false;
+          } else if (!UsedOnlyToCount(Arg, P, Depth)) {
+            return false;
+          }
+        }
+        return true;
+      }
+      if (const auto* BO = dyn_cast<BinaryOperator>(S))
+        if (BO->isComparisonOp())
+          return (IsParamRef(BO->getLHS(), P) ||
+                  UsedOnlyToCount(BO->getLHS(), P, Depth)) &&
+                 (IsParamRef(BO->getRHS(), P) ||
+                  UsedOnlyToCount(BO->getRHS(), P, Depth));
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+        return DRE->getDecl() != P;
+      return llvm::all_of(S->children(), [&](const Stmt* Child) {
+        return UsedOnlyToCount(Child, P, Depth);
+      });
+    }
+
+    static bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx,
+                               unsigned Depth) {
+      const FunctionDecl* Def = nullptr;
+      if (Depth > 8 || Idx >= Ctor->getNumParams() || !Ctor->hasBody(Def))
+        return false;
+      const auto* CD = cast<CXXConstructorDecl>(Def);
+      const ParmVarDecl* P = CD->getParamDecl(Idx);
+      for (const CXXCtorInitializer* Init : CD->inits()) {
+        const Expr* E = Init->getInit();
+        const FieldDecl* F = Init->getAnyMember();
+        if (F && F->getType()->isIntegralOrEnumerationType() &&
+            IsParamRef(E, P))
+          continue;
+        if (!UsedOnlyToCount(E, P, Depth))
+          return false;
+      }
+      return UsedOnlyToCount(CD->getBody(), P, Depth);
+    }
+
+    bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx) {
+      return OnlyCountsWith(Ctor, Idx, /*Depth=*/0);
+    }
+
+    QualType GetByteCopiedFloatingType(const CallExpr* CE) {
+      const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+      if (!FD || CE->getNumArgs() < 2)
+        return {};
+      switch (FD->getBuiltinID()) {
+      case Builtin::BImemcpy:
+      case Builtin::BI__builtin_memcpy:
+      case Builtin::BImemmove:
+      case Builtin::BI__builtin_memmove:
+        break;
+      default:
+        return {};
+      }
+      // The destination, then the source, as written, before either decayed
+      // or converted to `void*`.
+      for (unsigned i = 0; i < 2; ++i) {
+        QualType T = CE->getArg(i)->IgnoreParenImpCasts()->getType();
+        if (T->isPointerType())
+          T = T->getPointeeType();
+        if (holdsFloatingData(T))
+          return T;
+      }
+      return {};
+    }
+
+    CallExpr* BuildTypedByteCopy(Sema& S, const CallExpr* CE) {
+      if (GetByteCopiedFloatingType(CE).isNull())
+        return nullptr;
+      ASTContext& C = S.getASTContext();
+      // The argument as written, before its conversion to `void*`, and the
+      // type of its elements. A defaulted assignment copies an array member
+      // through a pointer to the array; copy the array's elements.
+      auto typedArg = [&](const Expr* E, QualType& elem) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        auto* arg = const_cast<Expr*>(E->IgnoreParenImpCasts());
+        QualType T = arg->getType();
+        if (T->isPointerType())
+          T = T->getPointeeType();
+        else if (const ArrayType* AT = C.getAsArrayType(T))
+          T = AT->getElementType();
+        if (C.getAsArrayType(T)) {
+          T = C.getBaseElementType(T);
+          // Unqualified, so that the adjoint the cast is cloned onto, which is
+          // never const, converts as well.
+          TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(
+              C.getPointerType(T.getUnqualifiedType()));
+          arg = S.BuildCStyleCastExpr(noLoc, TSI, noLoc, arg).get();
+        }
+        elem = T.getCanonicalType().getUnqualifiedType();
+        return arg;
+      };
+      QualType dstElem;
+      QualType srcElem;
+      Expr* dst = typedArg(CE->getArg(0), dstElem);
+      Expr* src = typedArg(CE->getArg(1), srcElem);
+      if (!dstElem->isRealFloatingType() || dstElem != srcElem)
+        return nullptr;
+
+      NamespaceDecl* CladNS = GetCladNamespace(S);
+      CXXScopeSpec SS;
+      SS.Extend(C, CladNS, noLoc, noLoc);
+      LookupResult R(S, &C.Idents.get("byte_copy"), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, CladNS);
+      // T is deduced from the destination and the source, which hold it.
+      Expr* Callee = BuildDeclarationNameExpr(S, SS, R);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      auto* size = const_cast<Expr*>(CE->getArg(2));
+      llvm::SmallVector<Expr*, 3> args{dst, src, size};
+      auto* call = cast_or_null<CallExpr>(
+          S.ActOnCallExpr(/*Scope=*/nullptr, Callee, noLoc, args, noLoc).get());
+      // Clad may build the call after Sema instantiated what the translation
+      // unit uses, and differentiates byte_copy from its body.
+      if (FunctionDecl* FD = call ? call->getDirectCallee() : nullptr)
+        if (!FD->isDefined())
+          S.InstantiateFunctionDefinition(noLoc, FD, /*Recursive=*/true);
+      return call;
     }
 
     bool IsDifferentiableType(QualType T) {
@@ -1593,10 +1969,8 @@ namespace clad {
     }
 
     QualType GetCladArrayRefOfType(Sema& S, QualType T) {
-      static TemplateDecl* arrayRefDecl = nullptr;
-      if (!arrayRefDecl)
-        arrayRefDecl = utils::LookupTemplateDeclInCladNamespace(
-            S, /*ClassName=*/"array_ref");
+      TemplateDecl* arrayRefDecl = utils::LookupTemplateDeclInCladNamespace(
+          S, /*ClassName=*/"array_ref");
       return utils::InstantiateTemplate(S, arrayRefDecl, {T});
     }
 
@@ -1717,8 +2091,13 @@ namespace clad {
         if (returnsAdjoint(oRetTy) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
-          dRetTy = utils::InstantiateTemplate(
-              S, valAndAdjointTempDecl, {oRetTy, getNonConstType(oRetTy, S)});
+          // The adjoint of an rvalue reference is one too, into the adjoint
+          // of what the value refers to, as for an lvalue reference.
+          QualType AdjointTy = getNonConstType(oRetTy, S);
+          if (oRetTy->isRValueReferenceType())
+            AdjointTy = C.getRValueReferenceType(AdjointTy);
+          dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
+                                              {oRetTy, AdjointTy});
         } else {
           dRetTy = oRetTy;
         }
@@ -1783,12 +2162,37 @@ namespace clad {
           // DiffInputVarInfo to check if this is a variable we differentiate
           // wrt.
           for (const ValueDecl* param : diffParams)
-            if (param == FD->getParamDecl(i))
+            if (utils::IsSameParam(param, FD->getParamDecl(i)))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
         } else if (mode == DiffMode::reverse_mode_forward_pass ||
-                   utils::IsDifferentiableType(PVDTy))
-          FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
+                   utils::IsDifferentiableType(PVDTy)) {
+          QualType dPVDTy = utils::GetParameterDerivativeType(S, mode, PVDTy);
+          // The reference to a const real a reverse_forw returns may refer
+          // into a const parameter; its adjoint refers into the adjoint of
+          // that parameter, which it must be able to write through, as a
+          // pullback does through its pointer.
+          QualType Referee = oRetTy.getNonReferenceType();
+          if (mode == DiffMode::reverse_mode_forward_pass &&
+              oRetTy->isReferenceType() && Referee.isConstQualified() &&
+              Referee->isRealFloatingType() && dPVDTy->isReferenceType() &&
+              dPVDTy.getNonReferenceType().isConstQualified()) {
+            QualType NonConst = dPVDTy.getNonReferenceType();
+            NonConst.removeLocalConst();
+            dPVDTy = dPVDTy->isLValueReferenceType()
+                         ? C.getLValueReferenceType(NonConst)
+                         : C.getRValueReferenceType(NonConst);
+          }
+          FnTypes.push_back(dPVDTy);
+        }
+      }
+
+      // First, as a constructor's clad::Tag is; after the object, when it is
+      // a parameter.
+      if (TakesTemplateTags(mode)) {
+        llvm::SmallVector<QualType, 2> Tags;
+        GetTemplateTagTypes(S, FD, Tags);
+        FnTypes.insert(FnTypes.begin(), Tags.begin(), Tags.end());
       }
 
       if (forCustomDerv && !thisTy.isNull()) {
@@ -1816,9 +2220,8 @@ namespace clad {
     }
 
     QualType GetCladTagOfType(Sema& S, QualType T) {
-      static clang::TemplateDecl* CladTag = nullptr;
-      if (!CladTag)
-        CladTag = utils::LookupTemplateDeclInCladNamespace(S, "Tag");
+      clang::TemplateDecl* CladTag =
+          utils::LookupTemplateDeclInCladNamespace(S, "Tag");
       return utils::InstantiateTemplate(S, CladTag, {T});
     }
 
@@ -1836,8 +2239,122 @@ namespace clad {
       return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
     }
 
-    bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
-      return FD->getNumParams() == 1 && utils::IsRealFunction(FD);
+    bool TakesTemplateTags(DiffMode Mode) {
+      return Mode == DiffMode::pushforward || Mode == DiffMode::pullback ||
+             Mode == DiffMode::vector_pushforward ||
+             Mode == DiffMode::reverse_mode_forward_pass;
+    }
+
+    /// Whether argument \p I of \p Args is what the default argument of its
+    /// parameter in \p FTD gives, the arguments before it as they are.
+    static bool IsDefaultArgument(Sema& S, const FunctionTemplateDecl* FTD,
+                                  unsigned I,
+                                  llvm::ArrayRef<TemplateArgument> Args) {
+      // A default that does not substitute was not what the call used.
+      Sema::SFINAETrap Trap(S);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      auto* TD = const_cast<FunctionTemplateDecl*>(FTD);
+      TemplateArgument Default =
+          clad_compat::SubstDefaultTemplateArgument(
+              S, TD, TD->getTemplateParameters()->getParam(I),
+              Args.take_front(I))
+              .getArgument();
+      const TemplateArgument& Arg = Args[I];
+      if (Trap.hasErrorOccurred() || Default.isNull())
+        return false;
+      ASTContext& C = S.getASTContext();
+      if (Default.getKind() == TemplateArgument::Type)
+        return Arg.getKind() == TemplateArgument::Type &&
+               C.hasSameType(Default.getAsType(), Arg.getAsType());
+      if (Default.getKind() == TemplateArgument::Expression &&
+          Arg.getKind() == TemplateArgument::Integral) {
+        Expr::EvalResult R;
+        return Default.getAsExpr()->EvaluateAsInt(R, C) &&
+               llvm::APSInt::isSameValue(R.Val.getInt(), Arg.getAsIntegral());
+      }
+      return Default.structurallyEquals(Arg);
+    }
+
+    /// std::integral_constant\<T, V\> for the value \p Arg.
+    static QualType
+    GetIntegralConstantType(Sema& S, const TemplateArgument& Arg, QualType T) {
+      ASTContext& C = S.getASTContext();
+      NamespaceDecl* Std = S.getStdNamespace();
+      if (!Std)
+        return {};
+      LookupResult R(S, &C.Idents.get("integral_constant"), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, Std);
+      auto* TD = R.getAsSingle<ClassTemplateDecl>();
+      if (!TD)
+        return {};
+      SourceLocation Loc = GetValidSLoc(S);
+      TemplateArgumentListInfo TLI(Loc, Loc);
+      TLI.addArgument(TemplateArgumentLoc(TemplateArgument(T),
+                                          C.getTrivialTypeSourceInfo(T)));
+      // Already converted, as a specialization's arguments are: Sema takes it
+      // as it is.
+      TLI.addArgument(S.getTrivialTemplateArgumentLoc(Arg, T, Loc));
+      QualType TT =
+          clad_compat::CheckTemplateIdType(S, TemplateName(TD), Loc, TLI);
+      CXXScopeSpec CSS;
+      CSS.Extend(C, Std, Loc, Loc);
+      return clad_compat::getElaboratedType(
+          C, clad_compat::ElaboratedTypeKeyword_None, CSS.getScopeRep(), TT);
+    }
+
+    bool GetTemplateTagTypes(Sema& S, const FunctionDecl* FD,
+                             llvm::SmallVectorImpl<QualType>& Tags) {
+      const FunctionTemplateDecl* FTD = FD->getPrimaryTemplate();
+      if (!FTD)
+        return true;
+      bool Complete = true;
+      ASTContext& C = S.getASTContext();
+      llvm::SmallBitVector Deduced;
+      Sema::MarkDeducedTemplateParameters(C, FTD, Deduced);
+      const TemplateArgumentList* Args = FD->getTemplateSpecializationArgs();
+      auto AddTag = [&](const TemplateArgument& Arg) {
+        switch (Arg.getKind()) {
+        case TemplateArgument::Type:
+          Tags.push_back(GetCladTagOfType(S, Arg.getAsType()));
+          break;
+        case TemplateArgument::Integral:
+          Tags.push_back(
+              GetIntegralConstantType(S, Arg, Arg.getIntegralType()));
+          break;
+        case TemplateArgument::NullPtr:
+          Tags.push_back(GetIntegralConstantType(S, Arg, Arg.getNullPtrType()));
+          break;
+        case TemplateArgument::Declaration:
+          Tags.push_back(
+              GetIntegralConstantType(S, Arg, Arg.getParamTypeForDecl()));
+          break;
+        default:
+          Complete = false;
+          break;
+        }
+      };
+      for (unsigned I = 0, E = Args->size(); I != E; ++I) {
+        const TemplateArgument& Arg = Args->get(I);
+        if (Deduced[I] || IsDefaultArgument(S, FTD, I, Args->asArray()))
+          continue;
+        if (Arg.getKind() == TemplateArgument::Pack)
+          for (const TemplateArgument& Elt : Arg.pack_elements())
+            AddTag(Elt);
+        else
+          AddTag(Arg);
+      }
+      if (llvm::is_contained(Tags, QualType()))
+        Complete = false;
+      Tags.erase(std::remove_if(Tags.begin(), Tags.end(),
+                                [](QualType T) { return T.isNull(); }),
+                 Tags.end());
+      return Complete;
+    }
+
+    bool canUsePushforwardInRevMode(const FunctionDecl* FD,
+                                    const CallExpr* CE) {
+      return FD->getNumParams() == 1 && utils::IsRealFunction(FD, CE);
     }
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {
@@ -2140,6 +2657,12 @@ namespace clad {
       const Expr* E = CE;
       do {
         const auto& parents = C.getParents(*E);
+        // The parent map is built once, the first time it is asked for, so a
+        // call in a body that came into being after that -- one clad
+        // generated, or a template instantiated for a custom derivative --
+        // has no entry. Treat its value as used.
+        if (parents.empty())
+          return false;
         assert(parents.size() == 1 && "One parent stmt is expected.");
         const Stmt* S = parents[0].get<Stmt>();
         // If the parent is a Stmt but not an Expr, then the result is not used.
@@ -2227,7 +2750,26 @@ namespace clad {
         std::set<const VarDecl*>* m_Written;
 
         void mark(const Expr* E) {
-          if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
+          // A member is part of the object it is taken of, and so is an
+          // element of a member array: `m.a[0] *= k` writes `m`. One reached
+          // through a pointer is not. An element of an array variable is
+          // left to the extents the loop analyses track for it.
+          while (true) {
+            E = E->IgnoreParenImpCasts();
+            if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+              if (ME->isArrow())
+                return;
+              E = ME->getBase();
+            } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+              const Expr* Base = ASE->getBase()->IgnoreParenImpCasts();
+              if (!Base->getType()->isArrayType() || !isa<MemberExpr>(Base))
+                return;
+              E = Base;
+            } else {
+              break;
+            }
+          }
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
             if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
               m_Written->insert(VD);
         }
@@ -2280,12 +2822,30 @@ namespace clad {
                             isa_and_nonnull<CXXMethodDecl>(FD);
           llvm::ArrayRef<Expr*> Args(CE->getArgs(), CE->getNumArgs());
           markByRefArgs(FD, Args.drop_front(Offset));
+          // A method that is not const may write the object it is called on.
+          const auto* MD = dyn_cast_or_null<CXXMethodDecl>(FD);
+          if (MD && MD->isInstance() && !MD->isConst()) {
+            if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+              mark(MCE->getImplicitObjectArgument());
+            else if (Offset)
+              mark(Args.front());
+          }
           return true;
         }
 
         bool VisitCXXConstructExpr(CXXConstructExpr* CE) {
           markByRefArgs(CE->getConstructor(),
                         llvm::ArrayRef<Expr*>(CE->getArgs(), CE->getNumArgs()));
+          return true;
+        }
+
+        /// `int& r = i;` lets every later write to `r` write `i`, which no
+        /// visit above sees under `i`'s name.
+        bool VisitVarDecl(VarDecl* VD) {
+          QualType T = VD->getType();
+          if (VD->getInit() && T->isReferenceType() &&
+              !T.getNonReferenceType().isConstQualified())
+            mark(VD->getInit());
           return true;
         }
       };

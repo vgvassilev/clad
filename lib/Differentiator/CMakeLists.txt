@@ -51,6 +51,7 @@ llvm_add_library(cladDifferentiator
   DerivedFnCollector.cpp
   DerivedFnInfo.cpp
   DiffPlanner.cpp
+  PerfAdvisor.cpp
   ErrorEstimator.cpp
   DerivativePrinter.cpp
   GeneratedCode.cpp
@@ -71,6 +72,7 @@ llvm_add_library(cladDifferentiator
   VectorPushForwardModeVisitor.cpp
   Version.cpp
   VisitorBase.cpp
+  LivenessAnalyzer.cpp
   LoopAnalyzer.cpp
   ${version_inc}
   )

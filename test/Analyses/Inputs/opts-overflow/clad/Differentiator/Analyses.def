@@ -13,4 +13,5 @@ CLAD_ANALYSIS(TBR, tbr, tbr, true, 2, "")
 CLAD_ANALYSIS(Loop, loop, loop, true, 55, "")
 
 #undef CLAD_ANALYSIS
+#undef CLAD_FALLBACK
 #undef CLAD_OPT_RESERVED

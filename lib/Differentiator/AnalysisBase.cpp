@@ -3,6 +3,7 @@
 #include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -37,6 +38,14 @@ void AnalysisBase::addVar(const clang::VarDecl* VD, bool forceInit) {
   // If varType represents auto or auto*, get the type of init.
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
+
+  // A T&& bound to an xvalue, as std::move(x) is, refers to x as a T& would;
+  // only one bound to a prvalue owns what it refers to.
+  const Expr* init = VD->getInit();
+  if (varType->isRValueReferenceType() && !isa<ParmVarDecl>(VD) && init &&
+      !init->IgnoreImplicit()->isPRValue())
+    varType = VD->getASTContext().getLValueReferenceType(
+        varType.getNonReferenceType());
 
   curBranch[VD] = VarData(varType, forceInit);
 }
@@ -182,7 +191,7 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       if (!VD)
         return false;
       QualType VDType = VD->getType();
-      if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
+      if (VDType->isReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
         // Globals and other untracked declarations have no VarData.
         if (!refData) {
@@ -192,11 +201,12 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
         }
         if (refData->m_Type == VarData::REF_TYPE) {
           std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
-          if (vars.size() == 1) {
+          // A null target is `this`, which only a method has: elsewhere what
+          // the reference reaches is not known.
+          const auto* MD = dyn_cast_or_null<CXXMethodDecl>(m_Function);
+          if (vars.size() == 1 && (*vars.begin() || MD)) {
             VD = *vars.begin();
-            QualType VDType =
-                VD ? VD->getType()
-                   : cast<CXXMethodDecl>(m_Function)->getThisType();
+            QualType VDType = VD ? VD->getType() : MD->getThisType();
             if (utils::isSameCanonicalType(VDType, E->getType()))
               break;
           }

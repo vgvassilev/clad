@@ -76,23 +76,26 @@ double f3(double i, double j) {
 }
 
 // CHECK: void f3_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = 3.;
+// CHECK-NEXT:     double _t0 = c;
 // CHECK-NEXT:     auto _f0 = [c](double t) {
 // CHECK-NEXT:         return t * t;
 // CHECK-NEXT:     };
-// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t) {
+// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t0, double c0, double *_d_c0) {
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_d_t += _d_y * t;
-// CHECK-NEXT:             *_d_t += t * _d_y;
+// CHECK-NEXT:             *_d_t0 += _d_y * t;
+// CHECK-NEXT:             *_d_t0 += t * _d_y;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     };
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _d__f(j, 1, &_r0);
+// CHECK-NEXT:         _d__f(j, 1, &_r0, _t0, &_d_t);
 // CHECK-NEXT:         *_d_j += _r0;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_c += _d_t;
 // CHECK-NEXT: }
 
 double f4(double i, double j) {
@@ -105,22 +108,25 @@ double f4(double i, double j) {
 }
 
 // CHECK: void f4_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = 3.;
 // CHECK-NEXT:     double _d_d = 0.;
 // CHECK-NEXT:     double d = 4.;
+// CHECK-NEXT:     double _t0 = c;
 // CHECK-NEXT:     auto _f0 = [c, &d](double t) {
 // CHECK-NEXT:         return t * 2.;
 // CHECK-NEXT:     };
-// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t) {
-// CHECK-NEXT:         *_d_t += _d_y * 2.;
+// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t0, double c0, double *_d_c0, double d0, double *_d_d0) {
+// CHECK-NEXT:         *_d_t0 += _d_y * 2.;
 // CHECK-NEXT:     };
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _d__f(j, 1, &_r0);
+// CHECK-NEXT:         _d__f(j, 1, &_r0, _t0, &_d_t, d, &_d_d);
 // CHECK-NEXT:         *_d_j += _r0;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_c += _d_t;
 // CHECK-NEXT: }
 
 const auto _global_f = [](double t) {
@@ -200,6 +206,151 @@ double f7(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f8(double i, double j) {
+  double c = 2.0;
+  auto _f = [c](double t) { return t * c; };
+  return i + _f(j);
+}
+
+// CHECK: void f8_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     double _d_t = 0.;
+// CHECK-NEXT:     double _d_c = 0.;
+// CHECK-NEXT:     double c = 2.;
+// CHECK-NEXT:     double _t0 = c;
+// CHECK-NEXT:     auto _f0 = [c](double t) {
+// CHECK-NEXT:         return t * c;
+// CHECK-NEXT:     };
+// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t0, double c0, double *_d_c0) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_t0 += _d_y * c0;
+// CHECK-NEXT:             *_d_c0 += t * _d_y;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     };
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_i += 1;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         _d__f(j, 1, &_r0, _t0, &_d_t);
+// CHECK-NEXT:         *_d_j += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_c += _d_t;
+// CHECK-NEXT: }
+
+double f9(double i, double j) {
+  double d = 4.0;
+  auto _f = [&d](double t) { return t * d; };
+  return i + _f(j);
+}
+
+// CHECK: void f9_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     double _d_d = 0.;
+// CHECK-NEXT:     double d = 4.;
+// CHECK-NEXT:     auto _f0 = [&d](double t) {
+// CHECK-NEXT:         return t * d;
+// CHECK-NEXT:     };
+// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t, double d0, double *_d_d0) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_t += _d_y * d0;
+// CHECK-NEXT:             *_d_d0 += t * _d_y;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     };
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_i += 1;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         _d__f(j, 1, &_r0, d, &_d_d);
+// CHECK-NEXT:         *_d_j += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// c is captured twice, with a different value each time.
+double f10(double i, double j) {
+  double c = i;
+  auto f = [c](double t) { return c * t; };
+  c = 2 * i;
+  auto g = [c](double t) { return c * t; };
+  return f(j) + g(j);
+}
+
+// CHECK: void f10_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: double _t0 = c;
+// CHECK: double _t1 = c;
+// CHECK: _d_f(j, 1, &_r0, _t0, &_d_t);
+// CHECK: _d_g(j, 1, &_r1, _t1, &_d_t0);
+
+// d is read through the capture when g is called, after a write to it: TBR
+// has to keep that value for the reverse sweep.
+double f11(double x, double y) {
+  double d = y;
+  auto g = [&d](double t) { return d * t; };
+  d = 10;
+  double r = g(x);
+  d = 20;
+  return r + d;
+}
+
+// Implicit captures, by reference and by copy.
+double f12(double x, double y) {
+  auto g = [&](double t) { return x * t; };
+  auto h = [=](double t) { return y * t; };
+  return g(y) + h(x);
+}
+
+// The lambda writes through its by-reference capture, once per call.
+double f13(double x) {
+  double c = 1;
+  auto g = [&c](double t) { c *= t; };
+  g(x);
+  g(x);
+  return c;
+}
+
+// CHECK: void f13_grad(double x, double *_d_x) {
+// CHECK: double _t0 = c;
+// CHECK-NEXT: g(x);
+// CHECK-NEXT: double _t1 = c;
+// CHECK-NEXT: g(x);
+// CHECK: c = _t1;
+// CHECK-NEXT: _d_g(x, &_r1, c, &_d_c);
+// CHECK: c = _t0;
+// CHECK-NEXT: _d_g(x, &_r0, c, &_d_c);
+
+struct Acc { double a; };
+
+double f14(double x) {
+  Acc p{1};
+  auto g = [&p](double t) { p.a = p.a * t + 1; };
+  g(x);
+  g(x);
+  return p.a;
+}
+
+// Each way a lambda can write its capture: an increment, a non-const member
+// function, an assignment operator, and a non-const reference parameter.
+struct Scaled {
+  double a;
+  void scale(double t) { a *= t; }
+};
+void scaleBy(double& v, double t) { v *= t; }
+
+double f15(double x) {
+  double n = 1;
+  auto inc = [&n](double t) {
+    ++n;
+    return n * t;
+  };
+  Scaled s{1};
+  auto member = [&s](double t) { s.scale(t); };
+  Scaled q{1};
+  auto assign = [&q](double t) { q = Scaled{q.a * t}; };
+  double r = 1;
+  auto byRef = [&r](double t) { scaleBy(r, t); };
+  double y = inc(x);
+  y += inc(x);
+  member(x);
+  assign(x);
+  byRef(x);
+  return y + s.a + q.a + r;
+}
+
 int main() {
   auto df1 = clad::gradient(f1);
   double di = 0, dj = 0;
@@ -235,4 +386,44 @@ int main() {
   di = 0, dj = 0;
   df7.execute(3, 4, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 6.00 0.00
+
+  auto df8 = clad::gradient(f8);
+  di = 0, dj = 0;
+  df8.execute(3, 4, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 1.00 2.00
+
+  auto df9 = clad::gradient(f9);
+  di = 0, dj = 0;
+  df9.execute(3, 4, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 1.00 4.00
+
+  di = 0, dj = 0;
+  auto d_f10 = clad::gradient(f10);
+  d_f10.execute(2, 3, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 9.00 6.00
+
+  di = 0, dj = 0;
+  auto d_f11 = clad::gradient(f11);
+  d_f11.execute(2, 3, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 10.00 0.00
+
+  di = 0, dj = 0;
+  auto d_f12 = clad::gradient(f12);
+  d_f12.execute(2, 3, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 6.00 4.00
+
+  di = 0;
+  auto d_f13 = clad::gradient(f13);
+  d_f13.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 4.00
+
+  di = 0;
+  auto d_f14 = clad::gradient(f14);
+  d_f14.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 5.00
+
+  di = 0;
+  auto d_f15 = clad::gradient(f15);
+  d_f15.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 8.00
 }

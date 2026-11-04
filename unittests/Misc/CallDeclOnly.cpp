@@ -67,7 +67,7 @@ TEST(CallDeclOnly, CheckNumDiffNames) {
   d.dump();
   std::string actual = testing::internal::GetCapturedStdout();
   std::regex expected(
-      R"(forward_central_difference<Ratio \(\*\)\((M::)?Real\)>\(scale, x)");
+      R"(forward_central_difference_tangent<Ratio \(\*\)\((M::)?Real\)>\(scale, _d_x, x)");
   EXPECT_TRUE(std::regex_search(actual, expected)) << actual;
   EXPECT_NEAR(d.execute(2.0), 3.0, 1e-6);
 }
@@ -82,8 +82,8 @@ TEST(CallDeclOnly, CheckNumDiffTemplate) {
   // instantiated type prints with its scope; from 22 on it prints as written,
   // and is spelled as what it names.
   std::regex expected(
-      R"(return numerical_diff::forward_central_difference<)"
-      R"((M::Real|double) \(\*\)\(double\)>\(M::cube, x, 0, 0, x\))");
+      R"(return numerical_diff::forward_central_difference_tangent<)"
+      R"((M::Real|double) \(\*\)\(double\)>\(M::cube, _d_x, x, 0, 0, x\))");
   EXPECT_TRUE(std::regex_search(actual, expected)) << actual;
   EXPECT_NEAR(d.execute(2.0), 12.0, 1e-6);
 }
@@ -135,4 +135,12 @@ TEST(CallDeclOnly, CheckCustomDiff2) {
   EXPECT_FLOAT_EQ(result[1], 0.0);
   EXPECT_FLOAT_EQ(result[2], 0.0);
   EXPECT_FLOAT_EQ(result[3], exp(y));
+}
+
+// A tangent that is zero only when the code runs takes no step.
+double wrapper5(double x) { return scale(x - x) + x; }
+
+TEST(CallDeclOnly, CheckNumDiffZeroTangent) {
+  auto d = clad::differentiate(wrapper5, "x");
+  EXPECT_NEAR(d.execute(2.0), 1.0, 1e-6);
 }
