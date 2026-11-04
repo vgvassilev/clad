@@ -41,5 +41,9 @@ void custom_fn_darg0_grad(float x, float y, float* d_x, float* d_y) {
   *d_x -= sin(x);
 }
 
+double cube_fn_darg0(double x) { return 3 * x * x; }
+
+void cube_fn_darg0_grad(double x, double* d_x) { *d_x += 6 * x; }
+
 } // namespace custom_derivatives
 } // namespace clad

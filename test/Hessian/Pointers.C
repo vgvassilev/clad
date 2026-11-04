@@ -14,7 +14,14 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT: }
 
 
-// CHECK: inline void nonMemFn_pushforward_pullback(double i, double j, double _d_i, double _d_j, clad::ValueAndPushforward<double, double> _d_y, double *_d_i0, double *_d_j0);
+// CHECK: inline void nonMemFn_pushforward_pullback(double i, double j, double _d_i, double _d_j, clad::ValueAndPushforward<double, double> _d_y, double *_d_i0, double *_d_j0) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_i0 += _d_y.value * j;
+// CHECK-NEXT:         *_d_j0 += i * _d_y.value;
+// CHECK-NEXT:         *_d_j0 += _d_i * _d_y.pushforward;
+// CHECK-NEXT:         *_d_i0 += _d_y.pushforward * _d_j;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 // CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
@@ -27,15 +34,6 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     _d_j = 1.;
 // CHECK-NEXT:     nonMemFn_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
 // CHECK-NEXT:     _d_j = 0.;
-// CHECK-NEXT: }
-
-// CHECK: inline void nonMemFn_pushforward_pullback(double i, double j, double _d_i, double _d_j, clad::ValueAndPushforward<double, double> _d_y, double *_d_i0, double *_d_j0) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_i0 += _d_y.value * j;
-// CHECK-NEXT:         *_d_j0 += i * _d_y.value;
-// CHECK-NEXT:         *_d_j0 += _d_i * _d_y.pushforward;
-// CHECK-NEXT:         *_d_i0 += _d_y.pushforward * _d_j;
-// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 
