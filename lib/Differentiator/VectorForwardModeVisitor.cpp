@@ -522,8 +522,20 @@ void VectorForwardModeVisitor::matchBranchTangents(StmtDiff& TrueDiff,
     Zero.updateStmtDx(asTangentVector(ZeroDx, Elem));
     return true;
   };
-  if (!match(TrueDiff, FalseDiff))
-    match(FalseDiff, TrueDiff);
+  if (match(TrueDiff, FalseDiff) || match(FalseDiff, TrueDiff))
+    return;
+  // Different lazy tangent expressions cannot be used as the branches of
+  // one conditional. Materialize them as arrays of the conditional's type.
+  Expr* TrueDx = TrueDiff.getExpr_dx();
+  Expr* FalseDx = FalseDiff.getExpr_dx();
+  if (!isTangentVector(TrueDx) || !isTangentVector(FalseDx) ||
+      TrueDx->getType() == FalseDx->getType())
+    return;
+  QualType Elem = utils::GetNonConstValueType(T);
+  QualType ArrayType = utils::GetCladArrayOfType(m_Sema, Elem);
+  TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(ArrayType);
+  TrueDiff.updateStmtDx(BuildFunctionalCast(TSI, ArrayType, TrueDx));
+  FalseDiff.updateStmtDx(BuildFunctionalCast(TSI, ArrayType, FalseDx));
 }
 
 Expr* VectorForwardModeVisitor::castTangent(Expr* Dx, const CastExpr* Cast) {
