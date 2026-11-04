@@ -15,7 +15,8 @@
 // CHECK_HELP-NEXT: -fdump-source-fn -
 // CHECK_HELP-NEXT: -fdump-source-fn-ast
 // CHECK_HELP-NEXT: -fenable-analysis=<name>
-// CHECK_HELP-NEXT: -fgenerate-source-file
+// CHECK_HELP-NEXT: -fgenerate-source-file -
+// CHECK_HELP-NEXT: -fgenerate-source-file=<file>
 // CHECK_HELP-NEXT: -fgenerated-source-dir=<dir>
 // CHECK_HELP-NEXT: -fno-validate-clang-version
 // CHECK_HELP-NEXT: -fprint-num-diff-errors

@@ -181,19 +181,19 @@ double f_const_local(double x) {
 // CHECK: void f_const_local_grad(double x, double *_d_x) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double n = 0.;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
-// CHECK-NEXT:         _t1[i] = n , n = x + i;
+// CHECK-NEXT:         n = x + i;
 // CHECK-NEXT:         res += x * n;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
+// CHECK-NEXT:         n = x + i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             *_d_x += _d_res * n;
 // CHECK-NEXT:             _d_n += x * _d_res;
@@ -202,7 +202,6 @@ double f_const_local(double x) {
 // CHECK-NEXT:             *_d_x += _d_n;
 // CHECK-NEXT:             _d_i += _d_n;
 // CHECK-NEXT:             _d_n = 0.;
-// CHECK-NEXT:             n = _t1[i];
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -2659,19 +2658,19 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:    double _d_y = 0.;
 //CHECK-NEXT:    int _d_i = 0;
 //CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:     double _t1[3];
 //CHECK-NEXT:    double _d_t4 = 0.;
 //CHECK-NEXT:    double t4 = 0.;
 //CHECK-NEXT:    double _d_out = 0.;
 //CHECK-NEXT:    double out = 0.;
 //CHECK-NEXT:    unsigned int _t0;
 //CHECK-NEXT:    for (i = 0; i < 3; i++) {
-//CHECK-NEXT:         _t1[i] = t4 , t4 = x[i];
+//CHECK-NEXT:         t4 = x[i];
 //CHECK-NEXT:        out += 1. / t4;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_out += 1;
 //CHECK-NEXT:    for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:        i--;
+//CHECK-NEXT:        t4 = x[i];
 //CHECK-NEXT:        {
 //CHECK-NEXT:            double _r0 = _d_out * -(1. / (t4 * t4));
 //CHECK-NEXT:            _d_t4 += _r0;
@@ -2679,7 +2678,6 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            _d_x[i] += _d_t4;
 //CHECK-NEXT:            _d_t4 = 0.;
-//CHECK-NEXT:             t4 = _t1[i];
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -3116,6 +3114,61 @@ double fn52(double x, const double* w) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double fn53(const double* x, int n) {
+  double out = 0;
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < 2; j++) {
+      double t = x[i * 2 + j] - x[j];
+      out += t * t * x[i];
+    }
+  return out;
+}
+
+// The reverse pass recomputes t from both indices instead of taping it.
+//CHECK: void fn53_grad_0(const double *x, int n, double *_d_x) {
+//CHECK:             j--;
+//CHECK-NEXT:             t = x[i * 2 + j] - x[j];
+
+// t is written after its declaration, and fn55 writes the memory its local
+// loads from, so both tape the local.
+double fn54(const double* x) {
+  double out = 0;
+  for (int i = 0; i < 3; i++) {
+    double t = x[i];
+    t *= t;
+    out += t * x[i];
+  }
+  return out;
+}
+
+double fn55(double* x) {
+  double out = 0;
+  for (int i = 0; i < 3; i++) {
+    double t = x[i] * x[i];
+    x[i] = 1;
+    out += t * x[i] * t;
+  }
+  return out;
+}
+
+// a is recomputed. b reads s, which the loop writes; c is not arithmetic;
+// d needs more operations than a tape push. b, c and d are taped.
+double fn56(const double* x) {
+  double s = 0;
+  for (int i = 0; i < 3; i++) {
+    double a = -x[i];
+    double b = s * x[i];
+    double c = x[i] > 1 ? x[i] : 1.;
+    double d = x[i] * x[i] * x[i] * x[i] * x[i] * x[i] * x[i] * x[i] * x[i] * x[i];
+    s += a * b + c * d;
+  }
+  return s;
+}
+
+//CHECK: void fn56_grad(const double *x, double *_d_x) {
+//CHECK:         i--;
+//CHECK-NEXT:         a = -x[i];
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3245,4 +3298,20 @@ int main() {
   result[0] = 0;
   d_fn52.execute(3, w52, result);
   printf("{%.2f}\n", result[0]); // CHECK-EXEC: {18.00}
+
+  double x53[4] = {1, 2, 3, 4}, d53[4] = {0};
+  clad::gradient(fn53, "x").execute(x53, 2, d53);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", d53[0], d53[1], d53[2], d53[3]); // CHECK-EXEC: {-8.00, {{-?}}0.00, 8.00, 8.00}
+
+  double x54[3] = {1, 2, 3}, d54[3] = {0};
+  clad::gradient(fn54).execute(x54, d54);
+  printf("{%.2f, %.2f, %.2f}\n", d54[0], d54[1], d54[2]); // CHECK-EXEC: {3.00, 12.00, 27.00}
+
+  double x55[3] = {1, 2, 3}, d55[3] = {0};
+  clad::gradient(fn55).execute(x55, d55);
+  printf("{%.2f, %.2f, %.2f}\n", d55[0], d55[1], d55[2]); // CHECK-EXEC: {4.00, 32.00, 108.00}
+
+  double x56[3] = {0.5, 1.5, 1.2}, d56[3] = {0};
+  clad::gradient(fn56).execute(x56, d56);
+  printf("{%.2f, %.2f, %.2f}\n", d56[0], d56[1], d56[2]); // CHECK-EXEC: {0.01, -279.10, -139.48}
 }

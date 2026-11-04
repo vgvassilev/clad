@@ -1,6 +1,7 @@
 #include "LivenessAnalyzer.h"
 
 #include "Analyses.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -11,12 +12,15 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/LLVM.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
+#include <set>
 
 using namespace clang;
 
@@ -127,18 +131,25 @@ public:
   }
 };
 
+using AddressMap =
+    llvm::DenseMap<const VarDecl*, llvm::SmallVector<const Expr*, 1>>;
+
 /// Collects the variables whose address the body takes, and so may be read
-/// through something other than their name.
+/// through something other than their name. The `&x` expressions go to
+/// \p TakenAt rather than \p Escaped: a call that is the only place taking
+/// the address of x may still be left out.
 class EscapeFinder : public RecursiveASTVisitor<EscapeFinder> {
   llvm::SmallPtrSetImpl<const VarDecl*>& m_Escaped;
+  AddressMap& m_TakenAt;
 
 public:
-  explicit EscapeFinder(llvm::SmallPtrSetImpl<const VarDecl*>& Escaped)
-      : m_Escaped(Escaped) {}
+  EscapeFinder(llvm::SmallPtrSetImpl<const VarDecl*>& Escaped,
+               AddressMap& TakenAt)
+      : m_Escaped(Escaped), m_TakenAt(TakenAt) {}
   bool VisitUnaryOperator(UnaryOperator* UO) {
     if (UO->getOpcode() == UO_AddrOf)
       if (const VarDecl* VD = rootVar(UO->getSubExpr()))
-        m_Escaped.insert(VD);
+        m_TakenAt.try_emplace(VD).first->second.push_back(UO);
     return true;
   }
   bool VisitImplicitCastExpr(ImplicitCastExpr* ICE) {
@@ -271,15 +282,105 @@ AnalysisMiss whatCalleesReach(const CallExpr* CE) {
 
 } // namespace
 
+/// Whether \p S is `return x;` for an arithmetic x of \p Vars. The analysis
+/// runs for gradients and pullbacks, whose forward sweep does not return the
+/// value, and the adjoint of the return adds to x's adjoint without reading x.
+static bool returnsOnly(const Stmt* S,
+                        const llvm::SmallPtrSetImpl<const VarDecl*>& Vars) {
+  const auto* RS = dyn_cast<ReturnStmt>(S);
+  const Expr* E = RS ? RS->getRetValue() : nullptr;
+  const auto* DRE =
+      E ? dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()) : nullptr;
+  const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+  return VD && Vars.contains(VD) && VD->getType()->isArithmeticType();
+}
+
+/// The pointer parameter \p E indexes, as in `p[i]`.
+static const ParmVarDecl* indexedParam(const Expr* E) {
+  const auto* ASE = dyn_cast<ArraySubscriptExpr>(E->IgnoreParenImpCasts());
+  if (!ASE)
+    return nullptr;
+  const auto* DRE =
+      dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreParenImpCasts());
+  return DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+}
+
+/// Whether \p S names \p P.
+static bool namesParam(const Stmt* S, const ParmVarDecl* P) {
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+    return DRE->getDecl() == P;
+  return llvm::any_of(S->children(),
+                      [P](const Stmt* C) { return C && namesParam(C, P); });
+}
+
+/// Whether \p E is a sum of terms, each a bare `P[i]` or an expression that
+/// does not name \p P, without side effects. A call counts as a side effect.
+static bool isSumOfTerms(const Expr* E, const ParmVarDecl* P,
+                         const ASTContext& C) {
+  E = E->IgnoreParenImpCasts();
+  if (const auto* BO = dyn_cast<BinaryOperator>(E))
+    if (BO->getOpcode() == BO_Add || BO->getOpcode() == BO_Sub)
+      return isSumOfTerms(BO->getLHS(), P, C) &&
+             isSumOfTerms(BO->getRHS(), P, C);
+  if (E->HasSideEffects(C))
+    return false;
+  if (indexedParam(E) == P)
+    return true;
+  return !namesParam(E, P);
+}
+
+/// Collects into \p Stores the statements `P[i] = e;` of \p S with e a sum
+/// as above. Whether \p P appears nowhere else in \p S.
+static bool onlyInStores(const Stmt* S, const ParmVarDecl* P,
+                         const ASTContext& C,
+                         llvm::SmallVectorImpl<const Stmt*>& Stores) {
+  if (!S)
+    return true;
+  if (const auto* BO = dyn_cast<BinaryOperator>(S))
+    if (BO->getOpcode() == BO_Assign && indexedParam(BO->getLHS()) == P &&
+        !BO->getLHS()->HasSideEffects(C) && isSumOfTerms(BO->getRHS(), P, C)) {
+      Stores.push_back(BO);
+      return true;
+    }
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+    return DRE->getDecl() != P;
+  return llvm::all_of(S->children(), [&](const Stmt* Child) {
+    return onlyInStores(Child, P, C, Stores);
+  });
+}
+
+/// Adds to \p Dead the stores `p[i] = e;` of a pullback into a restrict
+/// pointer parameter p whose values nothing reads: p appears only in such
+/// stores and as terms of their sums. The pullback's reverse sweep does not
+/// read p, and its caller restores what the call wrote where it reads it.
+static void findDeadOutputStores(const DiffRequest& R,
+                                 std::set<const Stmt*>& Dead) {
+  const FunctionDecl* Fn = R.Function->getDefinition();
+  const ASTContext& C = Fn->getASTContext();
+  for (const ParmVarDecl* P : Fn->parameters()) {
+    QualType T = P->getType();
+    if (!T->isPointerType() || !T.isRestrictQualified() ||
+        T->getPointeeType().isConstQualified() ||
+        !T->getPointeeType()->isArithmeticType())
+      continue;
+    llvm::SmallVector<const Stmt*, 4> Stores;
+    if (onlyInStores(Fn->getBody(), P, C, Stores))
+      Dead.insert(Stores.begin(), Stores.end());
+  }
+}
+
 void findUnreadCalls(const DiffRequest& R, std::set<const Stmt*>& Unread) {
+  if (R.Mode == DiffMode::pullback)
+    findDeadOutputStores(R, Unread);
   const FunctionDecl* Fn = R.Function->getDefinition();
   // A function body is a compound statement ([dcl.fct.def.general]).
   const auto* Body = cast<CompoundStmt>(Fn->getBody());
   const ASTContext& C = Fn->getASTContext();
 
   llvm::SmallPtrSet<const VarDecl*, 8> Escaped;
+  AddressMap TakenAt;
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  EscapeFinder(Escaped).TraverseStmt(const_cast<CompoundStmt*>(Body));
+  EscapeFinder(Escaped, TakenAt).TraverseStmt(const_cast<CompoundStmt*>(Body));
 
   auto Stmts = Body->body();
   for (auto it = Stmts.begin(), e = Stmts.end(); it != e; ++it) {
@@ -294,9 +395,23 @@ void findUnreadCalls(const DiffRequest& R, std::set<const Stmt*>& Unread) {
     WriteCollector W;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     W.TraverseStmt(const_cast<CallExpr*>(CE));
+    // `&x` passed to a mutable pointer parameter writes x, as passing x by
+    // reference does.
+    llvm::SmallVector<const Expr*, 4> ByRef(W.ByRef.begin(), W.ByRef.end());
+    llvm::SmallVector<const Expr*, 4> ByPointer;
+    llvm::SmallPtrSet<const Expr*, 2> OwnAddress;
+    for (const Expr* Arg : W.ByPointer) {
+      const auto* UO = dyn_cast<UnaryOperator>(Arg->IgnoreParenImpCasts());
+      if (UO && UO->getOpcode() == UO_AddrOf && rootVar(UO->getSubExpr())) {
+        ByRef.push_back(UO->getSubExpr());
+        OwnAddress.insert(UO);
+      } else {
+        ByPointer.push_back(Arg);
+      }
+    }
     llvm::SmallPtrSet<const VarDecl*, 4> Written;
     bool known = true;
-    for (const Expr* Arg : W.ByRef) {
+    for (const Expr* Arg : ByRef) {
       const VarDecl* VD = rootVar(Arg);
       // What a gradient's caller passed by reference, the caller reads.
       // A static local outlives the call: the next one reads it. A local
@@ -311,8 +426,9 @@ void findUnreadCalls(const DiffRequest& R, std::set<const Stmt*>& Unread) {
     // A call that changes none of the function's variables is there for
     // something else, such as printing.
     if (!known || Written.empty() ||
-        std::any_of(std::next(it), e,
-                    [&](const Stmt* Later) { return names(Later, Written); }))
+        std::any_of(std::next(it), e, [&](const Stmt* Later) {
+          return !returnsOnly(Later, Written) && names(Later, Written);
+        }))
       continue;
 
     // Nothing reads what the call writes by name. Say why it still runs.
@@ -322,12 +438,15 @@ void findUnreadCalls(const DiffRequest& R, std::set<const Stmt*>& Unread) {
     for (auto I = Written.begin(), E = Written.end();
          I != E && Why == AnalysisMiss::None; ++I) {
       const VarDecl* VD = *I;
-      if (Escaped.count(VD))
+      // Its address taken anywhere but in this call's arguments.
+      if (Escaped.contains(VD) ||
+          llvm::any_of(TakenAt.lookup(VD),
+                       [&](const Expr* E) { return !OwnAddress.contains(E); }))
         Why = AnalysisMiss::WrittenObjectEscapes;
       else if (!reachesNoOtherMemory(C, VD->getType().getNonReferenceType()))
         Why = AnalysisMiss::WrittenObjectHoldsPointer;
     }
-    if (Why == AnalysisMiss::None && !W.ByPointer.empty())
+    if (Why == AnalysisMiss::None && !ByPointer.empty())
       Why = AnalysisMiss::CalleeWritesThroughPointer;
     if (Why == AnalysisMiss::None)
       Why = whatCalleesReach(CE);

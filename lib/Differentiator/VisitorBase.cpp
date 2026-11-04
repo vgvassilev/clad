@@ -20,6 +20,7 @@
 #include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -227,6 +228,36 @@ namespace clad {
     return Clone;
   }
 
+  std::string VisitorBase::CloneName(const VarDecl* VD) {
+    if (isa<DecompositionDecl>(VD) && VD->getName().empty())
+      return "_bind";
+    return VD->getNameAsString();
+  }
+
+  bool VisitorBase::CheckStructuredBinding(const DecompositionDecl* DD) {
+    // An array copy is initialized element by element, which clad does not
+    // differentiate: its elements would be read as zero.
+    if (DD->getType()->isArrayType()) {
+      diag(DiagnosticsEngine::Error, DD->getLocation(),
+           "differentiating a structured binding of an array copy is not "
+           "supported yet");
+      return false;
+    }
+    return true;
+  }
+
+  llvm::SmallVector<DeclStmt*, 4>
+  VisitorBase::BuildHoldingVarStmts(const DecompositionDecl* DD) {
+    // `std::tuple_element_t<i, E>&& a = get<i>(e);` ([dcl.struct.bind]).
+    llvm::SmallVector<DeclStmt*, 4> Stmts;
+    for (const BindingDecl* B : DD->bindings())
+      if (VarDecl* Holding = B->getHoldingVar())
+        Stmts.push_back(new (m_Context) DeclStmt(DeclGroupRef(Holding),
+                                                 Holding->getBeginLoc(),
+                                                 Holding->getEndLoc()));
+    return Stmts;
+  }
+
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
     utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);
@@ -379,7 +410,9 @@ namespace clad {
 
       for (DeclContext* DC : llvm::reverse(DCs)) {
         if (auto* ND = dyn_cast<NamespaceDecl>(DC)) {
-          if (!ND->isInline())
+          // An inline or an anonymous namespace adds nothing to the name.
+          // Neither can be spelled in a qualifier.
+          if (!ND->isInline() && !ND->isAnonymousNamespace())
             NNS = clad_compat::makeNNSNamespace(m_Context, NNS, ND);
         } else if (auto* TD = dyn_cast<TagDecl>(DC)) {
           NNS = clad_compat::makeNNSTagType(m_Context, NNS, TD);
@@ -395,6 +428,20 @@ namespace clad {
       CSS.MakeTrivial(m_Context, NNS, GenLoc());
     QualType T = D->getType();
     T = T.getNonReferenceType();
+    // A specialization of a variable template is named with its arguments:
+    // `c_v<double>`, since `c_v` alone names the template, not a variable.
+    if (const auto* VTSD = dyn_cast<VarTemplateSpecializationDecl>(D)) {
+      SourceLocation Loc = GenLoc();
+      TemplateArgumentListInfo TALI(Loc, Loc);
+      for (const TemplateArgument& TA : VTSD->getTemplateArgs().asArray())
+        TALI.addArgument(m_Sema.getTrivialTemplateArgumentLoc(
+            TA, TA.getNonTypeTemplateArgumentType(), Loc));
+      return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
+          m_Sema.BuildDeclRefExpr(D, T, VK,
+                                  DeclarationNameInfo(D->getDeclName(), Loc),
+                                  &CSS, /*FoundD=*/nullptr,
+                                  /*TemplateKWLoc=*/SourceLocation(), &TALI)));
+    }
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
         m_Sema.BuildDeclRefExpr(D, T, VK, GenLoc(), &CSS)));
   }

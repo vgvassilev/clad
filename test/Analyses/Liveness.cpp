@@ -128,13 +128,54 @@ void copyOut(S& s, double* out) { *out = s.a; }
 double pointer(double x) {
   S s{x, 2};
   double o = 0;
+  double* po = &o;
   double r = s.a * x;
-  copyOut(s, &o);
+  copyOut(s, po);
   // CHECK-REMARK: :[[@LINE-1]]:3: remark: clad runs this call in the forward sweep, although nothing reads what it computes there
   // CHECK-REMARK: :[[@LINE-2]]:3: note: the callee writes through a pointer argument
   // CHECK-REMARK: note: to avoid this, make it a call whose results nothing reads (CLAD1006)
   return r;
 }
+
+// `&o` writes o, as passing o by reference does, and nothing reads o after.
+double address(double x) {
+  S s{x, 2};
+  double o = 0;
+  double r = s.a * x;
+  copyOut(s, &o);
+  return r;
+}
+
+// CHECK: void address_grad(double x, double *_d_x) {
+// CHECK: double r = s.a * x;
+// CHECK-NOT: copyOut(s, &o);
+// CHECK: _d_r += 1;
+
+// The address of o is also taken outside the call, so o may be read later.
+double addressTwice(double x) {
+  S s{x, 2};
+  double o = 0;
+  double* q = &o;
+  double r = s.a * x;
+  copyOut(s, &o);
+  // CHECK-REMARK: :[[@LINE-1]]:3: remark: clad runs this call in the forward sweep, although nothing reads what it computes there
+  // CHECK-REMARK: :[[@LINE-2]]:3: note: the function takes the address of something this call writes, so a read through it cannot be ruled out
+  // CHECK-REMARK: note: to avoid this, make it a call whose results nothing reads (CLAD1006)
+  return r + *q;
+}
+
+void cube(double x, double* out) { *out = x * x * x; }
+
+// Only the return reads out. A gradient does not use the value returned.
+double returned(double x) {
+  double out;
+  cube(x, &out);
+  return out;
+}
+
+// CHECK: void returned_grad(double x, double *_d_x) {
+// CHECK-NOT: cube(x, &out);
+// CHECK: cube_pullback(x, &out
 
 [[clad::non_differentiable]] void runHook(S& s, void (*hook)(S&)) {
   if (hook)
@@ -223,6 +264,109 @@ double throughLocalRef(double x) {
   return t * x;
 }
 
+// The pullback leaves out the stores into out: its reverse sweep reads only Q
+// and x, and the caller restores out where it reads it.
+void matvec(const double* __restrict__ Q, const double* __restrict__ x,
+            double* __restrict__ out) {
+  for (int i = 0; i < 2; i++) {
+    out[i] = Q[2 * i] * x[0];
+    out[i] = out[i] + Q[2 * i + 1] * x[1];
+  }
+}
+
+double useMatvec(double a) {
+  double Q[4] = {a, 1, 2, a};
+  double x[2] = {a, 3};
+  double out[2];
+  matvec(Q, x, out);
+  return out[0] * out[1];
+}
+
+// CHECK: void matvec_pullback(const double *__restrict Q, const double *__restrict x, double *__restrict out, double *_d_Q, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; i++) {
+// CHECK-NEXT:     }
+
+// Without restrict, out may alias Q or x, which the reverse sweep reads, so
+// the stores stay.
+void matvecAlias(const double* Q, const double* x, double* out) {
+  for (int i = 0; i < 2; i++) {
+    out[i] = Q[2 * i] * x[0];
+    out[i] = out[i] + Q[2 * i + 1] * x[1];
+  }
+}
+
+double useMatvecAlias(double a) {
+  double Q[4] = {a, 1, 2, a};
+  double x[2] = {a, 3};
+  double out[2];
+  matvecAlias(Q, x, out);
+  return out[0] * out[1];
+}
+
+// CHECK: void matvecAlias_pullback(const double *Q, const double *x, double *out, double *_d_Q, double *_d_x, double *_d_out) {
+// CHECK:     for (i = 0; i < 2; i++) {
+// CHECK-NEXT:         out[i] = Q[2 * i] * x[0];
+// CHECK-NEXT:         out[i] = out[i] + Q[2 * i + 1] * x[1];
+// CHECK-NEXT:     }
+
+// The reverse sweep of the product reads out, so the stores stay.
+void scaleOut(const double* __restrict__ x, double* __restrict__ out) {
+  out[0] = x[0];
+  out[0] = out[0] * x[1];
+}
+
+double useScaleOut(double a) {
+  double x[2] = {a, a};
+  double out[1];
+  scaleOut(x, out);
+  return out[0];
+}
+
+// CHECK: void scaleOut_pullback(const double *__restrict x, double *__restrict out, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     out[0] = x[0];
+// CHECK-NEXT:     double _t0 = out[0];
+// CHECK-NEXT:     out[0] = out[0] * x[1];
+
+double twice(double v) { return 2 * v; }
+
+// A call or a side effect in a stored value keeps the stores.
+void callOut(const double* __restrict__ x, double* __restrict__ out) {
+  out[0] = twice(x[0]);
+}
+
+void stepOut(const double* __restrict__ x, double* __restrict__ out) {
+  int k = 1;
+  out[0] = x[0] * k++;
+  out[1] = x[1] * k;
+}
+
+double useCallOut(double a) {
+  double x[1] = {a};
+  double out[1];
+  callOut(x, out);
+  return out[0] * a;
+}
+
+double useStepOut(double a) {
+  double x[2] = {a, a};
+  double out[2];
+  stepOut(x, out);
+  return out[0] * out[1];
+}
+
+// CHECK: void callOut_pullback(const double *__restrict x, double *__restrict out, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     out[0] = twice(x[0]);
+
+// CHECK: void stepOut_pullback(const double *__restrict x, double *__restrict out, double *_d_x, double *_d_out) {
+// CHECK-NEXT:     int _d_k = 0;
+// CHECK-NEXT:     int k = 1;
+// CHECK-NEXT:     double _t0 = k++;
+// CHECK-NEXT:     out[0] = x[0] * _t0;
+// CHECK-NEXT:     out[1] = x[1] * k;
+
 int main() {
   double dx = 0;
   clad::gradient(square).execute(3, &dx);
@@ -246,12 +390,42 @@ int main() {
   clad::gradient(pointer).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 6.00
   dx = 0;
+  clad::gradient(address).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 6.00
+  // 2 x + 1
+  dx = 0;
+  clad::gradient(addressTwice).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 7.00
+  // 3 x^2
+  dx = 0;
+  clad::gradient(returned).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 27.00
+  dx = 0;
   clad::gradient(indirect).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 6.00
   // 4 x^3
   dx = 0;
   clad::gradient(throughLocalRef).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 108.00
+  // 15 a^2 + 15
+  dx = 0;
+  clad::gradient(useMatvec).execute(2, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 75.00
+  dx = 0;
+  clad::gradient(useMatvecAlias).execute(2, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 75.00
+  // 2 a
+  dx = 0;
+  clad::gradient(useScaleOut).execute(2, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 4.00
+  // 4 a
+  dx = 0;
+  clad::gradient(useCallOut).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 12.00
+  // 4 a
+  dx = 0;
+  clad::gradient(useStepOut).execute(3, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 12.00
 #ifdef REMARKS
   clad::gradient(noBody);
   clad::gradient(globals);

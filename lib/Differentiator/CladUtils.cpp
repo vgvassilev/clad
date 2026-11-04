@@ -1335,6 +1335,25 @@ namespace clad {
       });
     }
 
+    bool isClassifiedContiguous(Sema& S, const CXXRecordDecl* RD) {
+      TemplateDecl* Check =
+          LookupTemplateDeclInCladNamespace(S, "contiguous_container_check");
+      ASTContext& C = S.getASTContext();
+      QualType T = InstantiateTemplate(
+          S, Check, {clad_compat::getRecordType(C, RD->getCanonicalDecl())});
+      // Completing the type instantiates the check.
+      const auto* Inst = S.isCompleteType(GetValidSLoc(S), T)
+                             ? T->getAsCXXRecordDecl()
+                             : nullptr;
+      DeclContext::lookup_result Found;
+      if (Inst)
+        Found = Inst->lookup(&C.Idents.get("value"));
+      const auto* VD =
+          Found.empty() ? nullptr : dyn_cast<VarDecl>(Found.front());
+      const APValue* V = VD ? VD->evaluateValue() : nullptr;
+      return V && V->isInt() && V->getInt().getBoolValue();
+    }
+
     bool isPureElementAccess(const Expr* E, const ASTContext& C) {
       const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E->IgnoreParens());
       if (!OCE || OCE->getOperator() != OO_Subscript)

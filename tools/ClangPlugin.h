@@ -7,6 +7,8 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
+#include "GeneratedSourceFile.h"
+
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
@@ -162,6 +164,8 @@ class CladExternalSource : public clang::ExternalSemaSource {
 
     /// The derivatives produced here, in the order they were produced.
     llvm::SmallVector<Generated, 8> m_Generated;
+    /// The derivatives -fgenerate-source-file writes out.
+    GeneratedSourceFile m_GeneratedSource;
 
   public:
     CladPlugin(clang::CompilerInstance& CI, Options& DO);

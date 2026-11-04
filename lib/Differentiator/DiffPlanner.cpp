@@ -60,6 +60,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -727,6 +728,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
              readsOnlyUnwrittenParams(BO->getLHS()) &&
              readsOnlyUnwrittenParams(BO->getRHS());
     return false;
+  }
+
+  bool DiffRequest::isRecomputableInLoop(const VarDecl* VD) const {
+    if (!m_RecomputeInfo.HasAnalysisRun) {
+      findRecomputableLocals(*this, m_RecomputeInfo.Locals);
+      m_RecomputeInfo.HasAnalysisRun = true;
+    }
+    return m_RecomputeInfo.Locals.contains(VD);
+  }
+
+  bool DiffRequest::writesOnlyLocals() const {
+    if (m_WrittenVarInfo.OnlyLocals)
+      return *m_WrittenVarInfo.OnlyLocals;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    auto local = [](const Expr* E) {
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+      const auto* V = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      return V && V->isLocalVarDecl() && !V->getType()->isReferenceType();
+    };
+    std::function<bool(const Stmt*)> writes = [&](const Stmt* S) {
+      if (!S)
+        return false;
+      if (isa<CallExpr, CXXConstructExpr, CXXNewExpr, CXXDeleteExpr, AsmStmt>(
+              S))
+        return true;
+      const Expr* Target = nullptr;
+      if (const auto* BO = dyn_cast<BinaryOperator>(S);
+          BO && BO->isAssignmentOp())
+        Target = BO->getLHS();
+      if (const auto* UO = dyn_cast<UnaryOperator>(S);
+          UO && UO->isIncrementDecrementOp())
+        Target = UO->getSubExpr();
+      return (Target && !local(Target)) || llvm::any_of(S->children(), writes);
+    };
+    m_WrittenVarInfo.OnlyLocals =
+        Def && Def->hasBody() && !writes(Def->getBody());
+    return *m_WrittenVarInfo.OnlyLocals;
   }
 
   bool DiffRequest::isUnreadCall(const Stmt* S) const {
@@ -1751,6 +1789,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
+  /// Whether the custom derivative \p E refers to, a function or every
+  /// function in an overload set, is an elidable reverse_forw.
+  static bool isElidableReverseForw(const Expr* E) {
+    auto elidable = [](const NamedDecl* D) {
+      D = D->getUnderlyingDecl();
+      if (const auto* FTD = dyn_cast<FunctionTemplateDecl>(D))
+        D = FTD->getTemplatedDecl();
+      return utils::hasElidableReverseForwAttribute(D);
+    };
+    const auto* DRE = dyn_cast_or_null<DeclRefExpr>(E);
+    const auto* OE = dyn_cast_or_null<OverloadExpr>(E);
+    return DRE ? elidable(DRE->getDecl())
+               : OE && OE->getNumDecls() && llvm::all_of(OE->decls(), elidable);
+  }
+
   static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
                                bool* foundAnyDecl = nullptr,
                                bool quiet = false) {
@@ -1924,6 +1977,46 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     utils::DiagnoseSignatureMismatch(S, dTy, Found);
 
     return nullptr;
+  }
+
+  void DiffCollector::noteElementAccesses(DiffRequest& request) {
+    std::function<void(const Stmt*)> walk = [&](const Stmt* S) {
+      if (!S)
+        return;
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(S);
+      const auto* MD =
+          OCE && OCE->getOperator() == OO_Subscript
+              ? dyn_cast_or_null<CXXMethodDecl>(OCE->getDirectCallee())
+              : nullptr;
+      if (MD) {
+        auto Known = m_ElidedAccessors.find(MD);
+        if (Known == m_ElidedAccessors.end()) {
+          DiffRequest Forw;
+          Forw.Function = MD;
+          Forw.BaseFunctionName = utils::ComputeEffectiveFnName(MD);
+          Forw.Mode = DiffMode::reverse_mode_forward_pass;
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          Forw.CallContext = const_cast<CXXOperatorCallExpr*>(OCE);
+          bool Elided = LookupCustomDerivativeDecl(Forw) &&
+                        isElidableReverseForw(Forw.CustomDerivative);
+          Known = m_ElidedAccessors.insert({MD, Elided}).first;
+        }
+        if (Known->second)
+          request.ElementAccesses.insert(OCE);
+      }
+      const auto* MCE = dyn_cast<CXXMemberCallExpr>(S);
+      const CXXRecordDecl* RD = MCE ? MCE->getRecordDecl() : nullptr;
+      if (RD && RD->hasDefinition()) {
+        auto [It, New] = m_Contiguous.try_emplace(RD, false);
+        if (New)
+          It->second = utils::isClassifiedContiguous(m_Sema, RD);
+        if (It->second)
+          request.ContiguousContainers.insert(RD);
+      }
+      for (const Stmt* Child : S->children())
+        walk(Child);
+    };
+    walk(request->getBody());
   }
 
   bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request,
@@ -2546,6 +2639,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
+      noteElementAccesses(request);
 
       //  Recurse into call graph. With a custom derivative the body is walked
       // for TBR alone and never differentiated.
@@ -3146,6 +3240,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // FIXME: Add proper support for objects in VA and UA.
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
+      noteElementAccesses(request);
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request);

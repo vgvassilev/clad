@@ -1082,7 +1082,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       // A call whose results nothing reads need not run: its reverse puts
       // back what it changed.
-      if (!m_DiffReq.isUnreadCall(S))
+      // A dead store is left out only as the plain assignment: anything else
+      // records a value its reverse sweep reads back.
+      bool skip = m_DiffReq.isUnreadCall(S);
+      if (skip && isa<BinaryOperator>(S)) {
+        const auto* Fwd = dyn_cast_or_null<BinaryOperator>(SDiff.getStmt());
+        skip = Fwd && Fwd->getOpcode() == BO_Assign;
+      }
+      if (!skip)
         addToCurrentBlock(SDiff.getStmt(), direction::forward);
       Stmt* rev = SDiff.getStmt_dx();
       if (rev && skipRestAlways) {
@@ -2193,6 +2200,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+    // A structured binding names part of the variable it decomposes, or the
+    // variable a tuple-like type introduces for it: differentiate what it
+    // stands for, `_bind.a` or `a`.
+    if (const auto* BD = dyn_cast<BindingDecl>(DRE->getDecl()))
+      return Visit(BD->getBinding(), dfdx());
     // Resolve the remapped primal decl. Every reverse-mode param/local clone is
     // registered in m_DeclReplacements, so for those leaves the decl is a plain
     // map probe and the forward value can be built lazily (BuildDeclRef) -- it
@@ -4734,8 +4746,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_DiffReq.shouldHaveAdjoint(VD) &&
         !clad::utils::hasNonDifferentiableAttribute(VD)) {
       if (!isLambdaDS) {
-        llvm::StringRef Name = VD->getName();
-        std::string CleanName = Name.ltrim('_').str();
+        std::string Name = CloneName(VD);
+        std::string CleanName = llvm::StringRef(Name).ltrim('_').str();
         VDDerived = BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName,
                                        dummyInit, false, nullptr, SC);
       }
@@ -4852,9 +4864,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDCloneTSI = m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc);
     }
 
-    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                 initDiff.getExpr(), VD->isDirectInit(),
-                                 VDCloneTSI, SC);
+    VDClone = BuildGlobalVarDecl(VDCloneType, CloneName(VD), initDiff.getExpr(),
+                                 VD->isDirectInit(), VDCloneTSI, SC);
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
@@ -4986,6 +4997,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    if (const auto* DD = dyn_cast_or_null<DecompositionDecl>(
+            DS->isSingleDecl() ? DS->getSingleDecl() : nullptr)) {
+      if (!CheckStructuredBinding(DD))
+        return {};
+      // The variable it decomposes, then one statement for each variable a
+      // tuple-like type introduces for its bindings.
+      StmtDiff Result = DifferentiateDeclStmt(DS);
+      for (DeclStmt* Holding : BuildHoldingVarStmts(DD)) {
+        addToCurrentBlock(Result.getStmt(), direction::forward);
+        Result = DifferentiateDeclStmt(Holding);
+      }
+      return Result;
+    }
+    return DifferentiateDeclStmt(DS);
+  }
+
+  StmtDiff ReverseModeVisitor::DifferentiateDeclStmt(const DeclStmt* DS) {
     // Refuse an unsupported lambda before building any derivative for it.
     for (const Decl* D : DS->decls())
       if (const auto* VD = dyn_cast<VarDecl>(D))
@@ -5046,7 +5074,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             else
               assignment = BuildOp(BO_Assign, declRef, init);
             if (isInsideLoop() && VD != m_UnsavedLoopIndex) {
-              if (m_DiffReq.shouldBeRecorded(DS)) {
+              if (m_DiffReq.shouldBeRecorded(DS) && canRecomputeInLoop(VD)) {
+                // Recomputed when the reverse pass enters the iteration,
+                // instead of stored on a tape.
+                m_LoopBlock.back().push_back(
+                    BuildOp(BO_Assign, BuildDeclRef(decl), CloneNode(init)));
+              } else if (m_DiffReq.shouldBeRecorded(DS)) {
                 auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
                                                /*moveToTape=*/true);
                 if (pushPop.getExpr() != declRef)
@@ -5601,6 +5634,35 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         utils::getNonConstType(clad_compat::stripPredefinedSugar(E->getType()),
                                m_Sema),
         prefix, force, zeroInit);
+  }
+
+  /// Whether \p S names \p VD.
+  static bool names(const Stmt* S, const VarDecl* VD) {
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+      return DRE->getDecl() == VD;
+    return llvm::any_of(S->children(), [VD](const Stmt* Child) {
+      return Child && names(Child, VD);
+    });
+  }
+
+  bool ReverseModeVisitor::canRecomputeInLoop(const VarDecl* VD) {
+    if (!m_DiffReq.isRecomputableInLoop(VD))
+      return false;
+    // The initializer reads the index of an enclosing loop. Where the reverse
+    // of the increment does not restore it, the loop's slots must.
+    llvm::SmallVector<LoopScope*, 2> Slots;
+    for (LoopScope* L = m_CurrentLoop; L; L = L->m_Enclosing) {
+      const LoopFacts* F = L->Facts;
+      if (!F || !F->IndVar || !F->Step || !names(VD->getInit(), F->IndVar) ||
+          m_DiffReq.shouldBeRecorded(F->Step->getSubExpr()))
+        continue;
+      if (!L->Index)
+        return false;
+      Slots.push_back(L);
+    }
+    for (LoopScope* L : Slots)
+      L->UsesSlots = true;
+    return true;
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(
