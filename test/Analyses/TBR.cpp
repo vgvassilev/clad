@@ -312,7 +312,7 @@ double f8(double x) {
 //CHECK-NEXT:     double _d_s = 0.;
 //CHECK-NEXT:     double s = t * t;
 //CHECK-NEXT:     Wrapper w(t);
-//CHECK-NEXT:     Wrapper _d_w(_d_t);
+//CHECK-NEXT:     Wrapper _d_w(0.);
 //CHECK-NEXT:     s += w.val;
 //CHECK-NEXT:     double _t0 = t;
 //CHECK-NEXT:     t = 5;

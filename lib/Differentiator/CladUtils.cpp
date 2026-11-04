@@ -641,6 +641,62 @@ namespace clad {
       return isZeroOrCopyCtor;
     }
 
+    /// Whether a value of type \p T holds a pointer or a reference, in itself,
+    /// an element, a member or a base.
+    static bool holdsPointerOrReference(QualType T) {
+      T = T.getCanonicalType();
+      if (T->isPointerType() || T->isReferenceType() ||
+          T->isMemberPointerType())
+        return true;
+      if (const ArrayType* AT = T->getAsArrayTypeUnsafe())
+        return holdsPointerOrReference(AT->getElementType());
+      const auto* RD = T->getAsCXXRecordDecl();
+      if (!RD || !RD->hasDefinition())
+        return false;
+      return llvm::any_of(RD->fields(),
+                          [](const FieldDecl* F) {
+                            return holdsPointerOrReference(F->getType());
+                          }) ||
+             llvm::any_of(RD->bases(), [](const CXXBaseSpecifier& B) {
+               return holdsPointerOrReference(B.getType());
+             });
+    }
+
+    /// Whether \p S names \p D anywhere.
+    static bool mentions(const Stmt* S, const Decl* D) {
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+        return DRE->getDecl() == D;
+      return llvm::any_of(S->children(),
+                          [D](const Stmt* C) { return C && mentions(C, D); });
+    }
+
+    bool isOnlyCopiedToMembers(const CXXConstructorDecl* CD,
+                               const ParmVarDecl* PVD) {
+      const CXXRecordDecl* RD = CD->getParent();
+      if (CD->isCopyOrMoveConstructor() && CD->isTrivial())
+        return !holdsPointerOrReference(
+            clad_compat::getRecordType(CD->getASTContext(), RD));
+      const auto* Body = dyn_cast_or_null<CompoundStmt>(CD->getBody());
+      if (!Body || !Body->body_empty())
+        return false;
+      bool Copied = false;
+      for (const CXXCtorInitializer* CI : CD->inits()) {
+        const Expr* Init = CI->getInit()->IgnoreImplicit();
+        if (!mentions(Init, PVD))
+          continue;
+        // A member of class type is copied by its trivial copy constructor.
+        if (const auto* CCE = dyn_cast<CXXConstructExpr>(Init))
+          if (CCE->getNumArgs() == 1 && CCE->getConstructor()->isTrivial())
+            Init = CCE->getArg(0)->IgnoreImplicit();
+        const auto* DRE = dyn_cast<DeclRefExpr>(Init);
+        if (!CI->isMemberInitializer() || !DRE || DRE->getDecl() != PVD ||
+            holdsPointerOrReference(CI->getMember()->getType()))
+          return false;
+        Copied = true;
+      }
+      return Copied;
+    }
+
     void getRecordDeclFields(
         const clang::RecordDecl* RD,
         llvm::SmallVectorImpl<const clang::FieldDecl*>& fields) {

@@ -563,7 +563,7 @@ double fn10(double x, double y) {
 // CHECK:  void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      arrWrapper _d_a = {{.*0.*}};
 // CHECK-NEXT:      arrWrapper a = {{.*x, y.*}};
-// CHECK-NEXT:      arrWrapper _d_b = _d_a;
+// CHECK-NEXT:      arrWrapper _d_b = arrWrapper();
 // CHECK-NEXT:      arrWrapper b = a;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_b.arr[0] += 1;
@@ -595,7 +595,7 @@ double fn11(double x, double y) {
 // CHECK:  void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      arr2DWrapper _d_a = {{.*0.*}};
 // CHECK-NEXT:      arr2DWrapper a = {{.*x, y.*}};
-// CHECK-NEXT:      arr2DWrapper _d_b = _d_a;
+// CHECK-NEXT:      arr2DWrapper _d_b = arr2DWrapper();
 // CHECK-NEXT:      arr2DWrapper b = a;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_b.arr[0][0] += 1;
@@ -645,7 +645,7 @@ double fn12(double x, double y) {
 // CHECK:  void fn12_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      arrStructWrapper _d_a = {{.*}};
 // CHECK-NEXT:      arrStructWrapper a = {{.*x, y.*}};
-// CHECK-NEXT:      arrStructWrapper _d_b = _d_a;
+// CHECK-NEXT:      arrStructWrapper _d_b = arrStructWrapper();
 // CHECK-NEXT:      arrStructWrapper b = a;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_b.arr[0].val += 1;
@@ -853,6 +853,65 @@ double fn18(double i, double j) {
   return s.step() * i;
 }
 
+// A constructor that copies its argument: the adjoint of the object starts at
+// zero, though the adjoint of the argument, the callee's reference parameter,
+// holds what the caller passed in.
+struct Copied {
+  double v;
+  explicit Copied(const double& q) : v(q) {}
+};
+struct CopiedRef {
+  double v;
+  explicit CopiedRef(double& q) : v(q) {}
+};
+void cubeInPlace(double& r) {
+  Copied s(r);
+  CopiedRef t(r);
+  r = s.v * t.v * s.v;
+}
+double fn19(double i, double j) {
+  double y = i;
+  cubeInPlace(y);
+  return y * j;
+}
+
+// CHECK: void cubeInPlace_pullback(double &r, double *_d_r) {
+// CHECK-NEXT:     Copied s(r);
+// CHECK-NEXT:     Copied _d_s(0.);
+// CHECK:          double _d_zero = 0.;
+// CHECK-NEXT:     CopiedRef t(r);
+// CHECK-NEXT:     CopiedRef _d_t(_d_zero);
+
+// The copy passed by value has an adjoint of its own that starts at zero,
+// though the adjoint of q already holds what the use after the call adds.
+struct Q {
+  double a;
+};
+double takeQ(Q q) { return q.a * q.a; }
+struct QRef {
+  Q q;
+  explicit QRef(Q& o) : q(o) {}
+};
+double takeQRef(Q& q) {
+  QRef h(q);
+  return h.q.a * q.a;
+}
+double fn20(double i, double j) {
+  Q q{i};
+  double r = takeQ(q) + takeQRef(q);
+  r += q.a * j;
+  return r;
+}
+
+// CHECK: void takeQRef_pullback(Q &q, double _d_y, Q *_d_q) {
+// CHECK:          Q _d_zero = Q();
+// CHECK-NEXT:     QRef h(q);
+// CHECK-NEXT:     QRef _d_h(_d_zero);
+
+// CHECK: void fn20_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: Q _r0 = Q();
+// CHECK-NEXT: takeQ_pullback(q, _d_r, &_r0);
+
 int main() {
     double d_i, d_j;
 
@@ -912,4 +971,10 @@ int main() {
 
     INIT_GRADIENT(fn18);
     TEST_GRADIENT(fn18, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {5.50, 3.00}
+
+    INIT_GRADIENT(fn19);
+    TEST_GRADIENT(fn19, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {36.00, 8.00}
+
+    INIT_GRADIENT(fn20);
+    TEST_GRADIENT(fn20, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {11.00, 2.00}
 }

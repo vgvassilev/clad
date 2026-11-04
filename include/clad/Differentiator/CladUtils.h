@@ -668,6 +668,14 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
                                           const clang::ASTContext& C);
 
+    /// Whether the constructor \p CD copies its parameter \p PVD, and only
+    /// into members that hold no pointer or reference: the trivial copy or
+    /// move of a class without such members, or a constructor with an empty
+    /// body whose member initializers name PVD, and only as the whole value
+    /// of such a member.
+    bool isOnlyCopiedToMembers(const clang::CXXConstructorDecl* CD,
+                               const clang::ParmVarDecl* PVD);
+
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
     /// Returns true if a function returning T must return its adjoint too.

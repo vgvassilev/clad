@@ -804,7 +804,7 @@ double fn23(double u, double v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d1 = _d_res;
 // CHECK-NEXT:          _d_res = 0.;
-// CHECK-NEXT:          B _r0 = _d_b;
+// CHECK-NEXT:          B _r0 = B();
 // CHECK-NEXT:          double _r1 = 0.;
 // CHECK-NEXT:          add_pullback(b, u, _r_d1, &_r0, &_r1);
 // CHECK-NEXT:          constructor_pullback(b, &_r0, &_d_b);
@@ -1381,7 +1381,7 @@ double fn_nested(NestedOuter o) { return nested_use(o); }
 
 // CHECK: void fn_nested_grad(NestedOuter o, NestedOuter *_d_o) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         NestedOuter _r0 = (*_d_o);
+// CHECK-NEXT:         NestedOuter _r0 = NestedOuter();
 // CHECK-NEXT:         nested_use_pullback(o, 1, &_r0);
 // CHECK-NEXT:         NestedOuter::constructor_pullback(o, &_r0, _d_o);
 // CHECK-NEXT:     }

@@ -855,7 +855,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // adjoint of what this one refers to, and nothing flows back here.
     StmtDiff initDiff = Visit(
         CI->getInit(), memberTy->isReferenceType() ? nullptr : memberDiff);
-    addToCurrentBlock(initDiff.getStmt_dx(), direction::reverse);
+    // A constructor call adds its pullback itself; its adjoint is the value
+    // the adjoint member is built from, not a statement.
+    if (!isa<CXXConstructExpr>(CI->getInit()->IgnoreImplicit()))
+      addToCurrentBlock(initDiff.getStmt_dx(), direction::reverse);
     Stmt* init = nullptr;
     Stmt* initDx = nullptr;
     if (thisExpr) {
@@ -6887,12 +6890,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return S.ActOnParenListExpr(noLoc, noLoc, args).get();
   }
 
+  Expr* ReverseModeVisitor::BuildZeroArg(QualType ParamTy, Expr* Primal) {
+    QualType T = ParamTy.getNonReferenceType().getUnqualifiedType();
+    Expr* Zero = getZeroInit(T);
+    // clad::zero_like leaves aggregates to value-initialization.
+    if (const auto* RD = T->getAsCXXRecordDecl())
+      Zero = RD->isAggregate()
+                 ? m_Sema
+                       .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(T),
+                                                  noLoc, {}, noLoc,
+                                                  /*ListInitialization=*/false)
+                       .get()
+                 : GetCladZeroLike(Primal);
+    // A non-const lvalue reference binds to a variable, not to a temporary.
+    if (!Zero || !ParamTy->isLValueReferenceType() ||
+        ParamTy.getNonReferenceType().isConstQualified())
+      return Zero;
+    VarDecl* ZeroVar = BuildVarDecl(T, "_d_zero", Zero);
+    addToCurrentBlock(BuildDeclStmt(ZeroVar), direction::forward);
+    return BuildDeclRef(ZeroVar);
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     CXXConstructorDecl* CD = CE->getConstructor();
     llvm::SmallVector<Expr*, 4> primalArgs;
     llvm::SmallVector<Expr*, 4> adjointArgs;
     llvm::SmallVector<Expr*, 4> reverseForwAdjointArgs;
+    llvm::SmallVector<const ParmVarDecl*, 4> argParams;
     // It is used to store '_r0' temporary gradient variables that are used for
     // differentiating non-reference args.
     llvm::SmallVector<Stmt*, 4> prePullbackCallStmts;
@@ -6942,6 +6967,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         continue;
       adjointArgs.push_back(argDiff.getExpr_dx());
       primalArgs.push_back(argDiff.getExpr());
+      argParams.push_back(PVD);
       if (elideReverseForw && PVD->getType()->isIntegerType())
         reverseForwAdjointArgs.push_back(argDiff.getExpr());
       else
@@ -7097,9 +7123,24 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SmallVector<Expr*, 4> clonedPrimalArgs;
     for (Expr* primalArg : primalArgs)
       clonedPrimalArgs.push_back(CloneNode(primalArg));
+    // The constructor only copies its arguments into members, so building the
+    // adjoint from the arguments' adjoints gives a zero adjoint only if those
+    // are zero. An incoming adjoint, such as a reference parameter's in a
+    // pullback, is not. Pass zero for an argument that is only copied into
+    // members, and the adjoint for one a pointer or reference binds to.
     llvm::SmallVector<Expr*, 4> clonedRevForwArgs;
-    for (Expr* arg : reverseForwAdjointArgs)
-      clonedRevForwArgs.push_back(CloneNode(arg));
+    for (auto [PVD, Primal, AdjointArg] :
+         llvm::zip(argParams, primalArgs, reverseForwAdjointArgs)) {
+      QualType T = PVD->getType().getNonReferenceType().getUnqualifiedType();
+      Expr* Zero = nullptr;
+      const Expr* Adjoint = AdjointArg->IgnoreImplicit();
+      bool IsLiteral =
+          isa<IntegerLiteral>(Adjoint) || isa<FloatingLiteral>(Adjoint);
+      if (!IsLiteral && !T->isIntegerType() && !T->isPointerType() &&
+          utils::isOnlyCopiedToMembers(CD, PVD))
+        Zero = BuildZeroArg(PVD->getType(), CloneNode(Primal));
+      clonedRevForwArgs.push_back(Zero ? Zero : CloneNode(AdjointArg));
+    }
     Expr* callClone = BuildConstructorCall(m_Sema, CE, clonedPrimalArgs,
                                            m_TrackVarDeclConstructor);
     Expr* callDiff = BuildConstructorCall(m_Sema, CE, clonedRevForwArgs,

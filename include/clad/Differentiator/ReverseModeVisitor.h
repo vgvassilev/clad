@@ -389,6 +389,11 @@ namespace clad {
     /// statement
     /// ((clad::pop(S))) in the reverse block. Returns a reference to the top
     /// of the stack (clad::back(S)).
+    /// A zero to pass for a constructor parameter of type \p ParamTy whose
+    /// argument is \p Primal: a literal, a value-initialized aggregate or
+    /// clad::zero_like(Primal), kept in a variable for a non-const lvalue
+    /// reference. Null if there is none.
+    clang::Expr* BuildZeroArg(clang::QualType ParamTy, clang::Expr* Primal);
     clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false, bool zeroInit = false);
