@@ -23,6 +23,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -107,6 +108,22 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
     const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
+    // A write through a local reference writes what it refers to, through
+    // any references in between.
+    if (m_ModifiedParams && !isReq && iterVD && !PVD) {
+      llvm::SmallVector<const VarDecl*, 4> Refs = {iterVD};
+      llvm::SmallPtrSet<const VarDecl*, 4> Seen = {iterVD};
+      while (!Refs.empty()) {
+        VarData* data = getVarDataFromDecl(Refs.pop_back_val());
+        if (!data || data->m_Type != VarData::REF_TYPE)
+          continue;
+        for (const VarDecl* Target : *data->m_Val.m_RefData)
+          if (const auto* TargetPVD = dyn_cast_or_null<ParmVarDecl>(Target))
+            markParamModified(TargetPVD);
+          else if (Target && Seen.insert(Target).second)
+            Refs.push_back(Target);
+      }
+    }
     if (m_ModifiedParams && (!iterVD || PVD)) {
       if (!isReq)
         markParamModified(PVD);

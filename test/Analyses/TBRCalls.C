@@ -305,6 +305,25 @@ double t7(const double* x) {
 // CHECK: clad::record_range(_rec0, k.data(), 2UL);
 // CHECK-NEXT: fillfrom(2, x, {{.*}});
 
+// A write through a local reference is a write to what it refers to: the
+// caller stores v before the call, as the pullback reads v[1] from before it.
+void scaleRef(double *v, double k) {
+  double &r = v[1];
+  double &alias = r;
+  alias *= k;
+}
+double t17(const double *x) {
+  double v[2] = {x[0], x[1]};
+  scaleRef(v, x[1]);
+  return v[1] * v[1];
+}
+
+// CHECK: void t17_grad(const double *x, double *_d_x) {
+// CHECK: scaleRef_reverse_forw(v, x[1], _d_v, 0., _tracker0);
+// CHECK: _tracker0.restore();
+// CHECK-NEXT: double _r0 = 0.;
+// CHECK-NEXT: scaleRef_pullback(v, x[1], _d_v, &_r0);
+
 int main() {
   double x[2] = {1, 2};
   double dx[2];
@@ -348,4 +367,6 @@ int main() {
   TEST(t14); // CHECK-EXEC: t14: dx={2.00, 5.00}
   TEST(t15); // CHECK-EXEC: t15: dx={2.00, 4.00}
   TEST(t16); // CHECK-EXEC: t16: dx={2.00, 4.00}
+  // f = x1^4 => df/dx1 = 4 x1^3
+  TEST(t17); // CHECK-EXEC: t17: dx={0.00, 32.00}
 }
