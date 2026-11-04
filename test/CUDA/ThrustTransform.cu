@@ -148,7 +148,7 @@ void apply_affine(const thrust::device_vector<double>& v,
 // CHECK-NEXT:     {{.*}}const_iterator _r0 = std::begin((*_d_v));
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v));
 // CHECK-NEXT:     {{.*}}iterator _r2 = std::begin((*_d_out));
-// CHECK-NEXT:     Affine _r3 = (*_d_op);
+// CHECK-NEXT:     Affine _r3 = {0., 0.};
 // CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v), std::end(v), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:     Affine::constructor_pullback(op, &_r3, _d_op);
 // CHECK-NEXT: }
@@ -177,7 +177,7 @@ void apply_spb(const thrust::device_vector<double>& v,
 // CHECK-NEXT:     {{.*}}const_iterator _r0 = std::begin((*_d_v));
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v));
 // CHECK-NEXT:     {{.*}}iterator _r2 = std::begin((*_d_out));
-// CHECK-NEXT:     SquarePlusBias _r3 = (*_d_op);
+// CHECK-NEXT:     SquarePlusBias _r3 = {0., 0.};
 // CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v), std::end(v), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:     SquarePlusBias::constructor_pullback(op, &_r3, _d_op);
 // CHECK-NEXT: }
@@ -210,7 +210,7 @@ void apply_bilinear(const thrust::device_vector<double>& v1,
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v1));
 // CHECK-NEXT:     {{.*}}const_iterator _r2 = std::begin((*_d_v2));
 // CHECK-NEXT:     {{.*}}iterator _r3 = std::begin((*_d_out));
-// CHECK-NEXT:     Bilinear _r4 = (*_d_op);
+// CHECK-NEXT:     Bilinear _r4 = {0., 0., 0.};
 // CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT:     Bilinear::constructor_pullback(op, &_r4, _d_op);
 // CHECK-NEXT: }
@@ -246,7 +246,7 @@ void apply_mix(const thrust::device_vector<double>& v1,
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v1));
 // CHECK-NEXT:     {{.*}}const_iterator _r2 = std::begin((*_d_v2));
 // CHECK-NEXT:     {{.*}}iterator _r3 = std::begin((*_d_out));
-// CHECK-NEXT:     MixOp _r4 = (*_d_op);
+// CHECK-NEXT:     MixOp _r4 = {0., 0., 0.};
 // CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT:     MixOp::constructor_pullback(op, &_r4, _d_op);
 // CHECK-NEXT: }
