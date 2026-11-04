@@ -1516,6 +1516,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return llvm::any_of(FD->parameters(), throughValue);
   }
 
+  bool DiffRequest::hasAdjoint(const ParmVarDecl* PVD) const {
+    // A gradient of every parameter keeps no list of them.
+    if (Mode == DiffMode::reverse && !Args)
+      return true;
+    // A parameter passed by value has a local adjoint, unless activity
+    // analysis planned the pullback without it.
+    QualType T = PVD->getType();
+    if (!utils::isArrayOrPointerType(T) && !T->isReferenceType() &&
+        !(Mode == DiffMode::pullback && EnableVariedAnalysis))
+      return true;
+    return llvm::any_of(DVI, [PVD](const DiffInputVarInfo& dParam) {
+      return dParam.param == PVD;
+    });
+  }
+
   bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
     // FIXME: We store the original function's params in DVI and here we need to
     // compare with the cloned ones by name. We can compare the pointers instead
@@ -1751,26 +1766,40 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     runVariedAnalysis(request, AnalysisDC);
   }
 
+  /// The declaration whose memory \p E points or refers to: `x` for `&x[i]`
+  /// or `x + 2`.
+  static const ValueDecl* pointedToDecl(const Expr* E) {
+    E = E->IgnoreParenImpCasts();
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      if (UO->getOpcode() == UO_AddrOf || UO->getOpcode() == UO_Deref)
+        return pointedToDecl(UO->getSubExpr());
+    if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+      return pointedToDecl(ASE->getBase());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      if (BO->isAdditiveOp())
+        return pointedToDecl(BO->getLHS()->getType()->isPointerType()
+                                 ? BO->getLHS()
+                                 : BO->getRHS());
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
+      return DRE->getDecl();
+    return nullptr;
+  }
+
   /// Whether the argument of the call \p E for its parameter \p i is passed
-  /// by reference or pointer and names a variable of \p Caller that activity
-  /// analysis leaves without an adjoint: a local it gives none, or, in a
-  /// pullback it planned without a parameter, that parameter. Reverse mode
-  /// has none to pass for it.
+  /// by reference or pointer, and reverse mode has no adjoint to pass for it.
   static bool passesNoAdjoint(const CallExpr* E, std::size_t i,
                               const DiffRequest& Caller) {
-    if (!Caller.EnableVariedAnalysis)
-      return false;
     const auto* MD = dyn_cast<CXXMethodDecl>(E->getDirectCallee());
     if (isa<CXXOperatorCallExpr>(E) && MD && MD->isInstance())
       ++i;
     if (i >= E->getNumArgs() || !utils::IsReferenceOrPointerArg(E->getArg(i)))
       return false;
-    const auto* DRE =
-        dyn_cast<DeclRefExpr>(E->getArg(i)->IgnoreParenImpCasts());
-    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
-    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD))
-      return Caller.Mode == DiffMode::pullback &&
-             !Caller.HasIndependentParameter(PVD);
+    const ValueDecl* D = pointedToDecl(E->getArg(i));
+    if (isa_and_nonnull<FunctionDecl>(D))
+      return true;
+    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(D))
+      return !Caller.hasAdjoint(PVD);
+    const auto* VD = dyn_cast_or_null<VarDecl>(D);
     return VD && VD->hasLocalStorage() && !VD->getType()->isReferenceType() &&
            !Caller.shouldHaveAdjoint(VD);
   }

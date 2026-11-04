@@ -1089,7 +1089,11 @@ inline double flexibleInterp(double const *params, const double *high) {
    return total;
 }
 
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params, double *_d_high) {
+double fn30(double *params, const double *xlArr) {
+   return flexibleInterp(params, xlArr + 2);
+}
+
+// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
 // CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_total = 0.;
@@ -1105,12 +1109,6 @@ inline double flexibleInterp(double const *params, const double *high) {
 // CHECK-NEXT:         _d_params[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
-
-double fn30(double *params, const double *xlArr) {
-   return flexibleInterp(params, xlArr + 2);
-}
-
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params);
 
 // CHECK: void fn30_grad_0(double *params, const double *xlArr, double *_d_params) {
 // CHECK-NEXT:     flexibleInterp_pullback(params, xlArr + 2, 1, _d_params);
@@ -1649,22 +1647,5 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
 // CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
-// CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
-// CHECK-NEXT:     std::size_t i = {{0U|0UL}};
-// CHECK-NEXT:     double _d_total = 0.;
-// CHECK-NEXT:     double total = 1.;
-// CHECK-NEXT:     std::size_t _t0;
-// CHECK-NEXT:     for (i = 0; i < 1; ++i) {
-// CHECK-NEXT:         total += params[i];
-// CHECK-NEXT:     }
-// CHECK-NEXT:     _d_total += _d_y;
-// CHECK-NEXT:     for (_t0 = 1{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         --i;
-// CHECK-NEXT:         double _r_d0 = _d_total;
-// CHECK-NEXT:         _d_params[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
