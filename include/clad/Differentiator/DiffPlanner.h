@@ -398,6 +398,10 @@ public:
   /// reverse_forw. The pullback may not re-execute the callee, so the caller
   /// saves and restores the memory the call writes.
   std::set<const clang::Expr*> NonReplayingCalls;
+  /// The operator[] calls in this function whose custom reverse_forw is
+  /// elidable. The derivative accesses the returned element directly, like an
+  /// array subscript, instead of calling the reverse_forw.
+  std::set<const clang::Expr*> ElementAccesses;
   /// The globals each call in this function's body assigns, directly or
   /// through what it calls. Its pullback replays those assignments, so the
   /// reverse sweep puts the globals back around it, as it does for the
@@ -895,6 +899,11 @@ public:
     bool PlanNestedRequest(DiffRequest& request);
     /// Walks the body of the function of \p request, once for each request.
     bool TraverseFunctionDeclOnce(const DiffRequest& request);
+    /// Records in \p request the operator[] calls in its body whose custom
+    /// reverse_forw is elidable, so that TBR treats them as element accesses.
+    void noteElementAccesses(DiffRequest& request);
+    /// Cache: whether each operator[] has an elidable custom reverse_forw.
+    llvm::DenseMap<const clang::CXXMethodDecl*, bool> m_ElidedAccessors;
     /// Looks up if the user has defined a custom derivative for the given
     /// derivative function. If found, it is automatically attached to the
     /// request in derived function collector.

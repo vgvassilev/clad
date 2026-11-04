@@ -1789,6 +1789,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
+  /// Whether the custom derivative \p E refers to, a function or every
+  /// function in an overload set, is an elidable reverse_forw.
+  static bool isElidableReverseForw(const Expr* E) {
+    auto elidable = [](const NamedDecl* D) {
+      D = D->getUnderlyingDecl();
+      if (const auto* FTD = dyn_cast<FunctionTemplateDecl>(D))
+        D = FTD->getTemplatedDecl();
+      return utils::hasElidableReverseForwAttribute(D);
+    };
+    const auto* DRE = dyn_cast_or_null<DeclRefExpr>(E);
+    const auto* OE = dyn_cast_or_null<OverloadExpr>(E);
+    return DRE ? elidable(DRE->getDecl())
+               : OE && OE->getNumDecls() && llvm::all_of(OE->decls(), elidable);
+  }
+
   static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
                                bool* foundAnyDecl = nullptr,
                                bool quiet = false) {
@@ -1962,6 +1977,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     utils::DiagnoseSignatureMismatch(S, dTy, Found);
 
     return nullptr;
+  }
+
+  void DiffCollector::noteElementAccesses(DiffRequest& request) {
+    std::function<void(const Stmt*)> walk = [&](const Stmt* S) {
+      if (!S)
+        return;
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(S);
+      const auto* MD =
+          OCE && OCE->getOperator() == OO_Subscript
+              ? dyn_cast_or_null<CXXMethodDecl>(OCE->getDirectCallee())
+              : nullptr;
+      if (MD) {
+        auto Known = m_ElidedAccessors.find(MD);
+        if (Known == m_ElidedAccessors.end()) {
+          DiffRequest Forw;
+          Forw.Function = MD;
+          Forw.BaseFunctionName = utils::ComputeEffectiveFnName(MD);
+          Forw.Mode = DiffMode::reverse_mode_forward_pass;
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          Forw.CallContext = const_cast<CXXOperatorCallExpr*>(OCE);
+          bool Elided = LookupCustomDerivativeDecl(Forw) &&
+                        isElidableReverseForw(Forw.CustomDerivative);
+          Known = m_ElidedAccessors.insert({MD, Elided}).first;
+        }
+        if (Known->second)
+          request.ElementAccesses.insert(OCE);
+      }
+      for (const Stmt* Child : S->children())
+        walk(Child);
+    };
+    walk(request->getBody());
   }
 
   bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request,
@@ -2584,6 +2630,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
+      noteElementAccesses(request);
 
       //  Recurse into call graph. With a custom derivative the body is walked
       // for TBR alone and never differentiated.
@@ -3184,6 +3231,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // FIXME: Add proper support for objects in VA and UA.
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
+      noteElementAccesses(request);
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request);
