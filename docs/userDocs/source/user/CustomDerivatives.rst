@@ -358,6 +358,11 @@ those two calls instead of calling it. The macro expands to
        ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx);
    }
 
+When a class's ``operator[]`` has a ``const`` overload and its reverse-forward
+function is marked this way, as for ``std::vector`` and ``std::array``, Clad
+also treats ``v[i]`` as an access to one element, like ``a[i]`` on an array,
+when it decides which values the reverse pass must store.
+
 Member functions custom derivatives
 =====================================
 

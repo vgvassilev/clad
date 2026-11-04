@@ -627,6 +627,20 @@ bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
+  // `v[i]` through an element accessor whose derivative accesses the element
+  // directly is an element access, like `a[i]`.
+  const auto* MD = dyn_cast_or_null<CXXMethodDecl>(CE->getDirectCallee());
+  if (MD && m_Request->ElementAccesses.count(CE) &&
+      utils::hasElementAccessor(MD->getParent())) {
+    setMode(/*mode=*/0);
+    TraverseStmt(CE->getArg(0));
+    resetMode();
+    setIsRequired(CE);
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+    TraverseStmt(CE->getArg(1));
+    resetMode();
+    return false;
+  }
   TBRAnalyzer::TraverseCallExpr(CE);
   return false;
 }
