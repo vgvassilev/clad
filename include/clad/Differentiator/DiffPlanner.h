@@ -638,6 +638,9 @@ public:
   void print(llvm::raw_ostream& Out) const;
   LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
+  /// Whether the derivative has an adjoint for \p PVD, a parameter of
+  /// Function, to pass on to what it calls.
+  bool hasAdjoint(const clang::ParmVarDecl* PVD) const;
   bool shouldBeRecorded(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
