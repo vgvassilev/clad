@@ -2004,6 +2004,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         if (Known->second)
           request.ElementAccesses.insert(OCE);
       }
+      const auto* MCE = dyn_cast<CXXMemberCallExpr>(S);
+      const CXXRecordDecl* RD = MCE ? MCE->getRecordDecl() : nullptr;
+      if (RD && RD->hasDefinition()) {
+        auto [It, New] = m_Contiguous.try_emplace(RD, false);
+        if (New)
+          It->second = utils::isClassifiedContiguous(m_Sema, RD);
+        if (It->second)
+          request.ContiguousContainers.insert(RD);
+      }
       for (const Stmt* Child : S->children())
         walk(Child);
     };

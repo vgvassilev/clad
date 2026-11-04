@@ -642,6 +642,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// returns an element and does not modify the container. std::map, whose
     /// operator[] inserts, has no const operator[].
     bool hasElementAccessor(const clang::CXXRecordDecl* RD);
+    /// Whether \p RD is classified as a contiguous container: whether
+    /// clad::contiguous_container_check<RD>::value is true. Instantiating it
+    /// checks a type classified so against what clad relies on.
+    bool isClassifiedContiguous(clang::Sema& S, const clang::CXXRecordDecl* RD);
     /// Whether \p E is `v[i]` on a class with an element accessor, where v
     /// and i have no side effects. Such an expression refers to the same
     /// element every time it is evaluated, like an array subscript.

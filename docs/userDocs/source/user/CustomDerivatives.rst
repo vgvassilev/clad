@@ -363,6 +363,50 @@ function is marked this way, as for ``std::vector`` and ``std::array``, Clad
 also treats ``v[i]`` as an access to one element, like ``a[i]`` on an array,
 when it decides which values the reverse pass must store.
 
+Contiguous containers
+=======================
+
+Clad does not analyze code it only calls, such as the standard library. When
+it decides which values the reverse pass must store, it assumes that a member
+call reads all of the object and may write all of it. For a container that
+keeps its elements in one array, Clad treats ``v.data()`` as that array
+decayed to a pointer, so a call that writes through ``v.data()`` writes only
+those elements, and ``v.size()`` as reading no element. The derivative is the
+same either way; what changes is how much the reverse pass stores.
+
+Clad reads this from ``clad::is_contiguous_container<T>``. From C++20 on it is
+``std::ranges::contiguous_range<T> && std::ranges::sized_range<T>``, which
+holds for ``std::vector`` (except ``std::vector<bool>``), ``std::array``,
+``std::basic_string`` and ``std::span``. A container of your own is classified
+by giving its iterator the contiguous iterator concept:
+
+.. code-block:: cpp
+
+   struct Buffer {
+     struct iterator {
+       using iterator_concept = std::contiguous_iterator_tag;
+       // ... the members std::contiguous_iterator requires
+     };
+     double* data();
+     std::size_t size() const;
+     iterator begin();
+     iterator end();
+   };
+
+Before C++20, Clad classifies ``std::vector`` (except ``std::vector<bool>``),
+``std::array`` and ``std::basic_string``, and you classify a type of your own
+by specializing the trait:
+
+.. code-block:: cpp
+
+   namespace clad {
+   template <> struct is_contiguous_container<Buffer> : std::true_type {};
+   }
+
+A classified type must have a ``data()`` that returns a pointer to its elements
+and an integral ``size()``. Clad checks this with a ``static_assert`` when it
+uses the classification.
+
 Member functions custom derivatives
 =====================================
 
