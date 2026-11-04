@@ -10,6 +10,7 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -268,9 +269,72 @@ namespace clad {
     } else if (QT->isRealFloatingType()) {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
+    } else if (QT->isComplexType()) {
+      const auto* CT = QT->castAs<ComplexType>();
+      QualType elemTy = CT->getElementType();
+      Expr* realPart = ConstantFolder::synthesizeLiteral(elemTy, C, val);
+      Expr* imagPart = ConstantFolder::synthesizeLiteral(elemTy, C, /*val=*/0);
+      SourceLocation noLoc;
+      llvm::SmallVector<Expr*, 2> initExprs = {realPart, imagPart};
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* ILE = new (C) InitListExpr(
+          C, noLoc, initExprs, noLoc
+          CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(false));
+      ILE->setType(QT);
+      Result = ILE;
+    } else if (const auto* CAT = C.getAsConstantArrayType(QT)) {
+      QualType elemTy = CAT->getElementType();
+      uint64_t numElems = CAT->getSize().getZExtValue();
+      SourceLocation noLoc;
+      llvm::SmallVector<Expr*, 8> initExprs;
+      initExprs.reserve(numElems);
+      for (uint64_t i = 0; i < numElems; ++i)
+        initExprs.push_back(ConstantFolder::synthesizeLiteral(elemTy, C, val));
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* ILE = new (C) InitListExpr(
+          C, noLoc, initExprs, noLoc
+          CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(false));
+      ILE->setType(QT);
+      Result = ILE;
+    } else if (QT->isRecordType()) {
+      const RecordDecl* RD = QT->getAsRecordDecl();
+      if (RD)
+        RD = RD->getDefinition();
+      if (RD && !RD->isUnion()) {
+        SourceLocation noLoc;
+        llvm::SmallVector<Expr*, 4> initExprs;
+        for (const FieldDecl* FD : RD->fields()) {
+          if (FD->isUnnamedBitfield())
+            continue;
+          initExprs.push_back(
+              ConstantFolder::synthesizeLiteral(FD->getType(), C, val));
+        }
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* ILE = new (C) InitListExpr(
+            C, noLoc, initExprs, noLoc
+            CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(false));
+        ILE->setType(QT);
+        Result = ILE;
+      } else if (RD && RD->isUnion()) {
+        SourceLocation noLoc;
+        llvm::SmallVector<Expr*, 1> initExprs;
+        auto fieldIt = RD->field_begin();
+        if (fieldIt != RD->field_end()) {
+          initExprs.push_back(
+              ConstantFolder::synthesizeLiteral(fieldIt->getType(), C, val));
+        }
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* ILE = new (C) InitListExpr(
+            C, noLoc, initExprs, noLoc
+            CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(false));
+        ILE->setType(QT);
+        Result = ILE;
+      } else {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        Result = new (C) ImplicitValueInitExpr(QT);
+      }
     } else {
-      // FIXME: Handle other types, like Complex, Structs, typedefs, etc.
-      // typecasting may be needed right now
+      // Fallback: for unhandled types, synthesize an int literal.
       Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, val);
     }
     assert(Result && "Unsupported type for constant folding.");
