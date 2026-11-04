@@ -110,6 +110,35 @@ double fn13(double i, double j) {
   return f(j) + g(j);
 }
 
+double fn14(double x) {
+  auto f = [x](double t) { return x * t; };
+  return f(x);
+}
+
+// CHECK: double fn14_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _t0 = x, _d_t = _d_x, auto f = [x](double t) {
+// CHECK-NEXT:         return x * t;
+// CHECK-NEXT:     }, _d_f = [](double t, double _d_t, double x0, double _d_x0) -> clad::ValueAndPushforward<double, double> {
+// CHECK-NEXT:         return {x0 * t, _d_x0 * t + x0 * _d_t};
+// CHECK-NEXT:     };
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = _d_f(x, _d_x, _t0, _d_t);
+// CHECK-NEXT:     return _t1.pushforward;
+// CHECK-NEXT: }
+
+double fn15(double x) {
+  auto f = [&x](double t) { return x * t; };
+  return f(x);
+}
+
+double fn16(double x) {
+  if (double c = x * x) {
+    auto f = [c](double t) { return c * t; };
+    return f(x);
+  }
+  return 0;
+}
+
 int main() {
     auto fn0_dx = clad::differentiate(fn0, 0);
     printf("Result is = %.2f\n", fn0_dx.execute(7)); // CHECK-EXEC: Result is = 14.00
@@ -158,4 +187,13 @@ int main() {
 
     auto fn13_dx = clad::differentiate(fn13, 0);
     printf("Result is = %.2f\n", fn13_dx.execute(2, 3)); // CHECK-EXEC: Result is = 9.00
+
+    auto fn14_dx = clad::differentiate(fn14, 0);
+    printf("Result is = %.2f\n", fn14_dx.execute(1.3)); // CHECK-EXEC: Result is = 2.60
+
+    auto fn15_dx = clad::differentiate(fn15, 0);
+    printf("Result is = %.2f\n", fn15_dx.execute(1.3)); // CHECK-EXEC: Result is = 2.60
+
+    auto fn16_dx = clad::differentiate(fn16, 0);
+    printf("Result is = %.2f\n", fn16_dx.execute(2)); // CHECK-EXEC: Result is = 12.00
 }
