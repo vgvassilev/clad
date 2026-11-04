@@ -52,6 +52,7 @@ llvm_add_library(cladDifferentiator
   DerivedFnInfo.cpp
   DiffPlanner.cpp
   PerfAdvisor.cpp
+  EntryAdjointChecker.cpp
   ErrorEstimator.cpp
   DerivativePrinter.cpp
   GeneratedCode.cpp
