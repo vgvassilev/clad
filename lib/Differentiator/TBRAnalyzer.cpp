@@ -519,6 +519,22 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   }
   if (FD->getCanonicalDecl() == m_Function->getCanonicalDecl())
     m_CallsItself = true;
+  // For a container classified as contiguous, data() refers to all elements,
+  // like an array decayed to a pointer: reads and writes through it are
+  // tracked on the pointer. size() reads no element.
+  const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE);
+  if (MCE && FD->getIdentifier() &&
+      m_Request->ContiguousContainers.count(MCE->getRecordDecl())) {
+    bool Size = FD->getName() == "size";
+    if (Size || FD->getName() == "data") {
+      if (Size)
+        setMode(/*mode=*/0);
+      TraverseStmt(MCE->getImplicitObjectArgument());
+      if (Size)
+        resetMode();
+      return false;
+    }
+  }
   // A lambda reads what it captures by reference when it is called, not where
   // it is created: mark those variables used here, as if passed by reference.
   if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
