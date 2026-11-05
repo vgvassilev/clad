@@ -142,7 +142,7 @@ double through_ref_capture(double x) {
 // CHECK-NEXT:     double out = 0;
 // CHECK-NEXT:     RefCapture _d_f{_d_out, _d_x};
 // CHECK-NEXT:     RefCapture f{out, x};
-// CHECK-NEXT:     f.operator_call_pushforward(0, &_d_f, 0);
+// CHECK-NEXT:     operator_call_pushforward(&f, 0, &_d_f, 0);
 // CHECK-NEXT:     run_pushforward(3, f, 0, _d_f);
 // CHECK-NEXT:     return _d_out;
 // CHECK-NEXT: }

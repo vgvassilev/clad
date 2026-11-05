@@ -2619,17 +2619,17 @@ struct layer {
 float fn42(const layer &l, float x) {
   return l.forward(x);
 }
-//CHECK: void forward_pullback(const float &inp, float _d_y, layer *_d_this, float *_d_inp) const {
+//CHECK: inline void forward_pullback(const layer *self, const float &inp, float _d_y, layer *_d_this, float *_d_inp) {
 //CHECK-NEXT:    int _d_i = 0;
 //CHECK-NEXT:    int i = 0;
 //CHECK-NEXT:    clad::tape<float> _t1 = {};
 //CHECK-NEXT:    float _d_x = 0.F;
 //CHECK-NEXT:    float x = inp;
 //CHECK-NEXT:    unsigned {{int|long}} _t0 = 0;
-//CHECK-NEXT:    for (i = 0; i < this->w.size(); i++) {
+//CHECK-NEXT:    for (i = 0; i < self->w.size(); i++) {
 //CHECK-NEXT:        _t0++;
 //CHECK-NEXT:        clad::push(_t1, x);
-//CHECK-NEXT:        x = this->w[i].forward(x);
+//CHECK-NEXT:        x = self->w[i].forward(x);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_x += _d_y;
 //CHECK-NEXT:    for (; _t0; _t0--) {
@@ -2638,7 +2638,7 @@ float fn42(const layer &l, float x) {
 //CHECK-NEXT:            x = clad::pop(_t1);
 //CHECK-NEXT:            float _r_d0 = _d_x;
 //CHECK-NEXT:            _d_x = 0.F;
-//CHECK-NEXT:            this->w[i].forward_pullback(x, _r_d0, &_d_this->w[i], &_d_x);
+//CHECK-NEXT:            forward_pullback(&self->w[i], x, _r_d0, &_d_this->w[i], &_d_x);
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:    *_d_inp += _d_x;
@@ -2981,14 +2981,14 @@ double fn49(double x, double y) {
   return b.sum();
 }
 
-//CHECK: inline void sum_pullback(double _d_y, Buf *_d_this) {
+//CHECK: inline void sum_pullback(Buf *self, double _d_y, Buf *_d_this) {
 //CHECK-NEXT:     double *_d_p = nullptr;
 //CHECK-NEXT:     double *p = nullptr;
 //CHECK-NEXT:     double _d_s = 0.;
 //CHECK-NEXT:     double s = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:     _d_p = std::begin(*_d_this);
-//CHECK-NEXT:     for (p = std::begin(*this); p != std::end(*this); ++_d_p , ++p) {
+//CHECK-NEXT:     for (p = std::begin(*self); p != std::end(*self); ++_d_p , ++p) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         s += *p;
 //CHECK-NEXT:     }

@@ -690,6 +690,19 @@ public:
                                          const clang::CallExpr* CE,
                                          bool nonDiff) const;
   std::string ComputeDerivativeName() const;
+  /// Whether the derivative of a member function or constructor is generated
+  /// as a free function rather than as a member. That is the case for the
+  /// derivatives clad calls from other derivatives, unless the class itself
+  /// declares the derivative: then the derivative defines that member.
+  bool isFreeMemberDerivative() const;
+  /// Whether the free derivative takes the object as its first parameter,
+  /// `self`. True for member functions; false for constructors, whose
+  /// derivative creates the object.
+  bool takesSelf() const;
+  /// Where to declare the derivative: a free derivative of a member goes in
+  /// the namespace that contains the class; any other goes where its
+  /// function is.
+  clang::DeclContext* getDerivativeDeclContext() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 
   std::set<const clang::Stmt*>& getToBeRecorded() const {

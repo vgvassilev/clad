@@ -27,7 +27,7 @@ double f(double x, double c) {
 // CHECK-NOT: clad::tape
 // CHECK: double *_t1 = &_dummy0;
 // CHECK: clad::forward_sweep([&] {
-// CHECK: clad::ValueAndAdjoint<double &, double &> _t0 = a.at_reverse_forw(1, &_d_a, 0);
+// CHECK: clad::ValueAndAdjoint<double &, double &> _t0 = at_reverse_forw(&a, 1, &_d_a, 0);
 // CHECK-NEXT: _t1 = &_t0.value;
 
 int main() {

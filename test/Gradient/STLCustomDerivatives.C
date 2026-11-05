@@ -1193,7 +1193,7 @@ int main() {
 // CHECK-NEXT:     foo_pullback(x, _d_y, _d_x);
 // CHECK-NEXT: }
 
-// CHECK: {{.*}}static inline constexpr void constructor_pullback(double &{{.*}}, int &&{{.*}}, std::pair<double, double> *_d_this, double *{{.*}}, int *{{.*}}){{.*}}{
+// CHECK: {{.*}}inline constexpr void constructor_pullback(double &{{.*}}, int &&{{.*}}, std::pair<double, double> *_d_this, double *{{.*}}, int *{{.*}}){{.*}}{
 // CHECK-NEXT:     std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
 // CHECK:    _this->first = {{.*}};
 // CHECK-NEXT:   _this->second = std::move({{.*}});
@@ -1216,7 +1216,7 @@ int main() {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        x = _t0;
 // CHECK-NEXT:        int _r0 = 0;
-// CHECK-NEXT:        std::pair<double, double>::constructor_pullback(x, 1, &_d_p, _d_x, &_r0);
+// CHECK-NEXT:        std::constructor_pullback(x, 1, &_d_p, _d_x, &_r0);
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 

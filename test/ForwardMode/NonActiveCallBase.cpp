@@ -52,7 +52,7 @@ double active_arg(double x) { return sq(x); }
 // CHECK: double active_arg_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     Sq _d_base = {};
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sq.operator_call_pushforward(x, &_d_base, _d_x);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = operator_call_pushforward(&sq, x, &_d_base, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -65,7 +65,7 @@ double cast_base(double x) {
 // CHECK: double cast_base_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     Sq _d_base = {};
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = reinterpret_cast<const Sq *>(&sq)->operator_call_pushforward(x, &_d_base, _d_x);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = operator_call_pushforward(reinterpret_cast<const Sq *>(&sq), x, &_d_base, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 

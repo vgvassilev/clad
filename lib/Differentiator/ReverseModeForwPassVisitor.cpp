@@ -31,6 +31,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
 
   assert(m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass);
+  AccessChecksOff NoAccessChecks(m_Sema, m_DiffReq.isFreeMemberDerivative());
 
   assert(m_DiffReq.Function && "Must not be null.");
 
@@ -43,8 +44,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                          getEnclosingNamespaceOrTUScope());
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  DeclContext* DC = m_DiffReq.getDerivativeDeclContext();
 
   m_Sema.CurContext = DC;
   SourceLocation validLoc{m_DiffReq->getLocation()};
@@ -63,6 +63,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
   auto params = BuildParams(args);
   PrependTemplateTagParams(params);
+  PrependSelfParam(params);
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
 
@@ -187,7 +188,8 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
 
   // The derivative's type starts with its template tags, which are added to
   // params last.
-  std::size_t dParamTypesIdx = getNumTemplateTags() + m_DiffReq->getNumParams();
+  std::size_t dParamTypesIdx =
+      m_DiffReq.takesSelf() + getNumTemplateTags() + m_DiffReq->getNumParams();
 
   QualType tagType;
   if (const auto* CD = dyn_cast<CXXConversionDecl>(m_DiffReq.Function))

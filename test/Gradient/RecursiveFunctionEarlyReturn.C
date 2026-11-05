@@ -40,8 +40,8 @@ double func(double* A, int n, std::vector<double>& v) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond0 = n <= 1;
 // CHECK-NEXT:         if (_cond0) {
-// CHECK-NEXT:             clad::ValueAndAdjoint<{{.*}}> _t0 = v.operator_subscript_reverse_forw(0, &_d_v, 0);
-// CHECK-NEXT:             clad::ValueAndAdjoint<{{.*}}> _t1 = v.operator_subscript_reverse_forw(0, &_d_v, 0);
+// CHECK-NEXT:             clad::ValueAndAdjoint<{{.*}}> _t0 = std::operator_subscript_reverse_forw(&v, 0, &_d_v, 0);
+// CHECK-NEXT:             clad::ValueAndAdjoint<{{.*}}> _t1 = std::operator_subscript_reverse_forw(&v, 0, &_d_v, 0);
 // CHECK-NEXT:             return A[0] * _t0.value;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -52,7 +52,7 @@ double func(double* A, int n, std::vector<double>& v) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (; i < n; i++) {
 // CHECK-NEXT:         _t2++;
-// CHECK-NEXT:         clad::ValueAndAdjoint<{{.*}}> _t3 = v.operator_subscript_reverse_forw(0, &_d_v, 0);
+// CHECK-NEXT:         clad::ValueAndAdjoint<{{.*}}> _t3 = std::operator_subscript_reverse_forw(&v, 0, &_d_v, 0);
 // CHECK-NEXT:         _tracker0.store(v[0]);
 // CHECK-NEXT:         _t3.value += A[i];
 // CHECK-NEXT:         _tracker0.store(v);

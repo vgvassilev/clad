@@ -306,7 +306,7 @@ double t7(const double* x) {
 // CHECK-NOT: Idx _t
 // CHECK: rec_pullback(x, ix, n - 1, x[k] * _d_y, _d_x, _d_ix, &_r1);
 // CHECK-NOT: ix = _t
-// CHECK: ix.operator_subscript_pullback(n - 1, _d_ix, &_r0);
+// CHECK: operator_subscript_pullback(&ix, n - 1, _d_ix, &_r0);
 
 // CHECK: void t13_grad(const double *x, double *_d_x) {
 // CHECK-NOT: record_range

@@ -24,6 +24,7 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
@@ -286,6 +287,29 @@ namespace clad {
     // FIXME: Fix this inconsistency, by making `this` pointer derivative
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
+
+    /// Turns off access checks while a free derivative of a member is built.
+    /// It reads the private members of the object, as the member function it
+    /// differentiates does. Clang does the same when it parses an explicit
+    /// instantiation (Parser::SuppressAccessChecks, [temp.spec.general]).
+    class AccessChecksOff {
+      clang::Sema& m_S;
+      clang::sema::DelayedDiagnosticPool m_Pool;
+      clang::Sema::ParsingDeclState m_State;
+      bool m_Active;
+
+    public:
+      AccessChecksOff(clang::Sema& S, bool Active)
+          : m_S(S), m_Pool(nullptr), m_Active(Active) {
+        if (m_Active)
+          m_State = m_S.PushParsingDeclaration(m_Pool);
+      }
+      ~AccessChecksOff() {
+        // Popping without a declaration discards the checks collected.
+        if (m_Active)
+          m_S.PopParsingDeclaration(m_State, /*ParsingDecl=*/nullptr);
+      }
+    };
 
     /// The currently visited statement. Useful for crash pretty-printing.
     const clang::Stmt* m_CurVisitedStmt = nullptr;
@@ -1154,6 +1178,15 @@ namespace clad {
     /// Defines the derivative at global scope when its class declares it, as
     /// the definition of that member.
     void defineDeclaredMemberOutOfLine();
+    /// Adds the `self` parameter at the front of \p params when the
+    /// derivative takes one.
+    void PrependSelfParam(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+    /// The `self` parameter of a free derivative of a member, or null for
+    /// any other derivative.
+    clang::ParmVarDecl* getSelf() const;
+    /// Builds a use of `self` to replace `this`. Like `this`, it is a pointer
+    /// value rather than a variable.
+    clang::Expr* BuildSelfRef();
     /// The number of template tags the derivative takes first; see
     /// utils::GetTemplateTagTypes.
     unsigned getNumTemplateTags();

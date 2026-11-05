@@ -153,6 +153,65 @@ double viaScale(double x) { return scaleBy(x, 2) + scaleOnly(x, 2); }
 // CHECK: clad::custom_derivatives::scaleBy_pullback<double, double>(x, 2,
 // CHECK: clad::custom_derivatives::scaleOnly_pullback<double>(x, 2,
 
+// A member function's derivative is a free function taking the object.
+namespace geo {
+struct Scale {
+  double k;
+  double apply(double x) const { return k * x * x; }
+};
+} // namespace geo
+double viaMember(double x) {
+  geo::Scale s{3};
+  return s.apply(x);
+}
+
+// CHECK: namespace geo {
+// CHECK-NEXT: void apply_pullback(const geo::Scale *self, double x, double _d_y, geo::Scale *_d_this, double *_d_x)
+// CHECK: geo::apply_pullback(&s, x, 1, &_d_s, &_r0);
+
+// A constructor's derivative is a free function too.
+namespace geo {
+struct Point {
+  double x, y;
+  Point(double x_, double y_) : x(x_), y(y_) {}
+};
+} // namespace geo
+double viaCtor(double x) {
+  geo::Point p(x, 2 * x);
+  return p.x * p.y;
+}
+
+// CHECK: void constructor_pullback(double x_, double y_, geo::Point *_d_this, double *_d_x_, double *_d_y_)
+// CHECK: geo::constructor_pullback(x, 2 * x, &_d_p, &_r0, &_r1);
+
+// The call names the class a custom constructor derivative takes the tag of
+// from outside its namespace.
+namespace geo {
+struct Wrap {
+  double v;
+  Wrap(double x) : v(x) {}
+};
+} // namespace geo
+namespace clad {
+namespace custom_derivatives {
+namespace class_functions {
+clad::ValueAndAdjoint<geo::Wrap, geo::Wrap>
+constructor_reverse_forw(clad::Tag<geo::Wrap>, double x, double d_x) {
+  return {geo::Wrap(x), geo::Wrap(0.)};
+}
+void constructor_pullback(double x, geo::Wrap* d_this, double* d_x) {
+  *d_x += d_this->v;
+}
+} // namespace class_functions
+} // namespace custom_derivatives
+} // namespace clad
+double viaCustomCtor(double x) {
+  geo::Wrap w(x);
+  return w.v * x;
+}
+
+// CHECK: constructor_reverse_forw(clad::Tag<geo::Wrap>(), x, 0.)
+
 // A type of an unnamed namespace is named through the namespace around it.
 namespace geo {
 namespace {
@@ -217,6 +276,9 @@ auto d_twoArgs = clad::differentiate<clad::opts::vector_mode>(twoArgs, "x,y");
 auto g_viaMax = clad::gradient(viaMax);
 auto d_viaMax = clad::differentiate(viaMax, "x");
 auto g_viaScale = clad::gradient(viaScale);
+auto g_viaMember = clad::gradient(viaMember);
+auto g_viaCtor = clad::gradient(viaCtor);
+auto g_viaCustomCtor = clad::gradient(viaCustomCtor);
 auto g_viaUnnamed = clad::gradient(viaUnnamed);
 auto g_viaSubstituted = clad::gradient(viaSubstituted);
 auto g_viaDeduced = clad::gradient(viaDeduced);

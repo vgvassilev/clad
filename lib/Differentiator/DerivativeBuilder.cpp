@@ -154,7 +154,10 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // this clone -- the returned handle pops exactly that many.
     unsigned NamespaceCount = 0;
     TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(functionType);
-    if (isa<CXXMethodDecl>(FD)) {
+    // A derivative of a member function is a member only if the class
+    // declares it; otherwise it is a free function declared outside the
+    // class.
+    if (isa<CXXMethodDecl>(FD) && isa<CXXRecordDecl>(DC)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
       // For constructor derivatives, `this` object is not provided.
       // Therefore, we need to make the derivative static.
@@ -186,7 +189,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           /*isInlineSpecified=*/true, FD->hasWrittenPrototype(),
           FD->getConstexprKind(), TrailingRequiresClause);
 
-      returnedFD->setAccess(FD->getAccess());
+      returnedFD->setAccess(isa<CXXMethodDecl>(FD) ? AS_none : FD->getAccess());
     }
 
     for (const FunctionDecl* NFD : FD->redecls()) {

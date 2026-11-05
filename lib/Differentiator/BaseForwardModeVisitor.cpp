@@ -80,6 +80,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   llvm::SaveAndRestore<bool> saveInFlight(m_DerivativeInFlight,
                                           /*NewValue=*/true);
+  AccessChecksOff NoAccessChecks(m_Sema, m_DiffReq.isFreeMemberDerivative());
 
   if (m_DiffReq.Mode == DiffMode::forward) {
     DiffInputVarsInfo DVI = m_DiffReq.DVI;
@@ -152,9 +153,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   // Check if the function is already declared as a custom derivative.
   std::string gradientName = m_DiffReq.ComputeDerivativeName();
 
-  // FIXME: We should not use const_cast to get the decl context here.
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  DeclContext* DC = m_DiffReq.getDerivativeDeclContext();
 
   IdentifierInfo* II = &m_Context.Idents.get(gradientName);
   SourceLocation validLoc{m_DiffReq->getLocation()};
@@ -182,6 +181,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   llvm::SmallVector<ParmVarDecl*, 16> params;
   SetupDerivativeParameters(params);
   PrependTemplateTagParams(params);
+  PrependSelfParam(params);
 
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
@@ -3305,7 +3305,9 @@ BaseForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
   // Clone CTE so the derivative owns its `this` node rather than splicing the
   // primal method's; m_ThisExprDerivative is a single cached `_d_this` ref, so
   // clone it too so distinct uses do not share the same node.
-  return StmtDiff(CloneNode(CTE), CloneNode(m_ThisExprDerivative));
+  // A free derivative of a member uses `self` where the member used `this`.
+  Expr* This = getSelf() ? BuildSelfRef() : CloneNode(CTE);
+  return StmtDiff(This, CloneNode(m_ThisExprDerivative));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {

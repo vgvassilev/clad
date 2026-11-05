@@ -13,6 +13,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -826,9 +827,10 @@ Stmt* StmtClone::VisitStmt(Stmt* Node) {
 ReferencesUpdater::ReferencesUpdater(
     Sema& SemaRef, Scope* S, const FunctionDecl* FD,
     const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
-        DeclReplacements)
+        DeclReplacements,
+    ParmVarDecl* Self)
     : m_Sema(SemaRef), m_CurScope(S), m_Function(FD),
-      m_DeclReplacements(DeclReplacements) {}
+      m_DeclReplacements(DeclReplacements), m_Self(Self) {}
 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // We should only update references of the declarations that were inside
@@ -890,6 +892,23 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
 bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
   if (auto* E = dyn_cast<Expr>(S))
     updateType(E->getType());
+  if (!m_Self)
+    return true;
+  // In a free derivative of a member, `self` replaces `this` in the copied
+  // code, including implicit uses of `this`. A `this` of another class stays,
+  // such as one in code copied from a base class.
+  ASTContext& C = m_Sema.getASTContext();
+  QualType Self = m_Self->getType()->getPointeeType();
+  for (Stmt*& Child : S->children()) {
+    const auto* This = dyn_cast_or_null<CXXThisExpr>(Child);
+    if (!This ||
+        !C.hasSameUnqualifiedType(This->getType()->getPointeeType(), Self))
+      continue;
+    Expr* Ref = m_Sema.BuildDeclRefExpr(m_Self, m_Self->getType(), VK_LValue,
+                                        This->getLocation());
+    // `this` is a pointer value, not a variable: read `self` the same way.
+    Child = m_Sema.DefaultLvalueConversion(Ref).get();
+  }
   return true;
 }
 

@@ -23,7 +23,7 @@ double f(double x) {
   return a.at(2);
 }
 
-// CHECK: at_reverse_forw(int i, M *_d_this, int _d_i) {
+// CHECK: at_reverse_forw(M *self, int i, M *_d_this, int _d_i) {
 // CHECK: void f_grad(
 // CHECK-NOT: _tracker
 

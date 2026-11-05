@@ -53,8 +53,8 @@ double usesScaleAndGet(double x) {
 
 // CHECK: inline clad::ValueAndPushforward<double, double> scale_pushforward(clad::Tag<One>, double x, double _d_x) {
 // CHECK: inline clad::ValueAndPushforward<double, double> scale_pushforward(clad::Tag<Two>, double x, double _d_x) {
-// CHECK: s.get_pullback(std::integral_constant<int, 1>(), x, 1, &_d_s, &_r2);
-// CHECK: s.get_pullback(std::integral_constant<int, 5>(), x, 1, &_d_s, &_r3);
+// CHECK: get_pullback(&s, std::integral_constant<int, 1>(), x, 1, &_d_s, &_r2);
+// CHECK: get_pullback(&s, std::integral_constant<int, 5>(), x, 1, &_d_s, &_r3);
 
 // A reference return: reverse mode calls a reverse_forw, which takes the tag
 // too.

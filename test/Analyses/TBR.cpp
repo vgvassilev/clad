@@ -325,7 +325,7 @@ double f8(double x) {
 //CHECK-NEXT:         double _r_d0 = _d_s;
 //CHECK-NEXT:         _d_w.val += _r_d0;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     Wrapper::constructor_pullback(t, &_d_w, &_d_t);
+//CHECK-NEXT:     constructor_pullback(t, &_d_w, &_d_t);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_t += _d_s * t;
 //CHECK-NEXT:         _d_t += t * _d_s;

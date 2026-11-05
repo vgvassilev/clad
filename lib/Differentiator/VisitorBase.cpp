@@ -261,7 +261,7 @@ namespace clad {
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
     utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
-                                m_DeclReplacements);
+                                m_DeclReplacements, getSelf());
     up.TraverseStmt(InSubtree);
   }
 
@@ -927,8 +927,14 @@ namespace clad {
     } else {
       if (!argExprs.empty() &&
           FD->getParamDecl(0)->getType()->isPointerType() &&
-          !utils::isArrayOrPointerType(argExprs[0]->getType()))
+          !utils::isArrayOrPointerType(argExprs[0]->getType())) {
+        // A member's derivative takes the object by address, and a temporary
+        // has no address, so store it in a variable first.
+        if (argExprs[0]->isPRValue())
+          argExprs[0] =
+              StoreAndRef(argExprs[0], "_t", /*forceDeclCreation=*/true);
         argExprs[0] = BuildOp(UnaryOperatorKind::UO_AddrOf, argExprs[0]);
+      }
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       Expr* exprFunc =
           BuildDeclRef(const_cast<FunctionDecl*>(FD), clad_compat::nullNNS(),
@@ -1395,7 +1401,7 @@ namespace clad {
       diffParams.push_back(VarInfo.param);
     return utils::GetDerivativeType(
         m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
-        /*forCustomDerv=*/false,
+        /*forCustomDerv=*/m_DiffReq.takesSelf(),
         /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker,
         m_DiffReq.EnableErrorEstimation);
   }
@@ -1419,6 +1425,27 @@ namespace clad {
     m_Derivative->setLexicalDeclContext(m_Context.getTranslationUnitDecl());
   }
 
+  void
+  VisitorBase::PrependSelfParam(llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+    if (!m_DiffReq.takesSelf())
+      return;
+    const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
+    ParmVarDecl* Self = utils::BuildParmVarDecl(m_Sema, m_Derivative,
+                                                CreateUniqueIdentifier("self"),
+                                                FnType->getParamType(0));
+    m_Sema.PushOnScopeChains(Self, getCurrentScope(), /*AddToContext=*/false);
+    params.insert(params.begin(), Self);
+  }
+
+  ParmVarDecl* VisitorBase::getSelf() const {
+    // Valid once the derivative's parameters exist.
+    return utils::GetSelfParam(m_Derivative, m_DiffReq.Function);
+  }
+
+  Expr* VisitorBase::BuildSelfRef() {
+    return m_Sema.DefaultLvalueConversion(BuildDeclRef(getSelf())).get();
+  }
+
   unsigned VisitorBase::getNumTemplateTags() {
     if (!utils::TakesTemplateTags(m_DiffReq.Mode))
       return 0;
@@ -1438,11 +1465,13 @@ namespace clad {
            "differentiating a call to a specialization by a template template "
            "argument is not supported yet");
     const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
+    // The tags come right after `self`, if there is one.
+    unsigned First = m_DiffReq.takesSelf() ? 1 : 0;
     llvm::SmallVector<ParmVarDecl*, 2> Tags;
     for (unsigned I = 0, N = getNumTemplateTags(); I < N; ++I)
       Tags.push_back(utils::BuildParmVarDecl(m_Sema, m_Derivative,
                                              &m_Context.Idents.get(""),
-                                             FnType->getParamType(I)));
+                                             FnType->getParamType(First + I)));
     params.insert(params.begin(), Tags.begin(), Tags.end());
   }
 

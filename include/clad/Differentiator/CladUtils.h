@@ -559,6 +559,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Whether a derivative of \p Mode is one clad calls from another
     /// derivative, and so takes the template tags of its function.
     bool TakesTemplateTags(DiffMode Mode);
+    /// The `self` parameter of \p Derivative, the derivative of the member
+    /// function \p Primal, or null. A derivative of a member that is a free
+    /// function takes the object first, as `self`, instead of using `this`.
+    clang::ParmVarDecl* GetSelfParam(clang::FunctionDecl* Derivative,
+                                     const clang::FunctionDecl* Primal);
     /// The tags a called derivative of \p FD takes first, one for each
     /// template argument of FD that a call does not deduce: clad::Tag\<T\>
     /// for a type, std::integral_constant\<T, V\> for a value, as
