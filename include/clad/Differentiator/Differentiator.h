@@ -26,6 +26,10 @@
 #include "Matrix.h"
 #include "NumericalDiff.h"
 #include "RestoreTracker.h"
+// Defines clad::member_access, which lets the code clad generates read members
+// that a derivative is not allowed to access.
+// NOLINTNEXTLINE(misc-include-cleaner)
+#include "Sins.h"
 #include "Tape.h"
 
 #include <array>

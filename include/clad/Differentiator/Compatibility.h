@@ -10,6 +10,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/QualTypeNames.h"
@@ -22,6 +23,7 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
@@ -907,6 +909,28 @@ static inline clang::QualType getFullyQualifiedType(clang::ASTContext& C,
 #endif
   return clang::TypeName::getFullyQualifiedType(T, C,
                                                 /*WithGlobalNsPrefix=*/false);
+}
+
+// Clang 23 added ExplicitInstantiationDecl, which DeclPrinter prints as
+// `template struct X<...>;`. Older clang represents an explicit instantiation
+// by the specialization itself, and DeclPrinter prints that as an explicit
+// specialization with all its members, which is a different program.
+inline void printDecl(const clang::Decl* D, llvm::raw_ostream& Out,
+                      const clang::PrintingPolicy& Policy) {
+#if CLANG_VERSION_MAJOR < 23
+  if (const auto* CTSD =
+          llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(D))
+    if (CTSD->getSpecializationKind() ==
+        clang::TSK_ExplicitInstantiationDefinition) {
+      Out << "template " << CTSD->getKindName() << " ";
+      CTSD->printQualifiedName(Out, Policy);
+      clang::printTemplateArgumentList(Out, CTSD->getTemplateArgs().asArray(),
+                                       Policy);
+      Out << ";";
+      return;
+    }
+#endif
+  D->print(Out, Policy);
 }
 
 } // namespace clad_compat

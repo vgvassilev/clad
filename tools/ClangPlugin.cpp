@@ -86,6 +86,11 @@
 
 using namespace clang;
 
+// Expands at global scope: the explicit instantiation it makes must be in a
+// namespace that encloses clad.
+CLAD_ALLOW_ACCESS(MultiplexConsumer, Consumers,
+                  std::vector<std::unique_ptr<ASTConsumer>>);
+
 namespace clad {
 void InitTimers();
 
@@ -201,9 +206,6 @@ void InitTimers();
   }
 
     CladPlugin::~CladPlugin() {}
-
-    CLAD_ALLOW_ACCESS(MultiplexConsumer, Consumers,
-                      std::vector<std::unique_ptr<ASTConsumer>>);
 
     void CladPlugin::Initialize(clang::ASTContext& C) {
       // We know we have a multiplexer. We commit a sin here by stealing it and
@@ -655,9 +657,10 @@ void InitTimers();
       }
     }
 
-    static void printDerivative(clang::Decl* D, bool DeclarationOnly,
-                                const Options& DO,
-                                GeneratedSourceFile* Source) {
+    static void printDerivative(clang::Sema& S, clang::Decl* D,
+                                bool DeclarationOnly, const Options& DO,
+                                GeneratedSourceFile* Source,
+                                const clang::FunctionDecl* Primal = nullptr) {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -676,7 +679,7 @@ void InitTimers();
 
       // if enabled, gather the derivatives for the source file.
       if ((DO.GenerateSourceFile || DO.GeneratedSourceFile) && Source)
-        Source->add(D, DeclarationOnly);
+        Source->add(S, D, DeclarationOnly, Primal);
     }
 
     class AttachedLoopStmtFinder
@@ -778,7 +781,7 @@ void InitTimers();
         auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
         ProcessTopLevelDecl(VDDiff);
         // Dump the declaration if requested.
-        printDerivative(VDDiff, request.DeclarationOnly, m_DO,
+        printDerivative(S, VDDiff, request.DeclarationOnly, m_DO,
                         &m_GeneratedSource);
         return nullptr;
       }
@@ -872,9 +875,10 @@ void InitTimers();
           }
           m_Generated.push_back(G);
           // A custom derivative is the user's, already in their source.
-          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO,
+          printDerivative(S, DerivativeDecl, request.DeclarationOnly, m_DO,
                           request.CustomDerivative ? nullptr
-                                                   : &m_GeneratedSource);
+                                                   : &m_GeneratedSource,
+                          request.Function);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           // We ideally should not call `HandleTopLevelDecl` for declarations
