@@ -380,9 +380,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
              "outputs w.r.t. multiple real inputs");
       }
       shouldCreateOverload = !m_ExternalSource;
-      if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
-        // If the overload is already created, we don't need to create it again.
-        shouldCreateOverload = false;
     }
     QualType dFnType = GetDerivativeType();
 
@@ -3285,9 +3282,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
         }
 
-        // Derivative was not found, request differentiation
+        // Else the planner planned it.
         if (!pullbackFD)
-          pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
+          pullbackFD = FindDerivedFunction(pullbackRequest);
       }
 
       if (pullbackFD) {

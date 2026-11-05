@@ -490,55 +490,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return result;
   }
 
-  bool DiffCollector::PlanNestedRequest(DiffRequest& request) {
-    // Lazily-scheduled requests (pushforward/pullback/higher-order, built in
-    // DerivativeBuilder::HandleNestedDiffRequest) never pass through the static
-    // TU walk, so their planning must be done here on demand. For now this only
-    // records the early-return flag: m_TopMostReq is left null, so
-    // VisitCallExpr and VisitDeclRefExpr bail and no sub-requests are spawned
-    // -- only VisitReturnStmt runs over this request's body.
-    // FIXME: The varied and useful analyses are still force-disabled in
-    // HandleNestedDiffRequest; only TBR is served here.
-    const FunctionDecl* Def =
-        request.Function ? request.Function->getDefinition() : nullptr;
-    if (!Def || !Def->hasBody())
-      return true;
-
-    // Give the request the analysis context TBR needs. DiffRequest runs TBR
-    // lazily out of shouldBeRecorded(), so building the context is all that is
-    // required for a dynamically scheduled reverse-mode request to drop the
-    // stores its reverse sweep never reads back. Hessian mode benefits most:
-    // its reverse pass runs once per direction over a first-order derivative.
-    //
-    // Only the reverse-mode family consults shouldBeRecorded(); a context built
-    // for, say, a pushforward would never be looked at. TBRAnalyzer::Analyze
-    // seeds its state from request.Function's parameters and matches them
-    // against the decls the CFG refers to, so the two must be the same
-    // FunctionDecl -- a redeclaration has its own ParmVarDecls, which would
-    // silently match nothing. shouldBeRecorded() refuses to analyze a lambda
-    // call operator for the same kind of reason, so do not arm TBR for one.
-    bool usesTBR = request.Mode == DiffMode::reverse ||
-                   request.Mode == DiffMode::pullback ||
-                   request.Mode == DiffMode::jacobian ||
-                   request.Mode == DiffMode::reverse_mode_forward_pass;
-    if (usesTBR && request.EnableTBRAnalysis && !request.m_AnalysisDC &&
-        request.Function == Def && !isLambdaCallOperator(Def)) {
-      // One context per function: the same nested request is planned again
-      // whenever another call site asks for its derivative.
-      AnalysisDeclContext*& ADC = m_NestedAnalysisDC[Def];
-      if (!ADC) {
-        clang::CFG::BuildOptions Options;
-        m_AllAnalysisDC.push_back(std::make_unique<AnalysisDeclContext>(
-            /*AnalysisDeclContextManager=*/nullptr, Def, Options));
-        ADC = m_AllAnalysisDC.back().get();
-      }
-      request.m_AnalysisDC = ADC;
-    }
-
-    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
-    return TraverseStmt(Def->getBody());
-  }
-
   static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
                                bool* foundAnyDecl, bool quiet);
 
@@ -564,27 +515,53 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Nothing ran the varied or useful analysis for it.
     request.EnableVariedAnalysis = false;
     request.EnableUsefulAnalysis = false;
+    const FunctionDecl* Def =
+        request.Function ? request.Function->getDefinition() : nullptr;
     // A function with no definition, such as a custom derivative only declared
     // here, may have its own derivative declared next to it: use that one.
-    if (request.Function && !request.Function->getDefinition() &&
-        !request.CustomDerivative) {
+    if (!Def && request.Function && !request.CustomDerivative) {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       auto* DC = const_cast<DeclContext*>(request.Function->getDeclContext());
       request.CustomDerivative =
           getOverloadExpr(m_Sema, DC, request, /*foundAnyDecl=*/nullptr,
                           /*quiet=*/true);
     }
-    // Its callees are planned as a top-level request's are; a pullback's as a
-    // gradient's.
-    DiffRequest Top = request;
-    if (Top.Mode == DiffMode::pullback)
-      Top.Mode = DiffMode::reverse;
-    llvm::SaveAndRestore<const DiffRequest*> SavedTop(m_TopMostReq, &Top);
-    llvm::SaveAndRestore<bool> SavedGlobals(m_PlansGlobalAdjoints, false);
-    // Not a top-level declaration: what it calls must not end it.
-    llvm::SaveAndRestore<bool> SavedTU(m_IsTraversingTopLevelDecl, false);
-    PlanNestedRequest(request);
-    // TBR runs lazily, given the context PlanNestedRequest builds.
+    if (Def && Def->hasBody()) {
+      // Give the request the analysis context TBR needs: DiffRequest runs TBR
+      // lazily out of shouldBeRecorded(). Only the reverse-mode family
+      // consults it. TBRAnalyzer matches request.Function's parameters
+      // against the decls the CFG refers to, so the two must be the same
+      // FunctionDecl, and shouldBeRecorded() refuses a lambda call operator.
+      bool usesTBR = request.Mode == DiffMode::reverse ||
+                     request.Mode == DiffMode::pullback ||
+                     request.Mode == DiffMode::jacobian ||
+                     request.Mode == DiffMode::reverse_mode_forward_pass;
+      if (usesTBR && request.EnableTBRAnalysis && !request.m_AnalysisDC &&
+          request.Function == Def && !isLambdaCallOperator(Def)) {
+        // One context per function: an equal request is planned again for
+        // every call that asks for it.
+        AnalysisDeclContext*& ADC = m_NestedAnalysisDC[Def];
+        if (!ADC) {
+          clang::CFG::BuildOptions Options;
+          m_AllAnalysisDC.push_back(std::make_unique<AnalysisDeclContext>(
+              /*AnalysisDeclContextManager=*/nullptr, Def, Options));
+          ADC = m_AllAnalysisDC.back().get();
+        }
+        request.m_AnalysisDC = ADC;
+      }
+      // Its callees are planned as a top-level request's are; a pullback's as
+      // a gradient's.
+      DiffRequest Top = request;
+      if (Top.Mode == DiffMode::pullback)
+        Top.Mode = DiffMode::reverse;
+      llvm::SaveAndRestore<const DiffRequest*> SavedTop(m_TopMostReq, &Top);
+      llvm::SaveAndRestore<DiffRequest*> SavedParent(m_ParentReq, &request);
+      llvm::SaveAndRestore<bool> SavedGlobals(m_PlansGlobalAdjoints, false);
+      // Not a top-level declaration: what it calls must not end it.
+      llvm::SaveAndRestore<bool> SavedTU(m_IsTraversingTopLevelDecl, false);
+      TraverseStmt(Def->getBody());
+    }
+    // TBR runs lazily, given the context built above.
     request.EnableTBRAnalysis =
         request.EnableTBRAnalysis && request.m_AnalysisDC != nullptr;
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
@@ -3077,6 +3054,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     if (!nonDiff && request.Mode != DiffMode::unknown) {
+      // A custom derivative defined in another translation unit has its
+      // derivative declared here, to be defined along with it.
+      if (!request->isDefined() && isCustomDerivativeDecl(request.Function))
+        request.DeclarationOnly = true;
       // A request equal to one planned for another call shares its
       // derivative, which has to be right for this call too.
       std::pair<DiffRequest*, bool> Planned =
@@ -3337,9 +3318,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
-    // m_TopMostReq is dereferenced below; it is null when PlanNestedRequest
-    // walks a lazy request's body just to record its early-return flag, and no
-    // global-adjoint discovery is wanted there.
+    // m_TopMostReq is dereferenced below; it is null outside a request.
     if (!m_ParentReq || !m_TopMostReq || !m_PlansGlobalAdjoints)
       return true;
     // FIXME: Add support for globals in other modes.

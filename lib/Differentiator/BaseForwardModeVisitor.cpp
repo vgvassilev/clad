@@ -1756,10 +1756,9 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           CUDAExecConfig);
       if (auto* foundCE = cast_or_null<CallExpr>(callDiff))
         pushforwardFD = foundCE->getDirectCallee();
-      else
-        pushforwardFD = m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
-    } else
-      // Request the derivative
+    }
+    // Otherwise the planner planned it.
+    if (!pushforwardFD)
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
     // A custom pushforward marked CLAD_NOOP_DERIVATIVE says that the call has
     // no tangent; it needs no definition and is not called.

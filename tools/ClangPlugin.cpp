@@ -906,9 +906,6 @@ void InitTimers();
           request.updateCall(DerivativeDecl, OverloadedDerivativeDecl,
                              m_CI.getSema());
 
-        if (request.DeclarationOnly)
-          request.DerivedFDPrototypes.push_back(DerivativeDecl);
-
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;

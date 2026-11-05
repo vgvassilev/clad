@@ -247,21 +247,6 @@ struct DerivativeAndOverload {
     /// files it under the request's derivative, so a call reached inside a
     /// lambda counts for the function the lambda is in.
     void noteFallbackDecision() { m_ReachedFallback = true; }
-    /// Add edge from current request to the given request in the DiffRequest
-    /// graph.
-    ///
-    /// \param[in] request The request to add the edge to.
-    /// \param[in] alreadyDerived A flag to keep track of whether the request
-    /// is already derived or not.
-    void AddEdgeToGraph(const DiffRequest& request,
-                        bool alreadyDerived = false);
-
-    /// Handles processing of a diff request when an existing derivative is
-    /// being processed.
-    /// \param[in] request The request to be processed.
-    /// \returns The derivative function if found, nullptr otherwise.
-    clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
-
     /// Emits diagnostic messages on differentiation (or lack thereof) for
     /// an function without a definition.
     ///
