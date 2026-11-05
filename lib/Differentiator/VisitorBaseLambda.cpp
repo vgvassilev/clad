@@ -29,8 +29,10 @@
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Lambda.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Scope.h"
@@ -237,9 +239,10 @@ void VisitorBase::LambdaCaptures::resolve(llvm::ArrayRef<Stmt*> Body) {
         auto* DRE = dyn_cast_or_null<DeclRefExpr>(Child);
         if (!DRE)
           continue;
+        // A reference copied from another lambda keeps what it referred to
+        // there; Sema says what it is here.
         auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-        if (!VD || !Caps.contains(VD) ||
-            DRE->refersToEnclosingVariableOrCapture())
+        if (!VD || !Caps.contains(VD))
           continue;
         // BuildDeclRef produces a bare reference for a local (it never
         // name-qualifies one), which is what lets Sema capture it here.
@@ -308,7 +311,8 @@ void VisitorBase::LambdaBuilder::start(const LambdaExpr* LE,
                                        QualType CallOpType,
                                        ParamBuilder BuildParams,
                                        QualType TrailingReturnType) {
-  DeclContext* DC = LE->getCallOperator()->getDeclContext();
+  DeclContext* DC =
+      LE ? LE->getCallOperator()->getDeclContext() : m_V.m_Derivative;
 
   m_Started = true;
   m_V.beginScope(Scope::LambdaScope | Scope::DeclScope |
@@ -598,5 +602,243 @@ bool VisitorBase::diagnoseUnsupportedLambda(const clang::LambdaExpr* LE) {
     return true;
   }
   return false;
+}
+
+/// The arguments \p CE wrote for the function template it calls, or false
+/// when one is of a kind that cannot be passed again as it is.
+static bool getWrittenTemplateArgs(Sema& S, const CallExpr* CE,
+                                   TemplateArgumentListInfo& TLI) {
+  const auto* DRE =
+      dyn_cast<DeclRefExpr>(CE->getCallee()->IgnoreParenImpCasts());
+  const TemplateArgumentList* TAL =
+      CE->getDirectCallee()->getTemplateSpecializationArgs();
+  for (unsigned I = 0, N = DRE ? DRE->getNumTemplateArgs() : 0; I < N; ++I) {
+    const TemplateArgument& Arg = TAL->get(I);
+    if (Arg.getKind() == TemplateArgument::Type)
+      TLI.addArgument(
+          TemplateArgumentLoc(Arg, S.getASTContext().getTrivialTypeSourceInfo(
+                                       Arg.getAsType(), TLI.getLAngleLoc())));
+    else if (Arg.getKind() == TemplateArgument::Integral)
+      TLI.addArgument(S.getTrivialTemplateArgumentLoc(
+          Arg, Arg.getIntegralType(), TLI.getLAngleLoc()));
+    else
+      return false;
+  }
+  return true;
+}
+
+/// Whether \p FD can change a differentiable value only through the callables
+/// it is passed: it names no variable that outlives it and holds a
+/// floating-point number, and calls only those callables and functions that
+/// pass them on, which are held to the same. \p Seen holds the functions
+/// already checked, such as one that passes its callable on to itself.
+static bool onlyCallsBack(const FunctionDecl* FD,
+                          llvm::SmallPtrSetImpl<const FunctionDecl*>& Seen) {
+  if (!Seen.insert(FD).second)
+    return true;
+  const Stmt* Body = FD->getBody();
+  if (!Body)
+    return false;
+  struct Checker : RecursiveASTVisitor<Checker> {
+    const FunctionDecl* m_FD;
+    llvm::SmallPtrSetImpl<const FunctionDecl*>& m_Seen;
+    bool OK = true;
+    Checker(const FunctionDecl* FD,
+            llvm::SmallPtrSetImpl<const FunctionDecl*>& Seen)
+        : m_FD(FD), m_Seen(Seen) {}
+    static bool isMoveOrForward(const CallExpr* CE) {
+      const FunctionDecl* Callee = CE->getDirectCallee();
+      return Callee && Callee->isInStdNamespace() && CE->getNumArgs() == 1 &&
+             Callee->getIdentifier() &&
+             (Callee->getName() == "move" || Callee->getName() == "forward");
+    }
+    // \p E is a callable the function was passed: the parameter, a copy of
+    // it, or the parameter moved or forwarded.
+    bool isPassedCallable(const Expr* E) const {
+      E = E->IgnoreImplicit();
+      if (const auto* CCE = dyn_cast<CXXConstructExpr>(E))
+        if (CCE->getNumArgs() == 1)
+          E = CCE->getArg(0)->IgnoreImplicit();
+      if (const auto* CE = dyn_cast<CallExpr>(E))
+        if (isMoveOrForward(CE))
+          E = CE->getArg(0);
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+      const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+      return PVD && PVD->getDeclContext() == m_FD;
+    }
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+      OK = !VD || !VD->hasGlobalStorage() ||
+           utils::HoldsNoFloatingPoint(VD->getType());
+      return OK;
+    }
+    bool VisitCallExpr(CallExpr* CE) {
+      // f(i), with f a callable the function was passed.
+      if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+        if (OCE->getOperator() == OO_Call && isPassedCallable(OCE->getArg(0)))
+          return true;
+      if (isPassedCallable(CE->getCallee()) ||
+          (isMoveOrForward(CE) && isPassedCallable(CE->getArg(0))))
+        return true;
+      // g(f, i), a function the callable is passed on to, or one that takes
+      // and gives no floating-point value, such as the conversion of
+      // std::integral_constant to its value; it is held to the same.
+      const FunctionDecl* Callee = CE->getDirectCallee();
+      QualType Ret = Callee ? Callee->getReturnType() : QualType();
+      const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE);
+      OK = Callee && (Ret->isVoidType() || utils::HoldsNoFloatingPoint(Ret)) &&
+           (!MCE || passes(MCE->getImplicitObjectArgument())) &&
+           llvm::all_of(CE->arguments(),
+                        [&](const Expr* Arg) { return passes(Arg); }) &&
+           onlyCallsBack(Callee, m_Seen);
+      return OK;
+    }
+    // An object of a type that holds no floating-point number, built and
+    // destroyed by functions held to the same, or a copy of the callable.
+    bool VisitCXXConstructExpr(CXXConstructExpr* CCE) {
+      if (CCE->getNumArgs() == 1 && isPassedCallable(CCE->getArg(0)))
+        return true;
+      const CXXConstructorDecl* Ctor = CCE->getConstructor();
+      const CXXRecordDecl* RD = Ctor->getParent();
+      const CXXDestructorDecl* Dtor = RD->getDestructor();
+      OK = utils::HoldsNoFloatingPoint(CCE->getType()) &&
+           llvm::all_of(CCE->arguments(),
+                        [&](const Expr* Arg) { return passes(Arg); }) &&
+           (Ctor->isTrivial() || onlyCallsBack(Ctor, m_Seen)) &&
+           (!Dtor || Dtor->isTrivial() || onlyCallsBack(Dtor, m_Seen));
+      return OK;
+    }
+    bool passes(const Expr* Arg) const {
+      return isPassedCallable(Arg) ||
+             utils::HoldsNoFloatingPoint(Arg->getType());
+    }
+  } Check(FD, Seen);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  Check.TraverseStmt(const_cast<Stmt*>(Body));
+  // A constructor runs its member initializers before its body.
+  if (const auto* Ctor = dyn_cast<CXXConstructorDecl>(FD))
+    for (const CXXCtorInitializer* Init : Ctor->inits())
+      if (Check.OK)
+        Check.TraverseStmt(Init->getInit());
+  return Check.OK;
+}
+
+bool VisitorBase::diagnoseUnsupportedCallback(const CallExpr* CE,
+                                              const LambdaExpr* LE) {
+  auto refuse = [&](llvm::StringRef Why) {
+    diag(DiagnosticsEngine::Error, LE->getBeginLoc(),
+         "differentiation of a call to %0 that passes a lambda %1 is not "
+         "supported yet")
+        << CE->getDirectCallee()->getDeclName() << Why;
+    return true;
+  };
+#if CLANG_VERSION_MAJOR < 17
+  return refuse("before clang 17");
+#else
+  const CXXMethodDecl* CallOp = LE->getCallOperator();
+  if (LE->isGenericLambda())
+    return refuse("with an 'auto' parameter");
+  if (!CallOp->getReturnType()->isVoidType())
+    return refuse("that returns a value");
+  for (const LambdaCapture& Cap : LE->captures())
+    if (!Cap.capturesVariable() || LE->isInitCapture(&Cap))
+      return refuse("that captures 'this' or an initializer");
+  // The callee passes nothing differentiable, so a parameter has no
+  // derivative to give or take.
+  for (const ParmVarDecl* PVD : CallOp->parameters()) {
+    QualType T = PVD->getType();
+    if (!utils::HoldsNoFloatingPoint(T) ||
+        (T->isReferenceType() && !T.getNonReferenceType().isConstQualified()))
+      return refuse("whose parameter is not an integer");
+  }
+  // A return ends one call, which a reverse loop cannot tell apart from the
+  // end of the body.
+  struct ReturnFinder : RecursiveASTVisitor<ReturnFinder> {
+    bool Found = false;
+    bool VisitReturnStmt(ReturnStmt*) {
+      Found = true;
+      return false;
+    }
+    bool TraverseLambdaExpr(LambdaExpr*) { return true; }
+  } Returns;
+  Returns.TraverseStmt(CallOp->getBody());
+  if (Returns.Found)
+    return refuse("that returns early");
+  // The body of an inner one would be differentiated inside the closure built
+  // for the outer one, whose parameters it cannot name.
+  struct CallbackFinder : RecursiveASTVisitor<CallbackFinder> {
+    bool Found = false;
+    bool VisitCallExpr(CallExpr* CE) {
+      Found = utils::GetCallbackLambda(CE) != nullptr;
+      return !Found;
+    }
+  } Callbacks;
+  Callbacks.TraverseStmt(CallOp->getBody());
+  if (Callbacks.Found)
+    return refuse("that itself passes a lambda to a function template");
+  // Only the lambda's body is differentiated: the function itself must not
+  // read or change a floating-point value of its own.
+  llvm::SmallPtrSet<const FunctionDecl*, 8> Seen;
+  if (!onlyCallsBack(CE->getDirectCallee(), Seen))
+    return refuse("to a function that does more than call it");
+  SourceLocation Loc = utils::GetValidSLoc(m_Sema);
+  TemplateArgumentListInfo TLI(Loc, Loc);
+  if (!getWrittenTemplateArgs(m_Sema, CE, TLI))
+    return refuse("to a function with this kind of template argument");
+  return false;
+#endif
+}
+
+Expr* VisitorBase::buildCallbackClosure(
+    const LambdaExpr* LE,
+    llvm::function_ref<void(llvm::ArrayRef<ParmVarDecl*>)> BuildBody) {
+#if CLANG_VERSION_MAJOR < 17
+  return nullptr;
+#else
+  const CXXMethodDecl* CallOp = LE->getCallOperator();
+  llvm::SmallVector<ParmVarDecl*, 2> Params;
+  LambdaBuilder LBuilder(*this);
+  LBuilder.captureByRef();
+  LBuilder.start(/*LE=*/nullptr, CallOp->getType(),
+                 [&](llvm::SmallVectorImpl<ParmVarDecl*>& NewParams) {
+                   for (const ParmVarDecl* PVD : CallOp->parameters())
+                     NewParams.push_back(CloneParmVarDecl(
+                         PVD,
+                         CreateUniqueIdentifier(
+                             PVD->getDeclName() ? PVD->getName() : "arg"),
+                         /*pushOnScopeChains=*/true,
+                         /*cloneDefaultArg=*/false));
+                   Params.assign(NewParams.begin(), NewParams.end());
+                 });
+  beginBlock();
+  BuildBody(Params);
+  LambdaCaptures Free(*this);
+  Free.collect(getCurrentBlock());
+  Free.resolve(getCurrentBlock());
+  return LBuilder.finish(endBlock());
+#endif
+}
+
+Expr* VisitorBase::buildCallWithCallback(const CallExpr* CE,
+                                         const LambdaExpr* LE, Expr* Closure) {
+  llvm::SmallVector<Expr*, 4> Args;
+  for (const Expr* Arg : CE->arguments()) {
+    if (isa<CXXDefaultArgExpr>(Arg))
+      break;
+    Args.push_back(utils::GetLambdaArg(Arg) == LE ? Closure : Clone(Arg));
+  }
+  SourceLocation Loc = utils::GetValidSLoc(m_Sema);
+  TemplateArgumentListInfo TLI(Loc, Loc);
+  getWrittenTemplateArgs(m_Sema, CE, TLI);
+  FunctionTemplateDecl* FTD = CE->getDirectCallee()->getPrimaryTemplate();
+  LookupResult R(m_Sema, FTD->getDeclName(), noLoc, Sema::LookupOrdinaryName);
+  R.addDecl(FTD);
+  R.resolveKind();
+  CXXScopeSpec CSS;
+  utils::BuildNNS(m_Sema, FTD->getDeclContext(), CSS);
+  Expr* Callee = utils::BuildDeclarationNameExpr(m_Sema, CSS, R, /*ADL=*/false,
+                                                 TLI.size() ? &TLI : nullptr);
+  return m_Sema.ActOnCallExpr(getCurrentScope(), Callee, noLoc, Args, noLoc)
+      .get();
 }
 } // end namespace clad

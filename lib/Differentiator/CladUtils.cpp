@@ -1874,6 +1874,50 @@ namespace clad {
       return OnlyCountsWith(Ctor, Idx, /*Depth=*/0);
     }
 
+    bool HoldsNoFloatingPoint(QualType T) {
+      T = T.getNonReferenceType().getCanonicalType();
+      while (const ArrayType* AT = T->getAsArrayTypeUnsafe())
+        T = AT->getElementType().getCanonicalType();
+      if (T->isIntegralOrEnumerationType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      if (!RD || !RD->hasDefinition() || RD->isLambda())
+        return false;
+      for (const CXXBaseSpecifier& B : RD->bases())
+        if (!HoldsNoFloatingPoint(B.getType()))
+          return false;
+      return llvm::all_of(RD->fields(), [](const FieldDecl* F) {
+        return HoldsNoFloatingPoint(F->getType());
+      });
+    }
+
+    const LambdaExpr* GetCallbackLambda(const CallExpr* CE) {
+      const FunctionDecl* FD = CE->getDirectCallee();
+      if (!FD || isa<CXXMethodDecl>(FD) || !FD->getPrimaryTemplate() ||
+          !FD->getReturnType()->isVoidType())
+        return nullptr;
+      const LambdaExpr* Found = nullptr;
+      for (const Expr* Arg : CE->arguments()) {
+        if (const LambdaExpr* LE = GetLambdaArg(Arg)) {
+          if (Found)
+            return nullptr;
+          Found = LE;
+        } else if (!HoldsNoFloatingPoint(Arg->getType())) {
+          return nullptr;
+        }
+      }
+      return Found;
+    }
+
+    const LambdaExpr* GetLambdaArg(const Expr* Arg) {
+      const Expr* E = Arg->IgnoreImplicit();
+      // A closure taken by value is copied from the temporary before C++17.
+      if (const auto* CCE = dyn_cast<CXXConstructExpr>(E))
+        if (CCE->getNumArgs() == 1)
+          E = CCE->getArg(0)->IgnoreImplicit();
+      return dyn_cast<LambdaExpr>(E);
+    }
+
     QualType GetByteCopiedFloatingType(const CallExpr* CE) {
       const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
       if (!FD || CE->getNumArgs() < 2)

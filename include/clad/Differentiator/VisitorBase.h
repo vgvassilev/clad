@@ -299,8 +299,9 @@ namespace clad {
     /// but does not itself declare. resolve() re-creates those references in
     /// the current scope, where BuildDeclRef under the `[&]` default registers
     /// the capture and marks the reference for codegen; it must run with the
-    /// lambda scope active. contains() exposes the set for a caller that must
-    /// place the captured decls before the lambda.
+    /// lambda scope active. Outside one, it makes them plain references.
+    /// contains() exposes the set for a caller that must place the captured
+    /// decls before the lambda.
     class LambdaCaptures {
       VisitorBase& m_V;
       llvm::SmallPtrSet<clang::VarDecl*, 8> m_Captures;
@@ -361,9 +362,17 @@ namespace clad {
       ~LambdaBuilder();
       /// Without this the new closure is capture-less.
       void cloneCaptures(const clang::LambdaExpr* LE);
+      /// Captures by reference what the body names, as `[&]` does. A body
+      /// built outside the closure names nothing until LambdaCaptures::resolve
+      /// rebuilds its references inside.
+      void captureByRef() {
+        m_Intro.Default = clang::LCD_ByRef;
+        m_Intro.DefaultLoc = utils::GetValidSLoc(m_V.m_Sema);
+      }
       /// Opens the body scope; on return the caller may begin a block and emit
       /// into it. \p LE only supplies the declaration context to graft the
-      /// closure onto, \p BuildParams appends the call operator's parameters.
+      /// closure onto, the derivative when null; \p BuildParams appends the
+      /// call operator's parameters.
       void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
                  ParamBuilder BuildParams,
                  clang::QualType TrailingReturnType = {});
@@ -446,6 +455,25 @@ namespace clad {
           .get();
     }
 
+    /// Whether clad cannot differentiate the call \p CE, which passes the
+    /// lambda \p LE (utils::GetCallbackLambda), as a loop over the calls it
+    /// makes to the lambda; if so, says why.
+    bool diagnoseUnsupportedCallback(const clang::CallExpr* CE,
+                                     const clang::LambdaExpr* LE);
+    /// \p CE, passing \p Closure in place of the lambda \p LE: a call to the
+    /// same function template, with the template arguments \p CE wrote, and
+    /// the type of the closure deduced again.
+    clang::Expr* buildCallWithCallback(const clang::CallExpr* CE,
+                                       const clang::LambdaExpr* LE,
+                                       clang::Expr* Closure);
+    /// The closure a call that passes \p LE is made with, `[&](params) {...}`,
+    /// whose parameters are those of \p LE's call operator. \p BuildBody adds
+    /// the body to the current block, given the closure's parameters; what
+    /// the body uses of the derivative is captured again.
+    clang::Expr* buildCallbackClosure(
+        const clang::LambdaExpr* LE,
+        llvm::function_ref<void(llvm::ArrayRef<clang::ParmVarDecl*>)>
+            BuildBody);
     /// Resolve a captured variable to its clone in the enclosing derivative.
     clang::VarDecl* getEnclosingCaptureClone(const clang::VarDecl* capVD);
     /// The field of \p LE's closure type that holds the capture of \p capVD.

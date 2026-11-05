@@ -121,6 +121,12 @@ public:
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+  /// A call that passes the lambda \p LE to a function template, which can
+  /// only change differentiable values through it (utils::GetCallbackLambda):
+  /// the function is called with a closure that runs the lambda's body and
+  /// its derivative.
+  StmtDiff DifferentiateCallbackCall(const clang::CallExpr* CE,
+                                     const clang::LambdaExpr* LE);
   StmtDiff VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);

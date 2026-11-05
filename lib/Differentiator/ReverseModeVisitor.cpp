@@ -2605,6 +2605,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     if (CallExpr* typed = utils::BuildTypedByteCopy(m_Sema, CE))
       return Visit(typed);
+    if (const LambdaExpr* LE = utils::GetCallbackLambda(CE))
+      return DifferentiateCallbackCall(CE, LE);
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     Expr* LambdaCallOpExpr = nullptr;

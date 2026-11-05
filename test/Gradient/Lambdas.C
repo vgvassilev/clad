@@ -6,6 +6,9 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <type_traits>
+#include <utility>
+
 double f1(double i, double j) {
   auto _f = [] (double t) {
     return t*t + 1.0;
@@ -351,6 +354,138 @@ double f15(double x) {
   return y + s.a + q.a + r;
 }
 
+// A lambda passed to a function template, which calls it in a loop: the
+// forward sweep runs in a closure passed in its place, which records each
+// call's argument, and the reverse sweep replays the calls last first.
+template <class F> void each(int n, const F& f) {
+  for (int i = 0; i < n; ++i)
+    f(i);
+}
+
+double f16(double x, double y) {
+  double s = 1;
+  each(3, [&](int i) { s *= x + i * y; });
+  return s;
+}
+
+// CHECK: void f16_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<int> _t1 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_s = 0.;
+// CHECK-NEXT:     double s = 1;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     each(3, [&](int i0) {
+// CHECK-NEXT:         clad::push(_t1, i);
+// CHECK-NEXT:         i = i0;
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t2, s);
+// CHECK-NEXT:         s *= x + i * y;
+// CHECK-NEXT:     });
+// CHECK-NEXT:     _d_s += 1;
+// CHECK-NEXT:     while (_t0)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     {
+// CHECK-NEXT:                         s = clad::pop(_t2);
+// CHECK-NEXT:                         double _r_d0 = _d_s;
+// CHECK-NEXT:                         _d_s = 0.;
+// CHECK-NEXT:                         _d_s += _r_d0 * (x + i * y);
+// CHECK-NEXT:                         *_d_x += s * _r_d0;
+// CHECK-NEXT:                         *_d_y += i * s * _r_d0;
+// CHECK-NEXT:                     }
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 _t0--;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             i = clad::pop(_t1);
+// CHECK-NEXT:         }
+// CHECK-NEXT: }
+
+// AMReX's constexpr_for, called once per iteration of a loop.
+template <int I, int N, class F> void unroll(const F& f) {
+  if constexpr (I < N) {
+    f(std::integral_constant<int, I>());
+    unroll<I + 1, N>(f);
+  }
+}
+
+double f17(double x) {
+  double a[2] = {x, 1};
+  for (int k = 0; k < 2; ++k)
+    unroll<0, 2>([&](int i) { a[i] = a[i] * a[1 - i] + x; });
+  return a[0] + a[1];
+}
+
+// The call is made again with the template arguments it wrote, and without
+// the arguments it left to their defaults.
+template <class T, class F> void eachT(const F& f, T n = 3) {
+  for (T i = 0; i < n; ++i)
+    f(i);
+}
+
+double f18(double x) {
+  double s = 0;
+  eachT<int>([&](int i) { s += x * i; });
+  return s;
+}
+
+// CHECK: void f18_grad(double x, double *_d_x) {
+// CHECK: eachT<int>([&](int i0) {
+
+// The other arguments, copies of objects that hold only integers here, are
+// passed again.
+struct Range {
+  int n;
+};
+template <class F> void eachIn(Range r, const F& f) {
+  for (int i = 0; i < r.n; ++i)
+    f(i);
+}
+
+double f19(double x) {
+  Range r{3};
+  double s = 0;
+  eachIn(r, [&](int i) { s += x * i * i; });
+  return s;
+}
+
+// CHECK: void f19_grad(double x, double *_d_x) {
+// CHECK: eachIn(r, [&](int i0) {
+
+// A function that passes its callable on, forwarded, is differentiated as
+// the function it passes it to.
+template <class F> void eachFwd(int n, F&& f) { each(n, std::forward<F>(f)); }
+
+double f20(double x) {
+  double s = 0;
+  eachFwd(2, [&](int i) { s += x * (i + 1); });
+  return s;
+}
+
+// CHECK: void f20_grad(double x, double *_d_x) {
+// CHECK: eachFwd(2, [&](int i0) {
+
+// A function that passes its callable on by value, twice: each copy is the
+// callable, and each call to it is recorded.
+template <class F> void eachVal(int n, F f) {
+  for (int i = 0; i < n; ++i)
+    f(i);
+}
+template <class F> void eachTwice(int n, const F& f) {
+  eachVal(n, f);
+  eachVal(n, f);
+}
+
+double f22(double x) {
+  double s = 0;
+  eachTwice(2, [&](int i) { s += x * (i + 1); });
+  return s;
+}
+
+// CHECK: void f22_grad(double x, double *_d_x) {
+// CHECK: eachTwice(2, [&](int i0) {
+
 int main() {
   auto df1 = clad::gradient(f1);
   double di = 0, dj = 0;
@@ -426,4 +561,34 @@ int main() {
   auto d_f15 = clad::gradient(f15);
   d_f15.execute(2, &di);
   printf("%.2f\n", di);                       // CHECK-EXEC: 8.00
+
+  di = 0, dj = 0;
+  auto d_f16 = clad::gradient(f16);
+  d_f16.execute(2, 1, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 26.00 20.00
+
+  di = 0;
+  auto d_f17 = clad::gradient(f17);
+  d_f17.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 254.00
+
+  di = 0;
+  auto d_f18 = clad::gradient(f18);
+  d_f18.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 3.00
+
+  di = 0;
+  auto d_f19 = clad::gradient(f19);
+  d_f19.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 5.00
+
+  di = 0;
+  auto d_f20 = clad::gradient(f20);
+  d_f20.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 3.00
+
+  di = 0;
+  auto d_f22 = clad::gradient(f22);
+  d_f22.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 6.00
 }
