@@ -576,8 +576,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           const LambdaExpr* Found = utils::findCapturedLambda(Body);
           if (Found) {
             SourceLocation Loc = Found->getCallOperator()
-                                    ? Found->getCallOperator()->getLocation()
-                                    : Found->getBeginLoc();
+                                     ? Found->getCallOperator()->getLocation()
+                                     : Found->getBeginLoc();
             utils::diag(m_Sema, DiagnosticsEngine::Error, Loc,
                         "vector-mode differentiation of a lambda with captures "
                         "is not supported yet");

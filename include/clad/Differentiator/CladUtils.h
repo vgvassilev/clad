@@ -361,7 +361,8 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// non-trivial destructor is wrapped -- or null.
     const clang::LambdaExpr* getLambdaInit(const clang::VarDecl* VD);
 
-    /// Returns the first lambda with captures in \p S, or null if none is found.
+    /// Returns the first lambda with captures in \p S, or null if none is
+    /// found.
     const clang::LambdaExpr* findCapturedLambda(const clang::Stmt* S);
 
     /// A reference to what \p R found, qualified by \p SS and followed by

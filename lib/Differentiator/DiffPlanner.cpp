@@ -1730,8 +1730,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           utils::findCapturedLambda(request.Function->getBody());
       if (Found) {
         SourceLocation Loc = Found->getCallOperator()
-                                ? Found->getCallOperator()->getLocation()
-                                : Found->getBeginLoc();
+                                 ? Found->getCallOperator()->getLocation()
+                                 : Found->getBeginLoc();
         if (request.RequestedDerivativeOrder > 1)
           utils::diag(S, DiagnosticsEngine::Error, Loc,
                       "higher-order differentiation of a lambda with captures "
