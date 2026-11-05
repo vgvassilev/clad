@@ -1290,6 +1290,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // differentiate or clone them.
   if (utils::isNoOpDestructorCall(CE))
     return {};
+  if (const LambdaExpr* LE = utils::GetCallbackLambda(CE))
+    return DifferentiateCallbackCall(CE, LE);
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
     diagUnsupportedIndirectCalls(CE);

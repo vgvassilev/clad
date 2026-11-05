@@ -691,6 +691,17 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// more with it. Its value then never reaches a real, and a tangent object
     /// may be built with it.
     bool OnlyCountsWith(const clang::CXXConstructorDecl* Ctor, unsigned Idx);
+    /// If \p CE calls a void function template, passing it a lambda and
+    /// otherwise only values that hold no floating-point number, that lambda.
+    /// The call can only change a differentiable value through the lambda, so
+    /// it is differentiated as a loop over the calls it makes to it.
+    const clang::LambdaExpr* GetCallbackLambda(const clang::CallExpr* CE);
+    /// The lambda the argument \p Arg passes, if any: as written, or copied
+    /// from the temporary before C++17.
+    const clang::LambdaExpr* GetLambdaArg(const clang::Expr* Arg);
+    /// Whether \p T holds no floating-point number: an integer or an
+    /// enumeration, or an array or a class made only of those.
+    bool HoldsNoFloatingPoint(clang::QualType T);
     /// If \p CE is a memcpy or memmove whose destination or source, before
     /// its conversion to `void*`, holds floating-point data, that type.
     clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);

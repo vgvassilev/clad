@@ -2445,6 +2445,17 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (!FD || utils::isNoOpDestructorCall(E))
       return true;
 
+    // The call is differentiated where it stands, with the lambda's body,
+    // which the traversal plans next: the callee needs no derivative. The
+    // analyses do not look into the lambda's body, so the function that makes
+    // the call does without them.
+    if (m_ParentReq && utils::GetCallbackLambda(E)) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    m_ParentReq->Enable##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
+      return true;
+    }
+
     bool nonDiff = false;
     bool hasNoMemoryInputForPointerOrRefReturn = false;
     // FIXME: We might want to support nested calls to differentiate/gradient

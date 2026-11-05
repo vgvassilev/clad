@@ -1,6 +1,7 @@
 //===- BaseForwardModeVisitorLambda.cpp - Lambdas in forward mode ---------===//
 //
-// The pushforward of a lambda, built as a lambda of its own.
+// The pushforward of a lambda, built as a lambda of its own, and of a call
+// that passes a lambda to a function template.
 //
 //===----------------------------------------------------------------------===//
 
@@ -106,4 +107,24 @@ BaseForwardModeVisitor::buildPushforwardLambda(const LambdaExpr* LE) {
   return LBuilder.finish(body);
 }
 #endif // CLANG_VERSION_MAJOR
+
+StmtDiff
+BaseForwardModeVisitor::DifferentiateCallbackCall(const CallExpr* CE,
+                                                  const LambdaExpr* LE) {
+  if (diagnoseUnsupportedCallback(CE, LE))
+    return {};
+  const CXXMethodDecl* CallOp = LE->getCallOperator();
+  // [&](int i0) { <the body and its derivative> }
+  Expr* Closure =
+      buildCallbackClosure(LE, [&](llvm::ArrayRef<ParmVarDecl*> Params) {
+        for (unsigned I = 0, N = Params.size(); I < N; ++I)
+          m_DeclReplacements[CallOp->getParamDecl(I)] = Params[I];
+        StmtDiff BodyDiff = Visit(CallOp->getBody());
+        for (Stmt* S : cast<CompoundStmt>(BodyDiff.getStmt())->body())
+          addToCurrentBlock(S);
+      });
+  for (const ParmVarDecl* PVD : CallOp->parameters())
+    m_DeclReplacements.erase(PVD);
+  return StmtDiff(buildCallWithCallback(CE, LE, Closure));
+}
 } // end namespace clad
