@@ -555,12 +555,6 @@ public:
   // DVI and the varied/useful structs into one composable, finer-grained
   // activity model on the request (on the AST), propagated down each subgraph.
 
-  /// A pointer to keep track of the prototype of the derived functions.
-  /// For higher order derivatives, we store the entire sequence of
-  /// prototypes declared for all orders of derivatives.
-  /// This will be useful for forward declaration of the derived functions.
-  llvm::SmallVector<clang::FunctionDecl*, 2> DerivedFDPrototypes;
-
   /// A boolean to indicate if only the declaration of the derived function
   /// is required (and not the definition or body).
   /// This will be particularly useful for pushforward and pullback functions.
@@ -804,7 +798,7 @@ public:
     /// Essentially needed for prolonging the lifetime of
     /// unique_ptr<clang::AnalysisDeclContext>.
     OwnedAnalysisContexts& m_AllAnalysisDC;
-    /// The contexts PlanNestedRequest built, keyed by the function they
+    /// The contexts PlanAsTopMost built, keyed by the function they
     /// describe, so that repeated planning of the same lazily-scheduled
     /// request reuses one context (and one CFG) instead of building another.
     llvm::DenseMap<const clang::FunctionDecl*, clang::AnalysisDeclContext*>
@@ -932,10 +926,6 @@ public:
     /// Plans the requests a kernel launch contains without descending into
     /// its execution configuration.
     bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);
-    /// Plan a lazily-scheduled nested request the static TU walk never reaches
-    /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
-    /// its early-return flag by walking the request's own body.
-    bool PlanNestedRequest(DiffRequest& request);
     /// Plans \p request as a top-level request is planned: what it calls
     /// first, then itself.
     void PlanAsTopMost(DiffRequest& request);

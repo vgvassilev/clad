@@ -91,9 +91,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // should follow closer what clang does, namely building a
     // FunctionTemplateDecl and then we should instantiate it with the
     // particular template parameters.
-    if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder)
-      Previous.addDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
-    else if (R.Function && !R.Function->getPrimaryTemplate())
+    if (R.Function && !R.Function->getPrimaryTemplate())
       S.LookupQualifiedName(Previous, dFD->getParent());
 
     // Derivatives are declared inline, but a hand-written custom derivative may
@@ -123,18 +121,13 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // function implementation that does not rely on accessing private data from
     // the class.
     bool IsBrokenDecl = isa<RecordDecl>(DC);
-    if (!IsBrokenDecl) {
+    if (!IsBrokenDecl)
       S.CheckFunctionDeclaration(
           /*Scope=*/nullptr, dFD, Previous,
           /*IsMemberSpecialization=*/
           false
           /*DeclIsDefn*/
           CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(dFD));
-    } else if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder) {
-      // Size >= current derivative order means that there exists a declaration
-      // or prototype for the currently derived function.
-      dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
-    }
   } else if (auto* dVD = dyn_cast<VarDecl>(D))
     // Add the identifier to the scope and IdResolver
     S.PushOnScopeChains(dVD, S.TUScope, /*AddToContext*/ false);
@@ -431,53 +424,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           m_Scheduler.getDerivedFns().AddToCustomDerivativeSet(FD);
     }
     return OverloadedFn;
-  }
-
-  clang::FunctionDecl*
-  DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
-    bool alreadyDerived = true;
-    request.UpdateDiffParamsInfo(m_Sema);
-    // Plan this lazily-scheduled request statically, so it carries the planning
-    // info (currently the early-return flag) the static TU walk never produced.
-    m_Scheduler.Plan(request);
-    FunctionDecl* derivative = this->FindDerivedFunction(request);
-    if (!derivative) {
-      alreadyDerived = false;
-      // FIXME: Our analyses are closely tied to the DiffPlanner. The varied
-      // and useful analyses have to be run eagerly by the planner and it does
-      // not do so for dynamically scheduled requests, so they stay off. TBR
-      // runs lazily and only needs an m_AnalysisDC, which PlanNestedRequest
-      // above builds; keep it whenever we got one.
-      request.EnableTBRAnalysis =
-          request.EnableTBRAnalysis && request.m_AnalysisDC != nullptr;
-      request.EnableVariedAnalysis = false;
-      request.EnableUsefulAnalysis = false;
-
-      {
-        // Store and restore the original function and its order.
-        llvm::SaveAndRestore<const FunctionDecl*> origFn(request.Function);
-        llvm::SaveAndRestore<unsigned> origFnOrder(
-            request.CurrentDerivativeOrder);
-        // Derive declaration of the the forward mode derivative.
-        request.DeclarationOnly = true;
-        derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
-      }
-      request.UpdateDiffParamsInfo(m_Sema);
-
-      // It is possible that user has provided a custom derivative for the
-      // derivative function. In that case, we should not derive the definition
-      // again.
-      if (derivative &&
-          (derivative->isDefined() ||
-           m_Scheduler.getDerivedFns().IsCustomDerivative(derivative)))
-        alreadyDerived = true;
-
-      // Add the request to derive the definition of the forward mode derivative
-      // to the schedule.
-      request.DeclarationOnly = false;
-    }
-    this->AddEdgeToGraph(request, alreadyDerived);
-    return derivative;
   }
 
   void DerivativeBuilder::diagnoseUndefinedFunction(const FunctionDecl* FD,
@@ -980,8 +926,4 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         << request.Function << Flag << Taken;
   }
 
-  void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request,
-                                         bool alreadyDerived /*=false*/) {
-    m_Scheduler.getGraph().addEdgeToCurrentNode(request, alreadyDerived);
-  }
   } // end namespace clad
