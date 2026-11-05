@@ -241,7 +241,11 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     }
     // A lambda that captures the parameter finds its copy here.
     m_DeclReplacements[PVD] = newPVD;
-
+  }
+  // The adjoints come after every parameter is in scope: the adjoint of `x`
+  // must not take the name of a parameter `_d_x`.
+  for (auto* PVD : m_DiffReq->parameters()) {
+    auto* newPVD = cast<ParmVarDecl>(m_DeclReplacements[PVD]);
     auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
       *it = newPVD;
