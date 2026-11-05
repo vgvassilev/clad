@@ -436,6 +436,31 @@ namespace clad {
       return dyn_cast<LambdaExpr>(Init->IgnoreImplicit());
     }
 
+    namespace {
+      class CapturedLambdaFinder
+          : public RecursiveASTVisitor<CapturedLambdaFinder> {
+      public:
+        const LambdaExpr* Found = nullptr;
+
+        bool VisitLambdaExpr(LambdaExpr* LE) {
+          if (LE->capture_size()) {
+            Found = LE;
+            return false;
+          }
+          return true;
+        }
+      };
+    } // namespace
+
+    const LambdaExpr* findCapturedLambda(const Stmt* S) {
+      if (!S)
+        return nullptr;
+
+      CapturedLambdaFinder Finder;
+      Finder.TraverseStmt(const_cast<Stmt*>(S));
+      return Finder.Found;
+    }
+
     QualType getUnsignedType(QualType T, const ASTContext& C) {
       T = T.getNonReferenceType().getUnqualifiedType();
       if (clad_compat::isPromotableIntegerType(C, T))

@@ -570,6 +570,22 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     GeneratedCodeDiagnostics HoldDiags(*m_GeneratedCode,
                                        m_Sema.getDiagnostics(), request);
     EmitPortingHint(request);
+    if (request.Mode == DiffMode::vector_pushforward) {
+      if (const FunctionDecl* FD = request.Function) {
+        if (const Stmt* Body = FD->getBody()) {
+          const LambdaExpr* Found = utils::findCapturedLambda(Body);
+          if (Found) {
+            SourceLocation Loc = Found->getCallOperator()
+                                    ? Found->getCallOperator()->getLocation()
+                                    : Found->getBeginLoc();
+            utils::diag(m_Sema, DiagnosticsEngine::Error, Loc,
+                        "vector-mode differentiation of a lambda with captures "
+                        "is not supported yet");
+            return {};
+          }
+        }
+      }
+    }
     if (const FunctionDecl* FD = request.Function) {
       // Process the custom derivative
       if (request.CustomDerivative) {

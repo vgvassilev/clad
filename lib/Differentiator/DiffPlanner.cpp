@@ -1662,6 +1662,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
     }
 
+    if (request.Mode == DiffMode::hessian && request.Function &&
+        request.Function->getBody()) {
+      const LambdaExpr* Found =
+          utils::findCapturedLambda(request.Function->getBody());
+      if (Found) {
+        SourceLocation Loc = Found->getCallOperator()
+                                 ? Found->getCallOperator()->getLocation()
+                                 : Found->getBeginLoc();
+        utils::diag(S, DiagnosticsEngine::Error, Loc,
+                    "Hessian differentiation of a lambda with captures is "
+                    "not supported yet");
+        return true;
+      }
+    }
+
     // Check for clad::hessian<diagonal_only>.
     if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
       if (request.Mode == DiffMode::hessian) {
@@ -1704,6 +1719,38 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
 
+    bool UnsupportedLambdaRequest =
+        request.RequestedDerivativeOrder > 1 ||
+        request.Mode == DiffMode::hessian_diagonal ||
+        request.Mode == DiffMode::jacobian ||
+        request.Mode == DiffMode::vector_forward_mode;
+    if (UnsupportedLambdaRequest && request.Function &&
+        request.Function->getBody()) {
+      const LambdaExpr* Found =
+          utils::findCapturedLambda(request.Function->getBody());
+      if (Found) {
+        SourceLocation Loc = Found->getCallOperator()
+                                ? Found->getCallOperator()->getLocation()
+                                : Found->getBeginLoc();
+        if (request.RequestedDerivativeOrder > 1)
+          utils::diag(S, DiagnosticsEngine::Error, Loc,
+                      "higher-order differentiation of a lambda with captures "
+                      "is not supported yet");
+        else if (request.Mode == DiffMode::jacobian)
+          utils::diag(S, DiagnosticsEngine::Error, Loc,
+                      "Jacobian differentiation of a lambda with captures is "
+                      "not supported yet");
+        else if (request.Mode == DiffMode::hessian_diagonal)
+          utils::diag(S, DiagnosticsEngine::Error, Loc,
+                      "Hessian differentiation of a lambda with captures is "
+                      "not supported yet");
+        else
+          utils::diag(S, DiagnosticsEngine::Error, Loc,
+                      "vector-mode differentiation of a lambda with captures "
+                      "is not supported yet");
+        return true;
+      }
+    }
     return false;
   }
 
