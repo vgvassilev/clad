@@ -506,7 +506,8 @@ public:
   /// Marks a copy of a hessian request that the planner adds after the
   /// first-order derivatives the hessian is built from. The reverse passes
   /// over them can be planned only once they exist; when the graph reaches
-  /// this entry, they do.
+  /// this entry, they do. A diagonal has none, but waits here all the same
+  /// for its second derivatives, planned once the first exist.
   bool PlansReversePasses = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
