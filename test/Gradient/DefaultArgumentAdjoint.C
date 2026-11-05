@@ -144,8 +144,8 @@ double f3(double x) {
 }
 
 // CHECK-LABEL: void f2_grad(double x, double *_d_x) {
-// CHECK: record::A::constructor_reverse_forw(clad::Tag<{{(record::)?}}A>(), b, 3, record::_d_b, 0);
-// CHECK: A::constructor_pullback(b, 3, &_r0, &record::_d_b, &_r1);
+// CHECK: record::constructor_reverse_forw(clad::Tag<{{(record::)?}}A>(), b, 3, record::_d_b, 0);
+// CHECK: record::constructor_pullback(b, 3, &_r0, &record::_d_b, &_r1);
 // CHECK: *_d_x += _r_d0;
 
 void check() {
@@ -222,7 +222,7 @@ double f4(double x) {
 }
 
 // CHECK-LABEL: void f4_grad(double x, double *_d_x) {
-// CHECK: A::constructor_pullback
+// CHECK: constructor_pullback(
 // CHECK: *_d_x += _d_global_default;
 
 // An explicit argument also contains an implicit converting constructor.

@@ -2304,7 +2304,10 @@ namespace clad {
     QualType GetCladTagOfType(Sema& S, QualType T) {
       clang::TemplateDecl* CladTag =
           utils::LookupTemplateDeclInCladNamespace(S, "Tag");
-      return utils::InstantiateTemplate(S, CladTag, {T});
+      // Fully qualify the type, as for the variables clad declares: the tag
+      // may be used outside the scope that declares the type.
+      return utils::InstantiateTemplate(S, CladTag,
+                                        {utils::makeTypeReadable(S, T)});
     }
 
     Expr* BuildDefaultConstructExpr(Sema& S, QualType T) {
@@ -2325,6 +2328,18 @@ namespace clad {
       return Mode == DiffMode::pushforward || Mode == DiffMode::pullback ||
              Mode == DiffMode::vector_pushforward ||
              Mode == DiffMode::reverse_mode_forward_pass;
+    }
+
+    ParmVarDecl* GetSelfParam(FunctionDecl* Derivative,
+                              const FunctionDecl* Primal) {
+      // Decide from the derivative itself rather than from the request: this
+      // runs for every statement clad copies and must stay cheap. A
+      // derivative of a member function that is not a member takes `self`.
+      const auto* MD = dyn_cast<CXXMethodDecl>(Primal);
+      if (!MD || !MD->isInstance() || isa<CXXConstructorDecl>(MD) ||
+          isa<CXXMethodDecl>(Derivative) || Derivative->param_empty())
+        return nullptr;
+      return Derivative->getParamDecl(0);
     }
 
     /// Whether argument \p I of \p Args is what the default argument of its

@@ -356,6 +356,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     assert(m_DiffReq.Function && "Must not be null.");
     PrettyStackTraceDerivative CrashInfo(m_DiffReq, m_Blocks, m_Sema,
                                          &m_CurVisitedStmt);
+    AccessChecksOff NoAccessChecks(m_Sema, m_DiffReq.isFreeMemberDerivative());
 
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
@@ -387,9 +388,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Check if the function is already declared as a custom derivative.
     std::string name = m_DiffReq.ComputeDerivativeName();
 
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    DeclContext* DC = m_DiffReq.getDerivativeDeclContext();
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
@@ -418,6 +417,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
     PrependTemplateTagParams(params);
+    PrependSelfParam(params);
 
     utils::SetParams(m_Derivative, params);
     m_Derivative->setBody(nullptr);
@@ -6584,7 +6584,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXThisExpr(const CXXThisExpr* CTE) {
     Expr* clonedCTE = nullptr;
-    if (!isa<CXXConstructorDecl>(m_DiffReq.Function)) {
+    if (getSelf()) {
+      // A free derivative of a member uses `self` where the member used `this`.
+      clonedCTE = BuildSelfRef();
+    } else if (!isa<CXXConstructorDecl>(m_DiffReq.Function)) {
       clonedCTE = Clone(CTE);
     } else {
       // In constructor pullbacks, `this` is not taken as a parameter
@@ -7156,7 +7159,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // The derivative's type starts with its template tags, which are added
     // to params last.
     for (size_t i = 0, s = params.size(),
-                p = s + (LE ? 0 : getNumTemplateTags());
+                p = s + (LE ? 0 : getNumTemplateTags() + m_DiffReq.takesSelf());
          i < s - HasThis - HasRet; ++i) {
       const ParmVarDecl* oPVD = FD->getParamDecl(i);
 

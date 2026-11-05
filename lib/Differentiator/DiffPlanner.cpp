@@ -23,6 +23,7 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
@@ -1603,6 +1604,36 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return BaseFunctionName + "_d" + s + "arg" + argInfo;
   }
 
+  bool DiffRequest::isFreeMemberDerivative() const {
+    const auto* MD = dyn_cast<CXXMethodDecl>(Function);
+    if (!MD || !MD->isInstance() || isa<CXXDestructorDecl>(MD) ||
+        isa<CXXConversionDecl>(MD) || !utils::TakesTemplateTags(Mode))
+      return false;
+    // A free function must be able to name the class, so lambdas, local
+    // classes and unnamed classes keep member derivatives.
+    const CXXRecordDecl* RD = MD->getParent();
+    if (RD->isLambda() || RD->isLocalClass() ||
+        (!RD->getIdentifier() && !RD->getTypedefNameForAnonDecl()))
+      return false;
+    // clad never adds a derivative of these modes to such a class, so a
+    // declaration with this name there was written by the user.
+    ASTContext& C = MD->getASTContext();
+    return RD->lookup(&C.Idents.get(ComputeDerivativeName())).empty();
+  }
+
+  bool DiffRequest::takesSelf() const {
+    return isFreeMemberDerivative() && !isa<CXXConstructorDecl>(Function);
+  }
+
+  DeclContext* DiffRequest::getDerivativeDeclContext() const {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    auto* DC = const_cast<DeclContext*>(Function->getDeclContext());
+    if (isFreeMemberDerivative())
+      while (!DC->isFileContext())
+        DC = DC->getParent();
+    return DC;
+  }
+
   bool DiffRequest::restoresCallWrites(const CallExpr* CE) const {
     const FunctionDecl* FD = CE->getDirectCallee();
     assert(FD && "Reverse mode asks only about a call to a known function");
@@ -1909,9 +1940,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   /// Whether reverse mode has no adjoint for what \p E points or refers to in
-  /// \p Caller.
+  /// \p Caller, whose globals have adjoints only if \p GlobalsHaveAdjoints.
   static bool hasNoAdjoint(const Expr* E, const DiffRequest& Caller,
-                           unsigned Depth = 0) {
+                           bool GlobalsHaveAdjoints, unsigned Depth = 0) {
     E = E->IgnoreParenImpCasts();
     // A local that starts null has no adjoint; a null argument is passed on
     // as its own adjoint. clad writes a null tangent as nullptr of the
@@ -1921,14 +1952,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                            Expr::NPC_ValueDependentIsNotNull)))
       return true;
     if (const auto* CO = dyn_cast<ConditionalOperator>(E))
-      return hasNoAdjoint(CO->getTrueExpr(), Caller, Depth) &&
-             hasNoAdjoint(CO->getFalseExpr(), Caller, Depth);
+      return hasNoAdjoint(CO->getTrueExpr(), Caller, GlobalsHaveAdjoints,
+                          Depth) &&
+             hasNoAdjoint(CO->getFalseExpr(), Caller, GlobalsHaveAdjoints,
+                          Depth);
     const ValueDecl* D = pointedToDecl(E);
     if (isa_and_nonnull<FunctionDecl>(D))
       return true;
     if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(D))
       return !Caller.hasAdjoint(PVD);
     const auto* VD = dyn_cast_or_null<VarDecl>(D);
+    // A global has no adjoint in a request planned inside another one, such
+    // as the reverse pass a hessian runs over a pushforward. For example,
+    // `&gFunc` passed as the object of a member's derivative has none there.
+    if (VD && !VD->hasLocalStorage() && !GlobalsHaveAdjoints)
+      return true;
     if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
       return false;
     if (!Caller.shouldHaveAdjoint(VD))
@@ -1936,7 +1974,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // A local pointer has the adjoint of what it starts pointing to, unless
     // the function points it elsewhere, as `cudaMalloc(&p, n)` does.
     if (!VD->getType()->isPointerType() || !VD->getInit() || Depth >= 4 ||
-        !hasNoAdjoint(VD->getInit(), Caller, Depth + 1))
+        !hasNoAdjoint(VD->getInit(), Caller, GlobalsHaveAdjoints, Depth + 1))
       return false;
     llvm::SmallPtrSet<const VarDecl*, 1> Vars{VD};
     llvm::SmallPtrSet<const VarDecl*, 1> Written;
@@ -1948,13 +1986,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   /// Whether the argument of the call \p E for its parameter \p i is passed
   /// by reference or pointer, and reverse mode has no adjoint to pass for it.
   static bool passesNoAdjoint(const CallExpr* E, std::size_t i,
-                              const DiffRequest& Caller) {
+                              const DiffRequest& Caller,
+                              bool GlobalsHaveAdjoints) {
     const auto* MD = dyn_cast<CXXMethodDecl>(E->getDirectCallee());
     if (isa<CXXOperatorCallExpr>(E) && MD && MD->isInstance())
       ++i;
     if (i >= E->getNumArgs() || !utils::IsReferenceOrPointerArg(E->getArg(i)))
       return false;
-    return hasNoAdjoint(E->getArg(i), Caller);
+    return hasNoAdjoint(E->getArg(i), Caller, GlobalsHaveAdjoints);
   }
 
   /// The assignments, increments and decrements in \p E, outermost first, in
@@ -2709,7 +2748,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             // Reverse mode asks for the pullback without a parameter it has
             // no adjoint to pass for. Plan that pullback, not one it never
             // calls.
-            if (dropNoAdjoint && passesNoAdjoint(E, i, *m_ParentReq)) {
+            if (dropNoAdjoint &&
+                passesNoAdjoint(E, i, *m_ParentReq, m_PlansGlobalAdjoints)) {
               droppedNoAdjoint = true;
               continue;
             }

@@ -231,7 +231,7 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         E.operator_call_pullback(i, j, 1, &_d_E, &_r0, &_r1);
+  // CHECK-NEXT:         operator_call_pullback(&E, i, j, 1, &_d_E, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }
@@ -247,7 +247,7 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         fn.operator_call_pullback(i, j, 1, _d_fn, &_r0, &_r1);
+  // CHECK-NEXT:         operator_call_pullback(&fn, i, j, 1, _d_fn, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }
@@ -264,13 +264,13 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         fn.operator_call_pullback(i, j, _d_y, _d_fn, &_r0, &_r1);
+  // CHECK-NEXT:         operator_call_pullback(&fn, i, j, _d_y, _d_fn, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  // CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept {
+  // CHECK: inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_arg).y += _d_this->y;
   // CHECK-NEXT:         _d_this->y = 0.;
@@ -289,7 +289,7 @@ int main() {
   // CHECK-NEXT:         double _r1 = 0.;
   // CHECK-NEXT:         double _r2 = 0.;
   // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r0, &_r1, &_r2);
-  // CHECK-NEXT:         Experiment::constructor_pullback(E, &_r0, &_d_E);
+  // CHECK-NEXT:         constructor_pullback(E, &_r0, &_d_E);
   // CHECK-NEXT:         *_d_i += _r1;
   // CHECK-NEXT:         *_d_j += _r2;
   // CHECK-NEXT:     }

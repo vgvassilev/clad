@@ -28,7 +28,7 @@ double fn1(double x, double y) {
     return y + g.y;
 } // x + x^2
 
-// CHECK: static inline clad::ValueAndAdjoint<argByVal, argByVal> constructor_reverse_forw(clad::Tag<argByVal>, double val, double _d_val) {
+// CHECK: inline clad::ValueAndAdjoint<argByVal, argByVal> constructor_reverse_forw(clad::Tag<argByVal>, double val, double _d_val) {
 // CHECK-NEXT:     argByVal *_this = (argByVal *)malloc(sizeof(argByVal));
 // CHECK-NEXT:     argByVal *_d_this = (argByVal *)malloc(sizeof(argByVal));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByVal));
@@ -41,7 +41,7 @@ double fn1(double x, double y) {
 // CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
-// CHECK:  static inline void constructor_pullback(double val, argByVal *_d_this, double *_d_val) {
+// CHECK:  inline void constructor_pullback(double val, argByVal *_d_this, double *_d_val) {
 // CHECK-NEXT:      argByVal *_this = (argByVal *)malloc(sizeof(argByVal));
 // CHECK-NEXT:      _this->x = val;
 // CHECK-NEXT:      double _t0 = val;
@@ -68,7 +68,7 @@ double fn1(double x, double y) {
 // CHECK-NEXT:  }
 
 // CHECK:  void fn1_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), x, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = constructor_reverse_forw(clad::Tag<argByVal>(), x, 0.);
 // CHECK-NEXT:      argByVal g(_t0.value);
 // CHECK-NEXT:      argByVal _d_g(_t0.adjoint);
 // CHECK-NEXT:      y = x;
@@ -82,7 +82,7 @@ double fn1(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByVal::constructor_pullback(x, &_d_g, &_r0);
+// CHECK-NEXT:          constructor_pullback(x, &_d_g, &_r0);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -131,7 +131,7 @@ double fn2(double u, double v) {
   return 1;
 }
 
-// CHECK:  static inline clad::ValueAndAdjoint<S1, S1> constructor_reverse_forw(clad::Tag<S1>, double x, double _d_x) {
+// CHECK:  inline clad::ValueAndAdjoint<S1, S1> constructor_reverse_forw(clad::Tag<S1>, double x, double _d_x) {
 // CHECK-NEXT:      S1 *_this = (S1 *)malloc(sizeof(S1));
 // CHECK-NEXT:      S1 *_d_this = (S1 *)malloc(sizeof(S1));
 // CHECK-NEXT:      memset(_d_this, 0, sizeof(S1));
@@ -143,7 +143,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      return _ret0;
 // CHECK-NEXT:  }
 
-// CHECK:  static inline void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
+// CHECK:  inline void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
 // CHECK-NEXT:      _d_this->d = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
@@ -151,7 +151,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK: static inline clad::ValueAndAdjoint<S2, S2> constructor_reverse_forw(clad::Tag<S2>, double x, double _d_x) {
+// CHECK: inline clad::ValueAndAdjoint<S2, S2> constructor_reverse_forw(clad::Tag<S2>, double x, double _d_x) {
 // CHECK-NEXT:     S2 *_this = (S2 *)malloc(sizeof(S2));
 // CHECK-NEXT:     S2 *_d_this = (S2 *)malloc(sizeof(S2));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S2));
@@ -164,7 +164,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
-// CHECK:  static inline void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
+// CHECK:  inline void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S2 *_this = (S2 *)malloc(sizeof(S2));
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->i = 1.;
@@ -178,7 +178,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
-// CHECK: static inline clad::ValueAndAdjoint<S3, S3> constructor_reverse_forw(clad::Tag<S3>, double x, double _d_x) {
+// CHECK: inline clad::ValueAndAdjoint<S3, S3> constructor_reverse_forw(clad::Tag<S3>, double x, double _d_x) {
 // CHECK-NEXT:     S3 *_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:     S3 *_d_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S3));
@@ -189,7 +189,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
-// CHECK:  static inline void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
+// CHECK:  inline void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S3 *_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:      _this->p = x * x;
 // CHECK-NEXT:      {
@@ -201,7 +201,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
-// CHECK: static inline clad::ValueAndAdjoint<S5, S5> constructor_reverse_forw(clad::Tag<S5>, double x, double _d_x) {
+// CHECK: inline clad::ValueAndAdjoint<S5, S5> constructor_reverse_forw(clad::Tag<S5>, double x, double _d_x) {
 // CHECK-NEXT:     S5 *_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:     S5 *_d_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S5));
@@ -211,42 +211,42 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
-// CHECK:  static inline void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
+// CHECK:  inline void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S5 *_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
 // CHECK:  void fn2_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:      clad::ValueAndAdjoint<S1, S1> _t0 = S1::constructor_reverse_forw(clad::Tag<S1>(), u, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<S1, S1> _t0 = constructor_reverse_forw(clad::Tag<S1>(), u, 0.);
 // CHECK-NEXT:      S1 s1(_t0.value);
 // CHECK-NEXT:      S1 _d_s1(_t0.adjoint);
-// CHECK-NEXT:      clad::ValueAndAdjoint<S2, S2> _t1 = S2::constructor_reverse_forw(clad::Tag<S2>(), v, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<S2, S2> _t1 = constructor_reverse_forw(clad::Tag<S2>(), v, 0.);
 // CHECK-NEXT:      S2 s2(_t1.value);
 // CHECK-NEXT:      S2 _d_s2(_t1.adjoint);
-// CHECK-NEXT:      clad::ValueAndAdjoint<S3, S3> _t2 = S3::constructor_reverse_forw(clad::Tag<S3>(), v, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<S3, S3> _t2 = constructor_reverse_forw(clad::Tag<S3>(), v, 0.);
 // CHECK-NEXT:      S3 s3(_t2.value);
 // CHECK-NEXT:      S3 _d_s3(_t2.adjoint);
-// CHECK-NEXT:      clad::ValueAndAdjoint<S5, S5> _t3 = S5::constructor_reverse_forw(clad::Tag<S5>(), u, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<S5, S5> _t3 = constructor_reverse_forw(clad::Tag<S5>(), u, 0.);
 // CHECK-NEXT:      S5 s5(_t3.value);
 // CHECK-NEXT:      S5 _d_s5(_t3.adjoint);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r3 = 0.;
-// CHECK-NEXT:        S5::constructor_pullback(u, &_d_s5, &_r3);
+// CHECK-NEXT:        constructor_pullback(u, &_d_s5, &_r3);
 // CHECK-NEXT:        *_d_u += _r3;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r2 = 0.;
-// CHECK-NEXT:        S3::constructor_pullback(v, &_d_s3, &_r2);
+// CHECK-NEXT:        constructor_pullback(v, &_d_s3, &_r2);
 // CHECK-NEXT:        *_d_v += _r2;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        S2::constructor_pullback(v, &_d_s2, &_r1);
+// CHECK-NEXT:        constructor_pullback(v, &_d_s2, &_r1);
 // CHECK-NEXT:        *_d_v += _r1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        S1::constructor_pullback(u, &_d_s1, &_r0);
+// CHECK-NEXT:        constructor_pullback(u, &_d_s1, &_r0);
 // CHECK-NEXT:        *_d_u += _r0;
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
@@ -256,7 +256,7 @@ double fn3(double u, double v) {
   return s.i * s.p;
 }
 
-// CHECK: static inline clad::ValueAndAdjoint<S4, S4> constructor_reverse_forw(clad::Tag<S4>, double x, double _d_x) {
+// CHECK: inline clad::ValueAndAdjoint<S4, S4> constructor_reverse_forw(clad::Tag<S4>, double x, double _d_x) {
 // CHECK-NEXT:    S4 *_this = (S4 *)malloc(sizeof(S4));
 // CHECK-NEXT:    S4 *_d_this = (S4 *)malloc(sizeof(S4));
 // CHECK-NEXT:    memset(_d_this, 0, sizeof(S4));
@@ -268,7 +268,7 @@ double fn3(double u, double v) {
 // CHECK-NEXT:    return _ret0;
 // CHECK-NEXT:}
 
-// CHECK: static inline void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
+// CHECK: inline void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        *_d_x += _d_this->p;
 // CHECK-NEXT:        _d_this->p = 0.;
@@ -277,7 +277,7 @@ double fn3(double u, double v) {
 // CHECK-NEXT:}
 
 // CHECK: void fn3_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:    clad::ValueAndAdjoint<S4, S4> _t0 = S4::constructor_reverse_forw(clad::Tag<S4>(), u, 0.);
+// CHECK-NEXT:    clad::ValueAndAdjoint<S4, S4> _t0 = constructor_reverse_forw(clad::Tag<S4>(), u, 0.);
 // CHECK-NEXT:    S4 s(_t0.value);
 // CHECK-NEXT:    S4 _d_s(_t0.adjoint);
 // CHECK-NEXT:    {
@@ -286,7 +286,7 @@ double fn3(double u, double v) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        S4::constructor_pullback(u, &_d_s, &_r0);
+// CHECK-NEXT:        constructor_pullback(u, &_d_s, &_r0);
 // CHECK-NEXT:        *_d_u += _r0;
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
@@ -314,7 +314,7 @@ double fn4(double i, double j) {
   return 2 + SimpleFunctions1(i);
 }
 
-// CHECK: static inline void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
+// CHECK: inline void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
 // CHECK-NEXT:      _d_this->y = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_px += _d_this->x;
@@ -328,7 +328,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:          SimpleFunctions1 _r1 = 0.;
 // CHECK-NEXT:          operator_plus_pullback(2, SimpleFunctions1(i), 1, &_r0, &_r1);
 // CHECK-NEXT:          double _r2 = 0.;
-// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, &_r1, &_r2);
+// CHECK-NEXT:          constructor_pullback(i, &_r1, &_r2);
 // CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -350,17 +350,17 @@ double fn5(double x, double y) {
     return y + g.y;
 } // x + x^2
 
-// CHECK:  static inline void constructor_pullback(double v, argByValWrapper *_d_this, double *_d_v) {
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
+// CHECK:  inline void constructor_pullback(double v, argByValWrapper *_d_this, double *_d_v) {
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByVal::constructor_pullback(v, _d_this, &_r0);
+// CHECK-NEXT:          constructor_pullback(v, _d_this, &_r0);
 // CHECK-NEXT:          *_d_v += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 // CHECK:  void fn5_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, 0.);
 // CHECK-NEXT:      argByValWrapper g(_t0.value);
 // CHECK-NEXT:      argByValWrapper _d_g(_t0.adjoint);
 // CHECK-NEXT:      y = x;
@@ -374,7 +374,7 @@ double fn5(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByValWrapper::constructor_pullback(x, &_d_g, &_r0);
+// CHECK-NEXT:          constructor_pullback(x, &_d_g, &_r0);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -384,11 +384,11 @@ double fn6(double x, double y) {
     return g.z;
 } // x^2 * y
 
-// CHECK: static inline clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, double u, double _d_v, double _d_u) {
+// CHECK: inline clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, double u, double _d_v, double _d_u) {
 // CHECK-NEXT:     argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     argByValWrapper *_d_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
-// CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), v, 0.);
+// CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = constructor_reverse_forw(clad::Tag<argByValWrapper>(), v, 0.);
 // CHECK-NEXT:     new (_this) argByValWrapper(_t0.value);
 // CHECK-NEXT:     _this->z = _this->y * u;
 // CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _ret0 = {*_this, *_d_this};
@@ -397,9 +397,9 @@ double fn6(double x, double y) {
 // CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
-// CHECK:  static inline void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
+// CHECK:  inline void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
 // CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), v, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = constructor_reverse_forw(clad::Tag<argByValWrapper>(), v, 0.);
 // CHECK-NEXT:      new (_this) argByValWrapper(_t0.value);
 // CHECK-NEXT:      _this->z = _this->y * u;
 // CHECK-NEXT:      {
@@ -410,21 +410,21 @@ double fn6(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByValWrapper::constructor_pullback(v, _d_this, &_r0);
+// CHECK-NEXT:          constructor_pullback(v, _d_this, &_r0);
 // CHECK-NEXT:          *_d_v += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
 // CHECK:  void fn6_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, y, 0., 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, y, 0., 0.);
 // CHECK-NEXT:      argByValWrapper g(_t0.value);
 // CHECK-NEXT:      argByValWrapper _d_g(_t0.adjoint);
 // CHECK-NEXT:      _d_g.z += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
 // CHECK-NEXT:          double _r1 = 0.;
-// CHECK-NEXT:          argByValWrapper::constructor_pullback(x, y, &_d_g, &_r0, &_r1);
+// CHECK-NEXT:          constructor_pullback(x, y, &_d_g, &_r0, &_r1);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:          *_d_y += _r1;
 // CHECK-NEXT:      }
@@ -435,11 +435,11 @@ double fn7(double x, double y) {
     return g.z;
 } // x^3
 
-// CHECK: static inline clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, bool arg, double _d_v, bool _d_arg) {
+// CHECK: inline clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, bool arg, double _d_v, bool _d_arg) {
 // CHECK-NEXT:     argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     argByValWrapper *_d_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
-// CHECK-NEXT:     clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
+// CHECK-NEXT:     clad::ValueAndAdjoint<argByVal, argByVal> _t0 = constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
 // CHECK-NEXT:     new (static_cast<argByVal *>(_this)) argByVal(_t0.value);
 // CHECK-NEXT:     _this->z = _this->x * _this->y;
 // CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _ret0 = {*_this, *_d_this};
@@ -448,9 +448,9 @@ double fn7(double x, double y) {
 // CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
-// CHECK:  static inline void constructor_pullback(double v, bool arg, argByValWrapper *_d_this, double *_d_v, bool *_d_arg) {
+// CHECK:  inline void constructor_pullback(double v, bool arg, argByValWrapper *_d_this, double *_d_v, bool *_d_arg) {
 // CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
 // CHECK-NEXT:      new (static_cast<argByVal *>(_this)) argByVal(_t0.value);
 // CHECK-NEXT:      _this->z = _this->x * _this->y;
 // CHECK-NEXT:      {
@@ -461,7 +461,7 @@ double fn7(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByVal::constructor_pullback(v, _d_this, &_r0);
+// CHECK-NEXT:          constructor_pullback(v, _d_this, &_r0);
 // CHECK-NEXT:          *_d_v += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      free(_this);
@@ -469,14 +469,14 @@ double fn7(double x, double y) {
 
 
 // CHECK:  void fn7_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, false, 0., false);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, false, 0., false);
 // CHECK-NEXT:      argByValWrapper g(_t0.value);
 // CHECK-NEXT:      argByValWrapper _d_g(_t0.adjoint);
 // CHECK-NEXT:      _d_g.z += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
 // CHECK-NEXT:          bool _r1 = false;
-// CHECK-NEXT:          argByValWrapper::constructor_pullback(x, false, &_d_g, &_r0, &_r1);
+// CHECK-NEXT:          constructor_pullback(x, false, &_d_g, &_r0, &_r1);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -514,7 +514,7 @@ double fn8(double u, double v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          u = _t0;
 // CHECK-NEXT:          v = _t1;
-// CHECK-NEXT:          std::pair<double, double>::constructor_pullback(u, v, &_d_p, _d_u, _d_v);
+// CHECK-NEXT:          std::constructor_pullback(u, v, &_d_p, _d_u, _d_v);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -549,7 +549,7 @@ struct arrWrapper {
     double arr[2];
 };
 
-// CHECK:  static inline constexpr void constructor_pullback(const arrWrapper &arg, arrWrapper *_d_this, arrWrapper *_d_arg) noexcept {
+// CHECK:  inline constexpr void constructor_pullback(const arrWrapper &arg, arrWrapper *_d_this, arrWrapper *_d_arg) noexcept {
 // CHECK-NEXT:      for (unsigned {{int|long}} i = 0; i < 2; ++i)
 // CHECK-NEXT:          (*_d_arg).arr[i] += _d_this->arr[i];
 // CHECK-NEXT:  }
@@ -569,7 +569,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:          _d_b.arr[0] += 1;
 // CHECK-NEXT:          _d_b.arr[1] += 1;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      arrWrapper::constructor_pullback(a, &_d_b, &_d_a);
+// CHECK-NEXT:      constructor_pullback(a, &_d_b, &_d_a);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_a.arr[0];
 // CHECK-NEXT:          *_d_y += _d_a.arr[1];
@@ -580,7 +580,7 @@ struct arr2DWrapper {
     double arr[1][2];
 };
 
-// CHECK:  static inline constexpr void constructor_pullback(const arr2DWrapper &arg, arr2DWrapper *_d_this, arr2DWrapper *_d_arg) noexcept {
+// CHECK:  inline constexpr void constructor_pullback(const arr2DWrapper &arg, arr2DWrapper *_d_this, arr2DWrapper *_d_arg) noexcept {
 // CHECK-NEXT:      for (unsigned {{int|long}} i = 0; i < 1; ++i)
 // CHECK-NEXT:          for (unsigned {{int|long}} i0 = 0; i0 < 2; ++i0)
 // CHECK-NEXT:              (*_d_arg).arr[i][i0] += _d_this->arr[i][i0];
@@ -601,7 +601,7 @@ double fn11(double x, double y) {
 // CHECK-NEXT:          _d_b.arr[0][0] += 1;
 // CHECK-NEXT:          _d_b.arr[0][1] += 1;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      arr2DWrapper::constructor_pullback(a, &_d_b, &_d_a);
+// CHECK-NEXT:      constructor_pullback(a, &_d_b, &_d_a);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_a.arr[0][0];
 // CHECK-NEXT:          *_d_y += _d_a.arr[0][1];
@@ -613,14 +613,14 @@ struct cust_double {
     double val;
 };
 
-// CHECK:  static inline void constructor_pullback(double x, cust_double *_d_this, double *_d_x) {
+// CHECK:  inline void constructor_pullback(double x, cust_double *_d_this, double *_d_x) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->val;
 // CHECK-NEXT:          _d_this->val = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK:  static inline constexpr void constructor_pullback(const cust_double &arg, cust_double *_d_this, cust_double *_d_arg) noexcept {
+// CHECK:  inline constexpr void constructor_pullback(const cust_double &arg, cust_double *_d_this, cust_double *_d_arg) noexcept {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          (*_d_arg).val += _d_this->val;
 // CHECK-NEXT:          _d_this->val = 0.;
@@ -631,9 +631,9 @@ struct arrStructWrapper {
     cust_double arr[2];
 };
 
-// CHECK:  static inline constexpr void constructor_pullback(const arrStructWrapper &arg, arrStructWrapper *_d_this, arrStructWrapper *_d_arg) noexcept {
+// CHECK:  inline constexpr void constructor_pullback(const arrStructWrapper &arg, arrStructWrapper *_d_this, arrStructWrapper *_d_arg) noexcept {
 // CHECK-NEXT:      for (unsigned {{int|long}} i = 0; i < 2; ++i)
-// CHECK-NEXT:          cust_double::constructor_pullback(arg.arr[i], &_d_this->arr[i], &(*_d_arg).arr[i]);
+// CHECK-NEXT:          constructor_pullback(arg.arr[i], &_d_this->arr[i], &(*_d_arg).arr[i]);
 // CHECK-NEXT:  }
 
 double fn12(double x, double y) {
@@ -651,13 +651,13 @@ double fn12(double x, double y) {
 // CHECK-NEXT:          _d_b.arr[0].val += 1;
 // CHECK-NEXT:          _d_b.arr[1].val += 1;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      arrStructWrapper::constructor_pullback(a, &_d_b, &_d_a);
+// CHECK-NEXT:      constructor_pullback(a, &_d_b, &_d_a);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          cust_double::constructor_pullback(x, &_d_a.arr[0], &_r0);
+// CHECK-NEXT:          constructor_pullback(x, &_d_a.arr[0], &_r0);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:          double _r1 = 0.;
-// CHECK-NEXT:          cust_double::constructor_pullback(y, &_d_a.arr[1], &_r1);
+// CHECK-NEXT:          constructor_pullback(y, &_d_a.arr[1], &_r1);
 // CHECK-NEXT:          *_d_y += _r1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -673,7 +673,7 @@ class ptrConstr {
   }
 };
 
-// CHECK:  static inline clad::ValueAndAdjoint<ptrConstr, ptrConstr> constructor_reverse_forw(clad::Tag<ptrConstr>, double &x, const double &y, double &_d_x, const double &_d_y) {
+// CHECK:  inline clad::ValueAndAdjoint<ptrConstr, ptrConstr> constructor_reverse_forw(clad::Tag<ptrConstr>, double &x, const double &y, double &_d_x, const double &_d_y) {
 // CHECK-NEXT:      ptrConstr *_this = (ptrConstr *)malloc(sizeof(ptrConstr));
 // CHECK-NEXT:      ptrConstr *_d_this = (ptrConstr *)malloc(sizeof(ptrConstr));
 // CHECK-NEXT:      memset(_d_this, 0, sizeof(ptrConstr));
@@ -686,7 +686,7 @@ class ptrConstr {
 // CHECK-NEXT:      return _ret0;
 // CHECK-NEXT:  }
 
-// CHECK:  static inline void constructor_pullback(double &x, const double &y, ptrConstr *_d_this, double *_d_x, double *_d_y) {
+// CHECK:  inline void constructor_pullback(double &x, const double &y, ptrConstr *_d_this, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      ptrConstr *_this = (ptrConstr *)malloc(sizeof(ptrConstr));
 // CHECK-NEXT:      _this->ptr = &x;
 // CHECK-NEXT:      _this->val = y * y;
@@ -698,7 +698,7 @@ class ptrConstr {
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
-// CHECK:  void getSum_pullback(double _d_y, ptrConstr *_d_this) const {
+// CHECK:  inline void getSum_pullback(const ptrConstr *self, double _d_y, ptrConstr *_d_this) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_this->ptr += _d_y;
 // CHECK-NEXT:          _d_this->val += _d_y;
@@ -712,13 +712,13 @@ double fn13(double x, double y) {
 
 // CHECK:  void fn13_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      double _t0 = x;
-// CHECK-NEXT:      clad::ValueAndAdjoint<ptrConstr, ptrConstr> _t1 = ptrConstr::constructor_reverse_forw(clad::Tag<ptrConstr>(), x, y, *_d_x, *_d_y);
+// CHECK-NEXT:      clad::ValueAndAdjoint<ptrConstr, ptrConstr> _t1 = constructor_reverse_forw(clad::Tag<ptrConstr>(), x, y, *_d_x, *_d_y);
 // CHECK-NEXT:      ptrConstr obj(_t1.value);
 // CHECK-NEXT:      ptrConstr _d_obj(_t1.adjoint);
-// CHECK-NEXT:      obj.getSum_pullback(1, &_d_obj);
+// CHECK-NEXT:      getSum_pullback(&obj, 1, &_d_obj);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          x = _t0;
-// CHECK-NEXT:          ptrConstr::constructor_pullback(x, y, &_d_obj, _d_x, _d_y);
+// CHECK-NEXT:          constructor_pullback(x, y, &_d_obj, _d_x, _d_y);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -755,7 +755,7 @@ double fn15(double x, double y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         double _r1 = 0.;
-// CHECK-NEXT:         Point::constructor_pullback(x, x * y, &_d_p, &_r0, &_r1);
+// CHECK-NEXT:         constructor_pullback(x, x * y, &_d_p, &_r0, &_r1);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         *_d_x += _r1 * y;
 // CHECK-NEXT:         *_d_y += x * _r1;
@@ -789,7 +789,7 @@ double fn16(double x, double y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r4 = 0.;
 // CHECK-NEXT:         double _r5 = 0.;
-// CHECK-NEXT:         NoDefaultPoint::constructor_pullback(x * y, y, &_d_r, &_r4, &_r5);
+// CHECK-NEXT:         constructor_pullback(x * y, y, &_d_r, &_r4, &_r5);
 // CHECK-NEXT:         *_d_x += _r4 * y;
 // CHECK-NEXT:         *_d_y += x * _r4;
 // CHECK-NEXT:         *_d_y += _r5;
@@ -797,7 +797,7 @@ double fn16(double x, double y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r2 = 0.;
 // CHECK-NEXT:         double _r3 = 0.;
-// CHECK-NEXT:         NoDefaultPoint::constructor_pullback(x * y, y, &_d_q, &_r2, &_r3);
+// CHECK-NEXT:         constructor_pullback(x * y, y, &_d_q, &_r2, &_r3);
 // CHECK-NEXT:         *_d_x += _r2 * y;
 // CHECK-NEXT:         *_d_y += x * _r2;
 // CHECK-NEXT:         *_d_y += _r3;
@@ -805,7 +805,7 @@ double fn16(double x, double y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         double _r1 = 0.;
-// CHECK-NEXT:         NoDefaultPoint::constructor_pullback(x, x * y, &_d_p, &_r0, &_r1);
+// CHECK-NEXT:         constructor_pullback(x, x * y, &_d_p, &_r0, &_r1);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         *_d_x += _r1 * y;
 // CHECK-NEXT:         *_d_y += x * _r1;
@@ -819,7 +819,7 @@ struct HeapBuf {
   HeapBuf(int k, double v) : p(new double[k]()) { p[0] = v; }
 };
 
-// CHECK: static inline clad::ValueAndAdjoint<HeapBuf, HeapBuf> constructor_reverse_forw(clad::Tag<HeapBuf>, int k, double v, int _d_k, double _d_v) {
+// CHECK: inline clad::ValueAndAdjoint<HeapBuf, HeapBuf> constructor_reverse_forw(clad::Tag<HeapBuf>, int k, double v, int _d_k, double _d_v) {
 // CHECK-NEXT:     HeapBuf *_this = (HeapBuf *)malloc(sizeof(HeapBuf));
 // CHECK-NEXT:     HeapBuf *_d_this = (HeapBuf *)malloc(sizeof(HeapBuf));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(HeapBuf));

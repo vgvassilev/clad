@@ -169,10 +169,10 @@ int main() {
 
   TEST_FUNC(fn_non_diff_param_call, 3, 5) // CHECK-EXEC: 1.00 0.00
 
-    // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
+    // CHECK: void mem_fn_1_pullback(SimpleFunctions1 *self, double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         _d_this->x += _d_y * i;
-    // CHECK-NEXT:         *_d_i += (this->x + this->y) * _d_y;
+    // CHECK-NEXT:         *_d_i += (self->x + self->y) * _d_y;
     // CHECK-NEXT:         *_d_i += _d_y * j * j;
     // CHECK-NEXT:         *_d_j += i * _d_y * j;
     // CHECK-NEXT:         *_d_j += i * j * _d_y;
@@ -185,7 +185,7 @@ int main() {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r0 = 0.;
     // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:         obj.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r0, &_r1);
+    // CHECK-NEXT:         mem_fn_1_pullback(&obj, i, j, 1, &_d_obj, &_r0, &_r1);
     // CHECK-NEXT:         *_d_i += _r0;
     // CHECK-NEXT:         *_d_j += _r1;
     // CHECK-NEXT:         *_d_i += 1 * j;

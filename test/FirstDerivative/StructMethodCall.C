@@ -63,11 +63,11 @@ public:
     return f(x) + g_1(x, y);
   }
 
-  // CHECK: clad::ValueAndPushforward<int, int> f_pushforward(int x, A *_d_this, int _d_x) {
+  // CHECK: inline clad::ValueAndPushforward<int, int> f_pushforward(A *self, int x, A *_d_this, int _d_x) {
   // CHECK-NEXT:     return {x, _d_x};
   // CHECK-NEXT: }
 
-  // CHECK: clad::ValueAndPushforward<int, int> g_1_pushforward(int x, int y, A *_d_this, int _d_x, int _d_y) {
+  // CHECK: inline clad::ValueAndPushforward<int, int> g_1_pushforward(A *self, int x, int y, A *_d_this, int _d_x, int _d_y) {
   // CHECK-NEXT:     return {x * x + y, _d_x * x + x * _d_x + _d_y};
   // CHECK-NEXT: }
 
@@ -76,8 +76,8 @@ public:
   // CHECK-NEXT:     int _d_y = 0;
   // CHECK-NEXT:     A _d_this_obj;
   // CHECK-NEXT:     A *_d_this = &_d_this_obj;
-  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t0 = this->f_pushforward(x, _d_this, _d_x);
-  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t1 = this->g_1_pushforward(x, y, _d_this, _d_x, _d_y);
+  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t0 = f_pushforward(this, x, _d_this, _d_x);
+  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t1 = g_1_pushforward(this, x, y, _d_this, _d_x, _d_y);
   // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
   // CHECK-NEXT: }
 
@@ -86,8 +86,8 @@ public:
   // CHECK-NEXT:     int _d_y = 1;
   // CHECK-NEXT:     A _d_this_obj;
   // CHECK-NEXT:     A *_d_this = &_d_this_obj;
-  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t0 = this->f_pushforward(x, _d_this, _d_x);
-  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t1 = this->g_1_pushforward(x, y, _d_this, _d_x, _d_y);
+  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t0 = f_pushforward(this, x, _d_this, _d_x);
+  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t1 = g_1_pushforward(this, x, y, _d_this, _d_x, _d_y);
   // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
   // CHECK-NEXT: }
 };

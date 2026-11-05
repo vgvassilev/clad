@@ -11,6 +11,38 @@
 #include <string>
 #include <type_traits>
 
+namespace clad {
+namespace kokkos_detail {
+/// Whether \p T has a member named operator_call_pushforward, overloaded or
+/// not: if it has, the name is ambiguous in a class that also inherits one
+/// from Fallback.
+template <class T, bool = std::is_class<T>::value && !std::is_final<T>::value>
+struct has_call_pushforward_member : std::false_type {};
+template <class T> struct has_call_pushforward_member<T, true> {
+  struct Fallback {
+    int operator_call_pushforward;
+  };
+  struct Derived : T, Fallback {};
+  template <class U>
+  static std::false_type check(decltype(&U::operator_call_pushforward)*);
+  template <class U> static std::true_type check(...);
+  static constexpr bool value = decltype(check<Derived>(nullptr))::value;
+};
+} // namespace kokkos_detail
+} // namespace clad
+
+/// Calls the pushforward clad generates for the call operator of the functor
+/// \p F. For a lambda it is a member of the closure type; for any other class
+/// it is a free function that takes a pointer to the functor first.
+#define CLAD_KOKKOS_CALL_PUSHFORWARD(F, ...)                                   \
+  do {                                                                         \
+    if constexpr (::clad::kokkos_detail::has_call_pushforward_member<          \
+                      ::std::decay_t<decltype(F)>>::value)                     \
+      (F).operator_call_pushforward(__VA_ARGS__);                              \
+    else                                                                       \
+      operator_call_pushforward(&(F), __VA_ARGS__);                            \
+  } while (false)
+
 namespace clad::custom_derivatives {
 namespace class_functions {
 /// Kokkos arrays
@@ -565,10 +597,10 @@ void parallel_for_pushforward(
     const ::Kokkos::RangePolicy<PolicyParams...>& /*d_policy*/,
     const FunctorType& d_functor) {
   ::Kokkos::parallel_for(str, policy, functor);
-  ::Kokkos::parallel_for("_diff_" + str, policy,
-                         [&functor, &d_functor](const int i) {
-                           functor.operator_call_pushforward(i, &d_functor, 0);
-                         });
+  ::Kokkos::parallel_for(
+      "_diff_" + str, policy, [&functor, &d_functor](const int i) {
+        CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i, &d_functor, 0);
+      });
 }
 // This structure is used to dispatch parallel for pushforward calls based on
 // the rank and the work tag of the MDPolicy
@@ -587,7 +619,8 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 2> {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy,
         [&functor, &d_functor](const auto x, auto&&... args) {
-          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, x, args..., &d_functor, {}, 0,
+                                       0);
         });
   }
 };
@@ -597,7 +630,7 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, void, 2> {
                   const FunctorType& functor, const FunctorType& d_functor) {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy, [&functor, &d_functor](auto&&... args) {
-          functor.operator_call_pushforward(args..., &d_functor, 0, 0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, args..., &d_functor, 0, 0);
         });
   }
 };
@@ -608,8 +641,8 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 3> {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy,
         [&functor, &d_functor](const auto x, auto&&... args) {
-          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0,
-                                            0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, x, args..., &d_functor, {}, 0,
+                                       0, 0);
         });
   }
 };
@@ -619,7 +652,7 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, void, 3> {
                   const FunctorType& functor, const FunctorType& d_functor) {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy, [&functor, &d_functor](auto&&... args) {
-          functor.operator_call_pushforward(args..., &d_functor, 0, 0, 0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, args..., &d_functor, 0, 0, 0);
         });
   }
 };
@@ -630,8 +663,8 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 4> {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy,
         [&functor, &d_functor](const auto x, auto&&... args) {
-          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0, 0,
-                                            0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, x, args..., &d_functor, {}, 0,
+                                       0, 0, 0);
         });
   }
 };
@@ -639,10 +672,11 @@ template <class Policy, class FunctorType>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, void, 4> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for(
-        "_diff_" + str, policy, [&functor, &d_functor](auto&&... args) {
-          functor.operator_call_pushforward(args..., &d_functor, 0, 0, 0, 0);
-        });
+    ::Kokkos::parallel_for("_diff_" + str, policy,
+                           [&functor, &d_functor](auto&&... args) {
+                             CLAD_KOKKOS_CALL_PUSHFORWARD(
+                                 functor, args..., &d_functor, 0, 0, 0, 0);
+                           });
   }
 };
 template <class Policy, class FunctorType, class T>
@@ -652,8 +686,8 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 5> {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy,
         [&functor, &d_functor](const auto x, auto&&... args) {
-          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0, 0,
-                                            0, 0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, x, args..., &d_functor, {}, 0,
+                                       0, 0, 0, 0);
         });
   }
 };
@@ -661,10 +695,11 @@ template <class Policy, class FunctorType>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, void, 5> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for(
-        "_diff_" + str, policy, [&functor, &d_functor](auto&&... args) {
-          functor.operator_call_pushforward(args..., &d_functor, 0, 0, 0, 0, 0);
-        });
+    ::Kokkos::parallel_for("_diff_" + str, policy,
+                           [&functor, &d_functor](auto&&... args) {
+                             CLAD_KOKKOS_CALL_PUSHFORWARD(
+                                 functor, args..., &d_functor, 0, 0, 0, 0, 0);
+                           });
   }
 };
 template <class Policy, class FunctorType, class T>
@@ -674,8 +709,8 @@ struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 6> {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy,
         [&functor, &d_functor](const auto x, auto&&... args) {
-          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0, 0,
-                                            0, 0, 0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, x, args..., &d_functor, {}, 0,
+                                       0, 0, 0, 0, 0);
         });
   }
 };
@@ -683,11 +718,11 @@ template <class Policy, class FunctorType>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, void, 6> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 args..., &d_functor, 0, 0, 0, 0, 0, 0);
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy, [&functor, &d_functor](auto&&... args) {
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, args..., &d_functor, 0, 0, 0, 0,
+                                       0, 0);
+        });
   }
 };
 template <class PolicyP, class... PolicyParams,
@@ -715,7 +750,7 @@ struct diff_parallel_for_OP_call_dispatch {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy,
         [&functor, &d_functor](const auto x, auto&&... args) {
-          functor.operator_call_pushforward(x, args..., &d_functor, {}, {});
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, x, args..., &d_functor, {}, {});
         });
   }
 };
@@ -725,7 +760,7 @@ struct diff_parallel_for_OP_call_dispatch<Policy, FunctorType, void> {
                   const FunctorType& functor, const FunctorType& d_functor) {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy, [&functor, &d_functor](auto&&... args) {
-          functor.operator_call_pushforward(args..., &d_functor, {});
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, args..., &d_functor, {});
         });
   }
 };
@@ -747,7 +782,7 @@ struct diff_parallel_for_int_call_dispatch<Policy, FunctorType, true> {
                   const FunctorType& functor, const FunctorType& d_functor) {
     ::Kokkos::parallel_for(
         "_diff_" + str, policy, [&functor, &d_functor](const int i) {
-          functor.operator_call_pushforward(i, &d_functor, 0);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i, &d_functor, 0);
         });
   }
 };
@@ -836,8 +871,8 @@ struct diff_parallel_reduce_MDP_dispatch { // non-MDPolicy
     ::Kokkos::parallel_reduce(
         "_diff_" + str, policy,
         [&](const auto _work_tag, const auto& i, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(_work_tag, i, r, &d_functor, {}, {},
-                                            d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, _work_tag, i, r, &d_functor, {},
+                                       {}, d_r);
         },
         res, d_res);
   }
@@ -851,7 +886,7 @@ struct diff_parallel_reduce_MDP_dispatch<Policy, FunctorType, Reduced, void,
     ::Kokkos::parallel_reduce(
         "_diff_" + str, policy,
         [&](const auto& i, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(i, r, &d_functor, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i, r, &d_functor, {}, d_r);
         },
         res, d_res);
   }
@@ -870,8 +905,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto _work_tag, const auto& i0, const auto& i1, auto& r,
             auto& d_r) {
-          functor.operator_call_pushforward(_work_tag, i0, i1, r, &d_functor,
-                                            {}, {}, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, _work_tag, i0, i1, r,
+                                       &d_functor, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -889,7 +924,8 @@ struct diff_parallel_reduce_MDP_dispatch<
     ::Kokkos::parallel_reduce(
         "_diff_" + str, policy,
         [&](const auto& i0, const auto& i1, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(i0, i1, r, &d_functor, {}, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i0, i1, r, &d_functor, {}, {},
+                                       d_r);
         },
         res, d_res);
   }
@@ -908,8 +944,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto _work_tag, const auto& i0, const auto& i1,
             const auto& i2, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(_work_tag, i0, i1, i2, r,
-                                            &d_functor, {}, {}, {}, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, _work_tag, i0, i1, i2, r,
+                                       &d_functor, {}, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -928,8 +964,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto& i0, const auto& i1, const auto& i2, auto& r,
             auto& d_r) {
-          functor.operator_call_pushforward(i0, i1, i2, r, &d_functor, {}, {},
-                                            {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i0, i1, i2, r, &d_functor, {},
+                                       {}, {}, d_r);
         },
         res, d_res);
   }
@@ -948,8 +984,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto wt, const auto& i0, const auto& i1, const auto& i2,
             const auto& i3, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(wt, i0, i1, i2, i3, r, &d_functor,
-                                            {}, {}, {}, {}, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, wt, i0, i1, i2, i3, r,
+                                       &d_functor, {}, {}, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -968,8 +1004,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto& i0, const auto& i1, const auto& i2, const auto& i3,
             auto& r, auto& d_r) {
-          functor.operator_call_pushforward(i0, i1, i2, i3, r, &d_functor, {},
-                                            {}, {}, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i0, i1, i2, i3, r, &d_functor,
+                                       {}, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -988,9 +1024,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto wt, const auto& i0, const auto& i1, const auto& i2,
             const auto& i3, const auto& i4, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(wt, i0, i1, i2, i3, i4, r,
-                                            &d_functor, {}, {}, {}, {}, {}, {},
-                                            d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, wt, i0, i1, i2, i3, i4, r,
+                                       &d_functor, {}, {}, {}, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -1009,8 +1044,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto& i0, const auto& i1, const auto& i2, const auto& i3,
             const auto& i4, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(i0, i1, i2, i3, i4, r, &d_functor,
-                                            {}, {}, {}, {}, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i0, i1, i2, i3, i4, r,
+                                       &d_functor, {}, {}, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -1030,9 +1065,9 @@ struct diff_parallel_reduce_MDP_dispatch<
         [&](const auto wt, const auto& i0, const auto& i1, const auto& i2,
             const auto& i3, const auto& i4, const auto& i5, auto& r,
             auto& d_r) {
-          functor.operator_call_pushforward(wt, i0, i1, i2, i3, i4, i5, r,
-                                            &d_functor, {}, {}, {}, {}, {}, {},
-                                            {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, wt, i0, i1, i2, i3, i4, i5, r,
+                                       &d_functor, {}, {}, {}, {}, {}, {}, {},
+                                       d_r);
         },
         res, d_res);
   }
@@ -1051,9 +1086,8 @@ struct diff_parallel_reduce_MDP_dispatch<
         "_diff_" + str, policy,
         [&](const auto& i0, const auto& i1, const auto& i2, const auto& i3,
             const auto& i4, const auto& i5, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(i0, i1, i2, i3, i4, i5, r,
-                                            &d_functor, {}, {}, {}, {}, {}, {},
-                                            d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i0, i1, i2, i3, i4, i5, r,
+                                       &d_functor, {}, {}, {}, {}, {}, {}, d_r);
         },
         res, d_res);
   }
@@ -1099,7 +1133,7 @@ struct diff_parallel_reduce_int_dispatch<Policy, FunctorType, Reduced, true> {
     ::Kokkos::parallel_reduce(
         "_diff_" + str, policy,
         [&](const auto& i, auto& r, auto& d_r) {
-          functor.operator_call_pushforward(i, r, &d_functor, {}, d_r);
+          CLAD_KOKKOS_CALL_PUSHFORWARD(functor, i, r, &d_functor, {}, d_r);
         },
         res, d_res);
   }

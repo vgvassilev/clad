@@ -53,10 +53,10 @@ double reverse(double x) {
 }
 
 // CHECK: void reverse_grad(double x, double *_d_x) {
-// CHECK: s.step_reverse_forw(e, &_d_s, clad::zero_like(e), _tracker0);
-// PULLBACK: void step_pullback(const Element &e, State *_d_this) {
+// CHECK: step_reverse_forw(&s, e, &_d_s, clad::zero_like(e), _tracker0);
+// PULLBACK: void step_pullback(State *self, const Element &e, State *_d_this) {
 // PULLBACK: Element _r0 = clad::zero_like(e);
-// PULLBACK-NEXT: e.scale_pullback(this->c * _r_d0, &_r0);
+// PULLBACK-NEXT: scale_pullback(&e, self->c * _r_d0, &_r0);
 
 double ratio(const Element& e, double x) { return x / e.scale(); }
 

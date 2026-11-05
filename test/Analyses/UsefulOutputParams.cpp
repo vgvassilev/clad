@@ -65,7 +65,7 @@ double h(double s) { return twice(s).v[1]; }
 // CHECK: clad::ValueAndPushforward<Pair, Pair> twice_pushforward(double s, double _d_s) {
 // CHECK: double _d_t = _d_s * 2;
 // CHECK-NEXT: double t = s * 2;
-// CHECK-NEXT: {{.*}} _t0 = p.operator_call_pushforward(1, &_d_p, 0);
+// CHECK-NEXT: {{.*}} _t0 = operator_call_pushforward(&p, 1, &_d_p, 0);
 // CHECK-NEXT: _t0.pushforward = _d_t;
 
 struct Acc {
@@ -83,7 +83,7 @@ double sum(double s) {
 // CHECK: double sum_darg0(double s) {
 // CHECK: double _d_t = _d_s * 2;
 // CHECK-NEXT: double t = s * 2;
-// CHECK-NEXT: a.add_pushforward(t, &_d_a, _d_t);
+// CHECK-NEXT: add_pushforward(&a, t, &_d_a, _d_t);
 
 // A local reference or pointer may stand for an output.
 void viaAlias(double a, double& out) {

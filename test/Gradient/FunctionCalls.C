@@ -1322,7 +1322,7 @@ double fn34(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         TrivialDtor::constructor_pullback(x, &_d_t, &_r0);
+// CHECK-NEXT:         constructor_pullback(x, &_d_t, &_r0);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {

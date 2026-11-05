@@ -57,7 +57,7 @@ float fn1(
   return v[1].data;
 }
 
-// CHECK: static inline constexpr void constructor_pullback(const {{.*}}Tensor &arg, cladtorch::Tensor *_d_this, {{.*}}Tensor *_d_arg) noexcept {
+// CHECK: inline constexpr void constructor_pullback(const {{.*}}Tensor &arg, cladtorch::Tensor *_d_this, {{.*}}Tensor *_d_arg) noexcept {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_arg).data += _d_this->data;
 // CHECK-NEXT:         _d_this->data = 0.F;
@@ -78,10 +78,10 @@ float fn1(
 // CHECK-NEXT:     {
 // CHECK-NEXT:         clad::array<{{cladtorch::Tensor|std::vector<cladtorch::Tensor, std::allocator<cladtorch::Tensor> >::value_type}}> _r0 = {{2U|2UL}};
 // CHECK:              {{.*}}clad::custom_derivatives::class_functions::constructor_pullback({u, b}, {{.*}}&_d_v, &_r0{{.*}});
-// CHECK-NEXT:         Tensor::constructor_pullback(u, &_r0[0], &_d_u);
-// CHECK-NEXT:         Tensor::constructor_pullback(b, &_r0[1], &_d_b);
+// CHECK-NEXT:         cladtorch::constructor_pullback(u, &_r0[0], &_d_u);
+// CHECK-NEXT:         cladtorch::constructor_pullback(b, &_r0[1], &_d_b);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     Tensor::constructor_pullback(t, &_d_b, _d_t);
+// CHECK-NEXT:     cladtorch::constructor_pullback(t, &_d_b, _d_t);
 // CHECK-NEXT: }
 
 int main() {

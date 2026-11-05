@@ -26,7 +26,7 @@ double addr_lit(double x) {
 
 // CHECK: void addr_lit_grad(double x, double *_d_x) {
 // CHECK: Sq _r0 = {};
-// CHECK: reinterpret_cast<const Sq *>(64)->operator_call_pullback(x, 1, &_r0, &_r1);
+// CHECK: operator_call_pullback(reinterpret_cast<const Sq *>(64), x, 1, &_r0, &_r1);
 // CHECK: *_d_x += _r1;
 
 int main() {

@@ -163,11 +163,16 @@ namespace utils {
     const clang::FunctionDecl* m_Function; // We don't own.
     const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
         m_DeclReplacements; // We don't own.
+    /// The `self` parameter of a free derivative of a member, or null. When
+    /// set, `self` replaces `this` in the copied code.
+    clang::ParmVarDecl* m_Self;
+
   public:
     ReferencesUpdater(
         clang::Sema& SemaRef, clang::Scope* S, const clang::FunctionDecl* FD,
         const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
-            DeclReplacements);
+            DeclReplacements,
+        clang::ParmVarDecl* Self = nullptr);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitStmt(clang::Stmt* S);
     /// Used to update the size expression of QT

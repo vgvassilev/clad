@@ -27,7 +27,7 @@ public:
 	  return;
   }
 
-  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this) {
+  // CHECK: inline void mem_fn_with_void_return_pushforward(SimpleFunctions *self, SimpleFunctions *_d_this) {
   // CHECK-NEXT:}
 
   double mem_fn_with_void_function_call(double i, double j) {
@@ -40,7 +40,7 @@ public:
   // CHECK-NEXT:     double _d_j = 0; 
   // CHECK-NEXT:     SimpleFunctions _d_this_obj;
   // CHECK-NEXT:     SimpleFunctions *_d_this = &_d_this_obj; 
-  // CHECK-NEXT:     this->mem_fn_with_void_return_pushforward(_d_this);  
+  // CHECK-NEXT:     mem_fn_with_void_return_pushforward(this, _d_this);
   // CHECK-NEXT:     return _d_i * j + i * _d_j;  
   // CHECK-NEXT:}
 

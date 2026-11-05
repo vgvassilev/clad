@@ -25,7 +25,7 @@ double vector_temporary_method(double x) {
 }
 
 // CHECK: void temporary_method_grad(double x, double *_d_x) {
-// CHECK:     make_box(x).get_pullback(1, &{{.*}});
+// CHECK:     get_pullback(&{{.*}}, 1, &{{.*}});
 // CHECK:     make_box_pullback(x, {{.*}}, &{{.*}});
 // CHECK: }
 

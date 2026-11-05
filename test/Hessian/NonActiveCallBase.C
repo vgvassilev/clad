@@ -6,9 +6,10 @@
 // Regression test for issue #1960: a Hessian routed through the pushforward of
 // a member call whose base object has no tangent. The forward pass must call
 // the pushforward with a zero placeholder for `_d_this` instead of yielding a
-// zero derivative, and the reverse pass over that pushforward must keep the
-// adjoint-of-`this` slot of the pullback filled even though the base has no
-// adjoint of its own.
+// zero derivative, and the reverse pass over that pushforward must still
+// differentiate it, though the base has no adjoint of its own. The
+// pushforward takes the object as `self`, a pointer to const, which needs no
+// adjoint.
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -25,8 +26,8 @@ double helper(double x) { return gFunc(x); }
 double func(double *p) { return helper(p[0]) * p[1]; }
 
 // CHECK: void helper_pushforward_pullback(double x, double _d_x, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, double *_d_d_x) {
-// CHECK: Functor _r0 = {};
-// CHECK: gFunc.operator_call_pushforward_pullback(x, &_d_base, _d_x, _d_t0, &_r0, &_r1, &_d_d_base, &_r2);
+// CHECK: Functor _d_base = {};
+// CHECK: operator_call_pushforward_pullback(&gFunc, x, &_d_base, _d_x, _d_t0, &_r0, &_d_d_base, &_r1);
 
 // The same shape reached through a cast address, as JIT-generated wrappers
 // produce when referring to an object living in the host process.
