@@ -767,9 +767,9 @@ void InitTimers();
               *m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
       }
 
-      // Not a derivative: it plans those a hessian is built from.
-      if (request.PlansReversePasses) {
-        getScheduler().PlanReversePasses(request);
+      // Not a derivative: it plans what could not be planned before.
+      if (request.DefersPlanning) {
+        getScheduler().PlanDeferred(request);
         return nullptr;
       }
 

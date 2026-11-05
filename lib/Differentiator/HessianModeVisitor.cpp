@@ -68,7 +68,7 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
       Builder.FindDerivedFunction(IndependentArgRequest);
 
   // Planned and derived before this hessian (see
-  // DiffRequest::PlansReversePasses).
+  // DiffRequest::DefersPlanning).
   DiffRequest ReverseModeRequest = Hessian.hessianReversePass(firstDerivative);
   ReverseModeRequest.UpdateDiffParamsInfo(SemaRef);
   return Builder.FindDerivedFunction(ReverseModeRequest);
@@ -105,7 +105,7 @@ HessianModeVisitor::DeriveVectorProductFunctions() {
     return {nullptr, nullptr}; // LCOV_EXCL_LINE
 
   // Planned and derived before this hessian (see
-  // DiffRequest::PlansReversePasses).
+  // DiffRequest::DefersPlanning).
   DiffRequest pullbackReq = m_DiffReq.hessianReversePass(pushforwardFD);
   size_t numAdjoints = pullbackReq.DVI.size();
   FunctionDecl* pullbackFD = m_Builder.FindDerivedFunction(pullbackReq);

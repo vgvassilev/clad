@@ -57,9 +57,19 @@ public:
   /// order was planned: what it calls first, then itself.
   void PlanNextOrder(DiffRequest& R) { m_Collector.PlanAsTopMost(R); }
 
+  /// Plans what \p Entry deferred, now that what it differentiates exists
+  /// (see DiffRequest::DefersPlanning).
+  void PlanDeferred(const DiffRequest& Entry) {
+    if (Entry.Mode == DiffMode::hessian ||
+        Entry.Mode == DiffMode::hessian_diagonal)
+      return PlanReversePasses(Entry);
+    DiffRequest R = Entry;
+    R.DefersPlanning = false;
+    m_Collector.PlanAsTopMost(R);
+  }
+
   /// Plans the reverse passes a hessian is built from, now that the
-  /// first-order derivatives they differentiate exist (see
-  /// DiffRequest::PlansReversePasses).
+  /// first-order derivatives they differentiate exist.
   void PlanReversePasses(const DiffRequest& Hessian) {
     // A diagonal is derived in forward mode only.
     if (Hessian.Mode == DiffMode::hessian_diagonal)

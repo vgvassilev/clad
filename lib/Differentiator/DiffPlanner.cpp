@@ -3084,14 +3084,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (Planned.first && !Planned.second)
         Planned.first->mergeAnalyses(request);
       // A hessian waits for its reverse passes, which an entry after its
-      // first-order derivatives plans once they exist.
+      // first-order derivatives plans once they exist. A derivative declared
+      // in the source is planned by an entry too, once clad has defined it.
+      bool definedLater = request.CallUpdateRequired && !request->isDefined();
       DiffRequest entry = request;
-      entry.PlansReversePasses = true;
-      if (hasReversePasses &&
-          !m_DiffRequestGraph.addNode(entry, /*isSource=*/true).first)
-        m_DiffRequestGraph.addEdge(entry, request);
-      else
+      entry.DefersPlanning = true;
+      if ((hasReversePasses || definedLater) &&
+          !m_DiffRequestGraph.addNode(entry, /*isSource=*/true).first) {
+        if (hasReversePasses)
+          m_DiffRequestGraph.addEdge(entry, request);
+      } else {
         m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+      }
     }
 
     if (m_IsTraversingTopLevelDecl) {
