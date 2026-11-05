@@ -503,12 +503,13 @@ public:
   /// pushforward); HessianModeVisitor only consumes the decision. Derived
   /// from Function, Mode and Args, so excluded from request equality.
   bool UseHessianVectorProducts = false;
-  /// Marks a copy of a hessian request that the planner adds after the
-  /// first-order derivatives the hessian is built from. The reverse passes
-  /// over them can be planned only once they exist; when the graph reaches
-  /// this entry, they do. A diagonal has none, but waits here all the same
-  /// for its second derivatives, planned once the first exist.
-  bool PlansReversePasses = false;
+  /// Marks a copy of a request that plans, once the graph reaches it, what
+  /// the planner could not plan before: the functions to differentiate do not
+  /// exist yet. A hessian's are its first derivatives, and the entry plans the
+  /// reverse passes over them (a diagonal has none, but waits here for its
+  /// second derivatives). A derivative declared in the source has none until
+  /// clad defines it, and the entry plans the request itself.
+  bool DefersPlanning = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -651,7 +652,7 @@ public:
            takesSameFallbacks(other) && DVI == other.DVI &&
            use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
-           PlansReversePasses == other.PlansReversePasses &&
+           DefersPlanning == other.DefersPlanning &&
            CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
 
