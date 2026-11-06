@@ -20,6 +20,7 @@
 #include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -183,6 +184,39 @@ namespace clad {
     return VD;
   }
 
+  Decl* VisitorBase::BuildUsing(const Decl* D) {
+    SourceLocation Loc = GenLoc();
+    DeclContext* DC = m_Sema.CurContext;
+    if (const auto* UD = dyn_cast<UsingDirectiveDecl>(D)) {
+      // Lookup treats the names as declared in the nearest context that
+      // encloses both the derivative and the namespace, as Sema does.
+      DeclContext* Common = DC;
+      while (!Common->Encloses(UD->getNominatedNamespace()))
+        Common = Common->getParent();
+      auto* Clone = UsingDirectiveDecl::Create(
+          m_Context, DC, Loc, Loc, UD->getQualifierLoc(), Loc,
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          const_cast<NamedDecl*>(UD->getNominatedNamespaceAsWritten()), Common);
+      DC->addDecl(Clone);
+      getCurrentScope()->PushUsingDirective(Clone);
+      return Clone;
+    }
+    const auto* UD = cast<UsingDecl>(D);
+    auto* Clone = UsingDecl::Create(m_Context, DC, Loc, UD->getQualifierLoc(),
+                                    DeclarationNameInfo(UD->getDeclName(), Loc),
+                                    UD->hasTypename());
+    DC->addDecl(Clone);
+    for (const UsingShadowDecl* Shadow : UD->shadows()) {
+      auto* ShadowClone =
+          UsingShadowDecl::Create(m_Context, DC, Loc, UD->getDeclName(), Clone,
+                                  Shadow->getTargetDecl());
+      Clone->addShadowDecl(ShadowClone);
+      m_Sema.PushOnScopeChains(ShadowClone, getCurrentScope(),
+                               /*AddToContext=*/false);
+    }
+    return Clone;
+  }
+
   TypedefNameDecl*
   VisitorBase::BuildTypedefNameDecl(const TypedefNameDecl* TND) {
     SourceLocation Loc = GenLoc();
@@ -192,6 +226,36 @@ namespace clad {
     // what makes the alias usable rather than merely present.
     m_Sema.PushOnScopeChains(Clone, getCurrentScope());
     return Clone;
+  }
+
+  std::string VisitorBase::CloneName(const VarDecl* VD) {
+    if (isa<DecompositionDecl>(VD) && VD->getName().empty())
+      return "_bind";
+    return VD->getNameAsString();
+  }
+
+  bool VisitorBase::CheckStructuredBinding(const DecompositionDecl* DD) {
+    // An array copy is initialized element by element, which clad does not
+    // differentiate: its elements would be read as zero.
+    if (DD->getType()->isArrayType()) {
+      diag(DiagnosticsEngine::Error, DD->getLocation(),
+           "differentiating a structured binding of an array copy is not "
+           "supported yet");
+      return false;
+    }
+    return true;
+  }
+
+  llvm::SmallVector<DeclStmt*, 4>
+  VisitorBase::BuildHoldingVarStmts(const DecompositionDecl* DD) {
+    // `std::tuple_element_t<i, E>&& a = get<i>(e);` ([dcl.struct.bind]).
+    llvm::SmallVector<DeclStmt*, 4> Stmts;
+    for (const BindingDecl* B : DD->bindings())
+      if (VarDecl* Holding = B->getHoldingVar())
+        Stmts.push_back(new (m_Context) DeclStmt(DeclGroupRef(Holding),
+                                                 Holding->getBeginLoc(),
+                                                 Holding->getEndLoc()));
+    return Stmts;
   }
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
@@ -346,7 +410,9 @@ namespace clad {
 
       for (DeclContext* DC : llvm::reverse(DCs)) {
         if (auto* ND = dyn_cast<NamespaceDecl>(DC)) {
-          if (!ND->isInline())
+          // An inline or an anonymous namespace adds nothing to the name.
+          // Neither can be spelled in a qualifier.
+          if (!ND->isInline() && !ND->isAnonymousNamespace())
             NNS = clad_compat::makeNNSNamespace(m_Context, NNS, ND);
         } else if (auto* TD = dyn_cast<TagDecl>(DC)) {
           NNS = clad_compat::makeNNSTagType(m_Context, NNS, TD);
@@ -362,6 +428,20 @@ namespace clad {
       CSS.MakeTrivial(m_Context, NNS, GenLoc());
     QualType T = D->getType();
     T = T.getNonReferenceType();
+    // A specialization of a variable template is named with its arguments:
+    // `c_v<double>`, since `c_v` alone names the template, not a variable.
+    if (const auto* VTSD = dyn_cast<VarTemplateSpecializationDecl>(D)) {
+      SourceLocation Loc = GenLoc();
+      TemplateArgumentListInfo TALI(Loc, Loc);
+      for (const TemplateArgument& TA : VTSD->getTemplateArgs().asArray())
+        TALI.addArgument(m_Sema.getTrivialTemplateArgumentLoc(
+            TA, TA.getNonTypeTemplateArgumentType(), Loc));
+      return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
+          m_Sema.BuildDeclRefExpr(D, T, VK,
+                                  DeclarationNameInfo(D->getDeclName(), Loc),
+                                  &CSS, /*FoundD=*/nullptr,
+                                  /*TemplateKWLoc=*/SourceLocation(), &TALI)));
+    }
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
         m_Sema.BuildDeclRefExpr(D, T, VK, GenLoc(), &CSS)));
   }
@@ -1402,6 +1482,12 @@ namespace clad {
   }
 
   Expr* VisitorBase::LambdaBuilder::finish(Stmt* Body) {
+    // clad builds the body's statements without ActOnFinishFullExpr, so a
+    // temporary in one of them, such as an argument bound to an rvalue
+    // reference, leaves a cleanup pending. ActOnLambdaExpr finishes the
+    // closure body and asserts there is none; clad's other derived functions
+    // are not finished through Sema and never check.
+    m_V.m_Sema.DiscardCleanupsInEvaluationContext();
     Expr* lambda =
         m_V.m_Sema
             .ActOnLambdaExpr(
@@ -1936,27 +2022,6 @@ namespace clad {
     return {BuildDeclRef(encVD), buildAdjoint(it->second)};
   }
 
-  static bool writesToAnyOf(const Stmt* S,
-                            const llvm::SmallPtrSetImpl<const VarDecl*>& Vars) {
-    auto isTarget = [&](const Expr* E) {
-      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
-      const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
-      return VD && Vars.contains(VD);
-    };
-    if (const auto* BO = dyn_cast<BinaryOperator>(S)) {
-      if (BO->isAssignmentOp() && isTarget(BO->getLHS()))
-        return true;
-    } else if (const auto* UO = dyn_cast<UnaryOperator>(S)) {
-      if (UO->isIncrementDecrementOp() && isTarget(UO->getSubExpr()))
-        return true;
-    }
-    // A child may be absent, an omitted part of the statement.
-    for (const Stmt* Child : S->children())
-      if (Child && writesToAnyOf(Child, Vars))
-        return true;
-    return false;
-  }
-
   /// Whether \p Target is inside a loop of \p S. A lambda's body starts afresh:
   /// a loop around the lambda runs the lambda, not the statements inside it.
   static bool isInsideLoop(const Stmt* S, const Stmt* Target, bool InLoop) {
@@ -2001,16 +2066,6 @@ namespace clad {
       diag(DiagnosticsEngine::Error, CallOp->getLocation(),
            "differentiation of a mutable lambda is not supported: its captures "
            "change between calls");
-      return true;
-    }
-    llvm::SmallPtrSet<const VarDecl*, 4> ByRef;
-    for (const LambdaCapture& Cap : LE->captures())
-      if (Cap.capturesVariable() && Cap.getCaptureKind() == LCK_ByRef)
-        ByRef.insert(cast<VarDecl>(Cap.getCapturedVar()));
-    if (!ByRef.empty() && writesToAnyOf(CallOp->getBody(), ByRef)) {
-      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
-           "differentiation of a lambda that assigns to a by-reference capture "
-           "is not supported");
       return true;
     }
     return false;

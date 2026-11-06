@@ -2,8 +2,10 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/Tape.h"
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 extern "C" {
 void pushReal8(double x);
@@ -299,5 +301,62 @@ BENCHMARK_TEMPLATE(BM_PushPop, CladGpu)
     ->RangeMultiplier(4)
     ->Range(1024, 262144)
     ->Name("BM_PushPop/CladGpuStack");
+
+// scaleAt writes one element chosen by an index argument, so every call
+// needs a restore_tracker that saves one number.
+static void scaleAt(double* p, int j, double k) { p[j] = p[j] * k; }
+static double scaleLoop(double x, int n) {
+  double v[2] = {x, x};
+  double s = 0;
+  for (int i = 0; i < n; ++i) {
+    scaleAt(v, i % 2, 1.0001);
+    s += v[0] * v[1];
+  }
+  return s;
+}
+
+// scatterScale writes through an index list, so the written range is unknown
+// and the tracker saves all n elements.
+static void scatterScale(double* p, const int* idx, int n, double k) {
+  for (int i = 0; i < n; ++i)
+    p[idx[i]] = p[idx[i]] * k;
+}
+static double scatterOnce(double* p, const int* idx, int n) {
+  scatterScale(p, idx, n, 1.0001);
+  double s = 0;
+  for (int i = 0; i < n; ++i)
+    s += p[i] * p[i];
+  return s;
+}
+
+static void BM_RestoreTrackerPerCall(benchmark::State& state) {
+  AddBMCounterRAII MemCounters(*mm.get(), state);
+  auto grad = clad::gradient(scaleLoop, "x");
+  const int n = static_cast<int>(state.range(0));
+  for (auto _ : state) {
+    double dx = 0;
+    grad.execute(1.5, n, &dx);
+    benchmark::DoNotOptimize(dx);
+  }
+  state.SetItemsProcessed(state.iterations() * n);
+}
+BENCHMARK(BM_RestoreTrackerPerCall)->RangeMultiplier(8)->Range(64, 1 << 15);
+
+static void BM_RestoreTrackerGrows(benchmark::State& state) {
+  AddBMCounterRAII MemCounters(*mm.get(), state);
+  auto grad = clad::gradient(scatterOnce, "p");
+  const int n = static_cast<int>(state.range(0));
+  std::vector<double> p(n, 1.0), dp(n);
+  std::vector<int> idx(n);
+  for (int i = 0; i < n; ++i)
+    idx[i] = (i * 7) % n;
+  for (auto _ : state) {
+    std::fill(dp.begin(), dp.end(), 0.0);
+    grad.execute(p.data(), idx.data(), n, dp.data());
+    benchmark::DoNotOptimize(dp[0]);
+  }
+  state.SetItemsProcessed(state.iterations() * n);
+}
+BENCHMARK(BM_RestoreTrackerGrows)->RangeMultiplier(8)->Range(64, 1 << 18);
 
 BENCHMARK_MAIN();

@@ -15,6 +15,7 @@ int counter = 1;
 // CHECK-DAG: warning: gradient uses a global variable 'first'; rerunning the gradient requires 'first' to be reset
 int first = 1;
 // CHECK-DAG: warning: gradient uses a global variable 'second'; rerunning the gradient requires 'second' to be reset
+// CHECK-DAG: warning: gradient uses a global variable 'flag'; rerunning the gradient requires 'flag' to be reset
 int second = 1;
 
 void step(double& x) {
@@ -70,6 +71,31 @@ double g(double x) {
 // CHECK-NEXT: int _t{{[0-9]+}} = second;
 // CHECK-NEXT: twoGlobals(x);
 
+// The first condition reads a global that a callee writes on every
+// iteration. The body does not show the write, so the condition is stored.
+// The second reads n, a parameter nothing writes, so it is evaluated again in
+// the reverse pass instead.
+int flag = 0;
+void flip() { flag = !flag; }
+
+double cond(double x, int n) {
+  double s = 0;
+  for (int i = 0; i < 4; i++) {
+    s += flag ? x * x : x;
+    s += n ? x : 0;
+    flip();
+  }
+  return s;
+}
+
+// CHECK: void cond_grad_0(double x, int n, double *_d_x) {
+// CHECK: _cond0[i] = flag;
+// CHECK-NEXT: s += _cond0[i] ? x * x : x;
+// CHECK-NEXT: s += n ? x : 0;
+// CHECK: if (n)
+// CHECK-NEXT: *_d_x += _d_s;
+// CHECK-NEXT: if (_cond0[i]) {
+
 int main() {
   double dx = 0;
   // f = 2 * 3 * x
@@ -83,4 +109,8 @@ int main() {
   dx = 0;
   clad::gradient(g).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 4.00
+  // 2 x^2 + 2 x + 4 x => 4 x + 6
+  dx = 0;
+  clad::gradient(cond, "x").execute(3, 1, &dx);
+  printf("%.2f\n", dx); // CHECK-EXEC: 18.00
 }

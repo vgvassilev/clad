@@ -127,9 +127,12 @@ public:
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
   StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
   StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
+  StmtDiff VisitConstantExpr(const clang::ConstantExpr* CE);
   StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
   StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
   StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
+  /// The declarations of \p DS, which are not a structured binding.
+  StmtDiff DifferentiateDeclStmt(const clang::DeclStmt* DS);
   virtual StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
   StmtDiff VisitForStmt(const clang::ForStmt* FS);
   StmtDiff VisitIfStmt(const clang::IfStmt* If);

@@ -3,6 +3,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+// expected-no-diagnostics
+
 #include <cstddef>
 #include <cstdio>
 
@@ -59,7 +61,7 @@ double pub(double x) {
 
 // decltype is spelled as its expression, whose names may resolve only where
 // it was written; the counter takes what it stands for.
-std::size_t count = 3; // expected-warning {{gradient uses a global variable 'count'}}
+std::size_t count = 3;
 double decl(double x) {
   double r = 0;
   for (decltype(count) i = 0; i < 3; ++i)

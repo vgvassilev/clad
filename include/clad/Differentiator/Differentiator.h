@@ -39,6 +39,15 @@
 #include <omp.h>
 #endif
 #include <type_traits>
+#if __cplusplus >= 202002L
+#include <version>
+#endif
+#ifdef __cpp_lib_ranges
+#include <ranges>
+#define CLAD_HAS_CONTIGUOUS_RANGE 1
+#else
+#define CLAD_HAS_CONTIGUOUS_RANGE 0
+#endif
 #include <utility>
 // Keep std::valarray's non-member begin/end overloads visible when is_range is
 // defined below.
@@ -288,6 +297,46 @@ template <class T> std::false_type is_range(...);
 
   template <class T>
   struct is_range : decltype(zero_init_detail::is_range<T>(0)) {};
+
+  /// Classifies T as a container that keeps its elements in one contiguous
+  /// array, so that clad's analyses treat `v.data()` as the array decayed to
+  /// a pointer. From C++20 on this is the standard's own classification,
+  /// std::ranges::contiguous_range and sized_range: a type of your own is
+  /// classified by giving its iterator
+  /// `using iterator_concept = std::contiguous_iterator_tag;`. Before C++20
+  /// the standard containers known to be contiguous are classified (see
+  /// STLBuiltins.h), and a type of your own by specializing this.
+#if CLAD_HAS_CONTIGUOUS_RANGE
+  template <class T>
+  struct is_contiguous_container
+      : std::integral_constant<bool, std::ranges::contiguous_range<T> &&
+                                         std::ranges::sized_range<T>> {};
+#else
+  template <class T> struct is_contiguous_container : std::false_type {};
+#endif
+
+  namespace contiguous_detail {
+  // Spelled with ::value: the runtime headers also compile as C++14.
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class T>
+  auto models(int)
+      -> std::integral_constant<
+          bool,
+          std::is_pointer<decltype(std::declval<T&>().data())>::value &&
+              std::is_integral<decltype(std::declval<T&>().size())>::value>;
+  // NOLINTEND(modernize-type-traits)
+  template <class T> std::false_type models(...);
+  } // namespace contiguous_detail
+
+  /// Whether T is classified as a contiguous container. This is what clad's
+  /// analyses read. A type classified so must have a data() that returns a
+  /// pointer to its elements and an integral size().
+  template <class T> struct contiguous_container_check {
+    static constexpr bool value = is_contiguous_container<T>::value;
+    static_assert(!value || decltype(contiguous_detail::models<T>(0))::value,
+                  "clad::is_contiguous_container<T> is true, but T has no "
+                  "data() returning a pointer or no integral size()");
+  };
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t);
 

@@ -15,11 +15,13 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Casting.h"
@@ -211,7 +213,16 @@ private:
   mutable struct WrittenVarInfo {
     std::set<const clang::VarDecl*> Written;
     bool HasAnalysisRun = false;
+    /// Cached result of writesOnlyLocals(), computed on first use.
+    std::optional<bool> OnlyLocals;
   } m_WrittenVarInfo;
+
+  /// The locals of the primal's loops the reverse pass can compute again
+  /// instead of storing. A property of the Function, so worked out once.
+  mutable struct RecomputeInfo {
+    llvm::SmallPtrSet<const clang::VarDecl*, 8> Locals;
+    bool HasAnalysisRun = false;
+  } m_RecomputeInfo;
 
   /// The calls of the primal's body whose results nothing reads. A property
   /// of the Function, so worked out once and kept.
@@ -219,6 +230,13 @@ private:
     std::set<const clang::Stmt*> Unread;
     bool HasAnalysisRun = false;
   } m_UnreadCallInfo;
+
+  /// The calls of the primal's body that write their arguments inside a
+  /// larger expression. A property of the Function, so worked out once.
+  mutable struct CallInExpressionInfo {
+    std::set<const clang::Stmt*> Calls;
+    bool HasAnalysisRun = false;
+  } m_CallInExpressionInfo;
 
   /// What the loop analysis proved about the primal, worked out once on first
   /// use. Held by pointer: a request is copied often, and every copy of a
@@ -302,11 +320,28 @@ public:
   /// variable with static or external storage (a callee may write it), and one
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
+  /// Whether \p E uses only parameters that the function never writes,
+  /// combined with arithmetic, comparison and logical operators. Such an
+  /// expression has the same value anywhere in the body. Globals do not
+  /// qualify: a callee can write them without the body showing it.
+  bool readsOnlyUnwrittenParams(const clang::Expr* E) const;
+  /// Whether the function stores only to its own locals and makes no call,
+  /// construction or allocation that could store elsewhere. If so, memory it
+  /// loads from is not changed by the function.
+  bool writesOnlyLocals() const;
+  /// Whether the reverse pass can compute the initial value of \p VD, a local
+  /// declared in the body of a loop, again when it enters an iteration,
+  /// instead of storing it (see findRecomputableLocals).
+  bool isRecomputableInLoop(const clang::VarDecl* VD) const;
 
   /// Whether \p S, a statement of the primal's body, is a call whose results
   /// nothing reads, so the forward sweep need not run it. False where the
   /// liveness analysis is off.
   bool isUnreadCall(const clang::Stmt* S) const;
+  /// Whether \p CE writes its arguments and its value is an operand of
+  /// another expression, not a whole statement, an initializer or the
+  /// right-hand side of an assignment.
+  bool isCallInExpression(const clang::CallExpr* CE) const;
 
   /// What is known about the loop \p S, or an empty result when nothing is.
   /// Reading the facts does not build anything: a caller that wants a
@@ -370,12 +405,37 @@ public:
   /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
   /// forward sweep may leave such a call out when nothing reads its results.
   std::set<const clang::Expr*> ReplayableCalls;
+  /// Calls in this function that have a user-provided pullback but no
+  /// reverse_forw. The pullback may not re-execute the callee, so the caller
+  /// saves and restores the memory the call writes.
+  std::set<const clang::Expr*> NonReplayingCalls;
+  /// The operator[] calls in this function whose custom reverse_forw is
+  /// elidable. The derivative accesses the returned element directly, like an
+  /// array subscript, instead of calling the reverse_forw.
+  std::set<const clang::Expr*> ElementAccesses;
+  /// The classes of the containers this function calls members of that are
+  /// classified as contiguous (see clad::is_contiguous_container).
+  std::set<const clang::CXXRecordDecl*> ContiguousContainers;
   /// The globals each call in this function's body assigns, directly or
   /// through what it calls. Its pullback replays those assignments, so the
   /// reverse sweep puts the globals back around it, as it does for the
   /// arguments the call changes.
   std::map<const clang::Expr*, std::vector<const clang::VarDecl*>>
       CalleeGlobalWrites;
+  /// The variables each lambda in this function's body captures by reference
+  /// and may write, in capture order. The pullback of a call to it reads them
+  /// as they were before the call, so the reverse sweep puts them back around
+  /// it, as it does for the arguments the call changes.
+  std::map<const clang::LambdaExpr*, std::vector<const clang::VarDecl*>>
+      LambdaCaptureWrites;
+  /// The by-reference captures \p LE may write; empty if none.
+  llvm::ArrayRef<const clang::VarDecl*>
+  lambdaCaptureWrites(const clang::LambdaExpr* LE) const {
+    auto found = LambdaCaptureWrites.find(LE);
+    if (found == LambdaCaptureWrites.end())
+      return {};
+    return found->second;
+  }
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
     return ActiveGlobalCalls.count(Call) != 0;
@@ -599,6 +659,9 @@ public:
   void print(llvm::raw_ostream& Out) const;
   LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
+  /// Whether the derivative has an adjoint for \p PVD, a parameter of
+  /// Function, to pass on to what it calls.
+  bool hasAdjoint(const clang::ParmVarDecl* PVD) const;
   bool shouldBeRecorded(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
@@ -834,6 +897,23 @@ public:
     bool VisitBinaryOperator(clang::BinaryOperator* BO);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
+    /// The variable a binding of a tuple-like type refers to is initialized
+    /// with a call to get: plan its calls, which only newer clang traverses
+    /// as implicit code.
+    bool TraverseBindingDecl(clang::BindingDecl* BD) {
+      if (clang::VarDecl* Holding = BD->getHoldingVar())
+        return TraverseDecl(Holding);
+      return true;
+    }
+    /// The operand of `decltype` or `sizeof` is never evaluated, so it needs
+    /// no derivative. clang-22 added a trailing bool (TraverseQualifier) to
+    /// TraverseDecltypeTypeLoc; a defaulted parameter matches both calls.
+    bool TraverseDecltypeTypeLoc(clang::DecltypeTypeLoc, bool = false) {
+      return true;
+    }
+    bool TraverseUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr*) {
+      return true;
+    }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
     /// new nested DiffRequest is created before the visitor goes to the capture
     /// or constructor initializers. If we use Visit they would be processed
@@ -848,6 +928,14 @@ public:
     bool PlanNestedRequest(DiffRequest& request);
     /// Walks the body of the function of \p request, once for each request.
     bool TraverseFunctionDeclOnce(const DiffRequest& request);
+    /// Records in \p request the operator[] calls in its body whose custom
+    /// reverse_forw is elidable, and the classes it calls members of that are
+    /// classified as contiguous containers, for TBR.
+    void noteElementAccesses(DiffRequest& request);
+    /// Caches: whether each operator[] has an elidable custom reverse_forw,
+    /// and whether each class is classified as a contiguous container.
+    llvm::DenseMap<const clang::CXXMethodDecl*, bool> m_ElidedAccessors;
+    llvm::DenseMap<const clang::CXXRecordDecl*, bool> m_Contiguous;
     /// Looks up if the user has defined a custom derivative for the given
     /// derivative function. If found, it is automatically attached to the
     /// request in derived function collector.

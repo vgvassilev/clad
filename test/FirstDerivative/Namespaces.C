@@ -47,6 +47,7 @@ namespace C {
 
 namespace {
   double f(double x) { return 5 * x; }
+  double sq(double x) { return x * x; }
 
   double f_darg0(double x);
   //CHECK:   double f_darg0(double x) {
@@ -54,6 +55,12 @@ namespace {
   //CHECK-NEXT:       return 5 * _d_x;
   //CHECK-NEXT:   }
 }
+
+// The call to a derivative in an anonymous namespace is not qualified by it.
+double callsAnonymous(double x) { return sq(x); }
+//CHECK: double callsAnonymous_darg0(double x) {
+//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sq_pushforward(x, _d_x);
 
 int main() {
   clad::differentiate(A::f, 0);
@@ -73,6 +80,9 @@ int main() {
 
   clad::differentiate(f, 0);
   printf("Result is = %.2f\n", f_darg0(1)); // CHECK-EXEC: Result is = 5.00
+
+  auto d_callsAnonymous = clad::differentiate(callsAnonymous, 0);
+  printf("Result is = %.2f\n", d_callsAnonymous.execute(3)); // CHECK-EXEC: Result is = 6.00
 }
 
 

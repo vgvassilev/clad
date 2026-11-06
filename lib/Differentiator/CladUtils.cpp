@@ -1327,6 +1327,45 @@ namespace clad {
              });
     }
 
+    bool hasElementAccessor(const CXXRecordDecl* RD) {
+      RD = RD->getDefinition();
+      return llvm::any_of(RD->methods(), [](const CXXMethodDecl* MD) {
+        return MD->getOverloadedOperator() == OO_Subscript && MD->isConst() &&
+               MD->getReturnType()->isLValueReferenceType();
+      });
+    }
+
+    bool isClassifiedContiguous(Sema& S, const CXXRecordDecl* RD) {
+      TemplateDecl* Check =
+          LookupTemplateDeclInCladNamespace(S, "contiguous_container_check");
+      ASTContext& C = S.getASTContext();
+      QualType T = InstantiateTemplate(
+          S, Check, {clad_compat::getRecordType(C, RD->getCanonicalDecl())});
+      // Completing the type instantiates the check.
+      const auto* Inst = S.isCompleteType(GetValidSLoc(S), T)
+                             ? T->getAsCXXRecordDecl()
+                             : nullptr;
+      DeclContext::lookup_result Found;
+      if (Inst)
+        Found = Inst->lookup(&C.Idents.get("value"));
+      const auto* VD =
+          Found.empty() ? nullptr : dyn_cast<VarDecl>(Found.front());
+      const APValue* V = VD ? VD->evaluateValue() : nullptr;
+      return V && V->isInt() && V->getInt().getBoolValue();
+    }
+
+    bool isPureElementAccess(const Expr* E, const ASTContext& C) {
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E->IgnoreParens());
+      if (!OCE || OCE->getOperator() != OO_Subscript)
+        return false;
+      const auto* MD = dyn_cast_or_null<CXXMethodDecl>(OCE->getDirectCallee());
+      return MD && MD->getReturnType()->isLValueReferenceType() &&
+             hasElementAccessor(MD->getParent()) &&
+             llvm::none_of(OCE->arguments(), [&C](const Expr* A) {
+               return A->HasSideEffects(C);
+             });
+    }
+
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;

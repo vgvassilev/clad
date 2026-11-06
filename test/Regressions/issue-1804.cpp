@@ -71,8 +71,7 @@ double h_outer(double *params, double const *obs) { return h_inner(params, obs);
 // parameters -- so the null tangent has no adjoint that could be written to,
 // and its reads are guarded by the same hoisted condition.
 // CHECK: void f_inner_pushforward_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0, clad::no_adjoint, clad::no_adjoint, clad::no_adjoint) {
-// CHECK: bool _cond0 = _d_obs;
-// CHECK: double _d_arg = (((_cond0 ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t00 * _d_params[2]) / _t0;
+// CHECK: double _d_arg = (((_d_obs ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t00 * _d_params[2]) / _t0;
 
 int main() {
    double params[3] = {0.5, -1, 2};

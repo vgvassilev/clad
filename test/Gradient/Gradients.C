@@ -192,8 +192,7 @@ double f_cond1(double x, double y) {
 }
 
 //CHECK:   void f_cond1_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:     if (x > y)
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           *_d_y += 1;
@@ -206,15 +205,9 @@ double f_cond2(double x, double y) {
 }
 
 //CHECK:   void f_cond2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond1;
-//CHECK-NEXT:       bool _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
-//CHECK-NEXT:           ;
-//CHECK-NEXT:       else
-//CHECK-NEXT:           _cond1 = y > 0;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:     if (x > y)
 //CHECK-NEXT:           *_d_x += 1;
-//CHECK-NEXT:       else if (_cond1)
+//CHECK-NEXT:     else if (y > 0)
 //CHECK-NEXT:           *_d_y += 1;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           *_d_y += -1;
@@ -227,8 +220,7 @@ double f_cond3(double x, double c) {
 }
 
 //CHECK:   void f_cond3_grad(double x, double c, double *_d_x, double *_d_c) {
-//CHECK-NEXT:       bool _cond0 = c > 0;
-//CHECK-NEXT:       if (_cond0) {
+//CHECK-NEXT:     if (c > 0) {
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:           *_d_c += 1;
 //CHECK-NEXT:       } else {
@@ -871,7 +863,6 @@ double fn_const_cond_op(double x) {
 }
 
 //CHECK:               void fn_const_cond_op_grad(double x, double *_d_x) {
-//CHECK-NEXT:              bool _cond0 = x > 0;
 //CHECK-NEXT:              *_d_x += 1;
 //CHECK-NEXT:          }
 

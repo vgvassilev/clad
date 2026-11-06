@@ -148,6 +148,19 @@ double f_stdstring_call(double x) {
 // CHECK-NEXT:         return _t0.pushforward;
 // CHECK-NEXT:     }
 
+// A variable template specialization is named with its arguments: `scale_v`
+// alone names the template.
+template <class T> constexpr T scale_v = T(2);
+template <class T, int N> T pow_v = N * T(2);
+double f_vartemplate(double x) {
+  return scale_v<double> * x * x + pow_v<double, 3> * x;
+}
+
+// CHECK: double f_vartemplate_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _t0 = scale_v<double> * x;
+// CHECK:          pow_v<double, 3>
+
 int main() {
   clad::differentiate(f_x, 0);
   clad::differentiate(f_ops1, 0);
@@ -159,6 +172,7 @@ int main() {
   std::cout << df_stdstring.execute(3.0) << '\n'; // CHECK-EXEC: 1
   auto df_stdstring_call = clad::differentiate(f_stdstring_call, 0);
   std::cout << df_stdstring_call.execute(3.0) << '\n'; // CHECK-EXEC: 1
+  clad::differentiate(f_vartemplate, 0);
 }
 
 

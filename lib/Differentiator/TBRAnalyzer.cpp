@@ -23,6 +23,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -107,6 +108,22 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
     const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
+    // A write through a local reference writes what it refers to, through
+    // any references in between.
+    if (m_ModifiedParams && !isReq && iterVD && !PVD) {
+      llvm::SmallVector<const VarDecl*, 4> Refs = {iterVD};
+      llvm::SmallPtrSet<const VarDecl*, 4> Seen = {iterVD};
+      while (!Refs.empty()) {
+        VarData* data = getVarDataFromDecl(Refs.pop_back_val());
+        if (!data || data->m_Type != VarData::REF_TYPE)
+          continue;
+        for (const VarDecl* Target : *data->m_Val.m_RefData)
+          if (const auto* TargetPVD = dyn_cast_or_null<ParmVarDecl>(Target))
+            markParamModified(TargetPVD);
+          else if (Target && Seen.insert(Target).second)
+            Refs.push_back(Target);
+      }
+    }
     if (m_ModifiedParams && (!iterVD || PVD)) {
       if (!isReq)
         markParamModified(PVD);
@@ -519,6 +536,22 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   }
   if (FD->getCanonicalDecl() == m_Function->getCanonicalDecl())
     m_CallsItself = true;
+  // For a container classified as contiguous, data() refers to all elements,
+  // like an array decayed to a pointer: reads and writes through it are
+  // tracked on the pointer. size() reads no element.
+  const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE);
+  if (MCE && FD->getIdentifier() &&
+      m_Request->ContiguousContainers.count(MCE->getRecordDecl())) {
+    bool Size = FD->getName() == "size";
+    if (Size || FD->getName() == "data") {
+      if (Size)
+        setMode(/*mode=*/0);
+      TraverseStmt(MCE->getImplicitObjectArgument());
+      if (Size)
+        resetMode();
+      return false;
+    }
+  }
   // A lambda reads what it captures by reference when it is called, not where
   // it is created: mark those variables used here, as if passed by reference.
   if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
@@ -627,6 +660,20 @@ bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
+  // `v[i]` through an element accessor whose derivative accesses the element
+  // directly is an element access, like `a[i]`.
+  const auto* MD = dyn_cast_or_null<CXXMethodDecl>(CE->getDirectCallee());
+  if (MD && m_Request->ElementAccesses.count(CE) &&
+      utils::hasElementAccessor(MD->getParent())) {
+    setMode(/*mode=*/0);
+    TraverseStmt(CE->getArg(0));
+    resetMode();
+    setIsRequired(CE);
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+    TraverseStmt(CE->getArg(1));
+    resetMode();
+    return false;
+  }
   TBRAnalyzer::TraverseCallExpr(CE);
   return false;
 }

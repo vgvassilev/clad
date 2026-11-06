@@ -50,6 +50,20 @@ struct result<T, decltype(static_cast<void>(
 };
 } // namespace zero_like_detail
 
+#if !CLAD_HAS_CONTIGUOUS_RANGE
+// The standard containers that keep their elements in one contiguous array.
+// From C++20 on, std::ranges::contiguous_range says so. std::vector<bool>
+// packs its elements into bits.
+template <class T, class A>
+struct is_contiguous_container<::std::vector<T, A>>
+    : ::std::integral_constant<bool, !::std::is_same<T, bool>::value> {};
+template <class T, ::std::size_t N>
+struct is_contiguous_container<::std::array<T, N>> : ::std::true_type {};
+template <class C, class Tr, class A>
+struct is_contiguous_container<::std::basic_string<C, Tr, A>>
+    : ::std::true_type {};
+#endif
+
 // zero_init specializations
 
 // std::pair<T1, T2> is almost trivially copyable. Specialize it.

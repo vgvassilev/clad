@@ -70,4 +70,4 @@ int main () { // expected-no-diagnostics
 
 // The pullback of k is emitted after everything above.
 // CHECK: void k_pushforward_pullback(const double *p, const double *_d_p, clad::ValueAndPushforward<double, double> _d_y, double *_d_p0, double *_d_d_p) {
-// CHECK: double *_d_d_q = (_cond0 ? _d_d_p + 1 : nullptr);
+// CHECK: double *_d_d_q = (_d_p ? _d_d_p + 1 : nullptr);

@@ -1220,6 +1220,11 @@ Expr* BaseForwardModeVisitor::KeepTangentNullness(const Expr* ptr,
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+  // A structured binding names part of the variable it decomposes, or the
+  // variable a tuple-like type introduces for it: differentiate what it
+  // stands for, `_bind.a` or `a`.
+  if (const auto* BD = dyn_cast<BindingDecl>(DRE->getDecl()))
+    return Visit(BD->getBinding());
   DeclRefExpr* clonedDRE = nullptr;
   // Check if referenced Decl was "replaced" with another identifier inside
   // the derivative
@@ -1271,6 +1276,12 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
       return StmtDiff(clonedDRE, nullptr);
 
   return StmtDiff(clonedDRE, getZeroInit(clonedDRE->getType()));
+}
+
+StmtDiff BaseForwardModeVisitor::VisitConstantExpr(const ConstantExpr* CE) {
+  // A constant, such as the condition of an `if constexpr`, whose discarded
+  // branch is not in the instantiation: its derivative is 0.
+  return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -2397,7 +2408,7 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+  VarDecl* VDClone = BuildVarDecl(VD->getType(), CloneName(VD),
                                   initDiff.getExpr(), VD->isDirectInit());
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
@@ -2425,8 +2436,8 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   }
   VarDecl* VDDerived = nullptr;
   if (m_DiffReq.shouldHaveAdjointForw(VD) && (initDx || !isAlias))
-    VDDerived = BuildVarDecl(VDType, "_d_" + VD->getNameAsString(), initDx,
-                             VD->isDirectInit());
+    VDDerived =
+        BuildVarDecl(VDType, "_d_" + CloneName(VD), initDx, VD->isDirectInit());
 
   if (VDDerived)
     m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
@@ -2434,6 +2445,24 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+  if (const auto* DD = dyn_cast_or_null<DecompositionDecl>(
+          DS->isSingleDecl() ? DS->getSingleDecl() : nullptr)) {
+    if (!CheckStructuredBinding(DD))
+      return {};
+    // The variable it decomposes, then one statement for each variable a
+    // tuple-like type introduces for its bindings.
+    StmtDiff Result = DifferentiateDeclStmt(DS);
+    for (DeclStmt* Holding : BuildHoldingVarStmts(DD)) {
+      addToCurrentBlock(Result.getStmt_dx());
+      addToCurrentBlock(Result.getStmt());
+      Result = DifferentiateDeclStmt(Holding);
+    }
+    return Result;
+  }
+  return DifferentiateDeclStmt(DS);
+}
+
+StmtDiff BaseForwardModeVisitor::DifferentiateDeclStmt(const DeclStmt* DS) {
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;
   // If the type is marked as non_differentiable, skip generating its derivative
@@ -2466,6 +2495,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         const LambdaExpr* LE = utils::getLambdaInit(VD);
         if (LE && diagnoseUnsupportedLambda(LE))
           return {};
+        // The pushforward takes the captures by value, so it would lose what
+        // the body writes through a by-reference one.
+        if (LE && !m_DiffReq.lambdaCaptureWrites(LE).empty()) {
+          diag(DiagnosticsEngine::Error, LE->getCallOperator()->getLocation(),
+               "forward-mode differentiation of a lambda that assigns to a "
+               "by-reference capture is not supported yet");
+          return {};
+        }
         if (LE && LE->capture_size()) {
           // Snapshot each by value capture at creation so a later mutation of
           // the enclosing variable is not observed.
@@ -2593,6 +2630,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       // An alias carries no value and so no derivative, but the statements
       // after it go on naming the type by it.
       decls.push_back(BuildTypedefNameDecl(TND));
+    } else if (isa<UsingDirectiveDecl>(D) || isa<UsingDecl>(D)) {
+      // Keep it, so the derivative read back as source finds the same names.
+      decls.push_back(BuildUsing(D));
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())

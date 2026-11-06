@@ -442,12 +442,22 @@ def UnreadCall : Desc<Liveness, 1006, "a call whose results nothing reads",
                 CalleeWritesGlobal, CalleeCallsIndirectly];
   let Doc = [{
 A call, as a statement of its own, that changes only variables of the
-function passed to it by reference, none of which a later statement reads::
+function passed to it by reference or by address, none of which a later
+statement reads::
 
   void twice(State& s, double k) {
     step(s, k);
     step(s, k);   // nothing reads s after this call
   }
+
+  double cost(double x) {
+    double err;
+    objective(x, &err);   // only the return reads err
+    return err;
+  }
+
+In a gradient or a pullback, ``return err;`` does not count as a read: the
+derivative does not return the value.
 
 The reverse sweep puts back what such a call changed before it runs the
 call's pullback, and the pullback works out again whatever it needs. So the
@@ -456,7 +466,7 @@ forward sweep has no reason to run the call: clad leaves it out.
 Clad has to be sure nothing else sees the call's effects. A call stays when
 it has no body in this file, writes through a pointer, writes a global, or
 writes into an object that holds a pointer, or when the function takes the
-address of what the call writes. A call that changes none of the function's
+address of what the call writes anywhere but in the call's arguments. A call that changes none of the function's
 variables stays too: what it is for, such as printing, is not something clad
 can see. For the functions such a call calls in turn, clad assumes, as the
 to-be-recorded analysis does, that a function without a body writes only

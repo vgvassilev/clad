@@ -642,6 +642,19 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Whether a copy of an object of type \p T holds everything a function
     /// can change through a reference to it: \p T reaches no other memory.
     bool reachesNoOtherMemory(const clang::ASTContext& C, clang::QualType T);
+    /// Whether \p RD declares a const operator[] that returns a reference.
+    /// The standard containers follow this convention: such an operator[]
+    /// returns an element and does not modify the container. std::map, whose
+    /// operator[] inserts, has no const operator[].
+    bool hasElementAccessor(const clang::CXXRecordDecl* RD);
+    /// Whether \p RD is classified as a contiguous container: whether
+    /// clad::contiguous_container_check<RD>::value is true. Instantiating it
+    /// checks a type classified so against what clad relies on.
+    bool isClassifiedContiguous(clang::Sema& S, const clang::CXXRecordDecl* RD);
+    /// Whether \p E is `v[i]` on a class with an element accessor, where v
+    /// and i have no side effects. Such an expression refers to the same
+    /// element every time it is evaluated, like an array subscript.
+    bool isPureElementAccess(const clang::Expr* E, const clang::ASTContext& C);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 

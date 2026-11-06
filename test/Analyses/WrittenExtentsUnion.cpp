@@ -49,16 +49,15 @@ void twoConstRanges(double k, double* v) {
 // CHECK: written-extent: twoConstRanges: k = none
 // CHECK-NEXT: written-extent: twoConstRanges: v = [0, 4)
 
-// An element at the bound is outside the range, and [0, 5) would claim the
-// whole of it written; nothing proves the buffer is that long until the
-// element is, so this stays a disagreement.
+// An element at the bound is outside the range. Every run writes it, which
+// proves the buffer is that long, and [0, 4) covers both.
 void elementPastEnd(double k, double* v) {
   for (int i = 0; i < 3; i++)
     v[i] = v[i] * k;
   v[3] = v[3] * k;
 }
 // CHECK: written-extent: elementPastEnd: k = none
-// CHECK-NEXT: written-extent: elementPastEnd: v = unknown (two writes here cover ranges that are not one range at line [[@LINE-3]])
+// CHECK-NEXT: written-extent: elementPastEnd: v = [0, 4)
 
 // A bound a caller passes is not known here, so nothing says the element is
 // inside it.
@@ -99,12 +98,12 @@ double f(double k) {
   return a[0] + a[2] + b[3] + c[1] + c[3] + d[3] + e[1] + g[1];
 }
 
-// The three provable callees record one range each; the rest keep a tracker.
+// The four provable callees record one range each; the rest keep a tracker.
 // CHECK: void f_grad(double k, double *_d_k) {
 // CHECK: clad::record_range(_rec0, a, 4UL);
 // CHECK: clad::record_range(_rec1, b, 4UL);
 // CHECK: clad::record_range(_rec2, c, 4UL);
-// CHECK: elementPastEnd_reverse_forw(
+// CHECK: clad::record_range(_rec3, d, 4UL);
 // CHECK: paramRangeAndElement_reverse_forw(
 // CHECK: constAndParamRange_reverse_forw(
 
@@ -120,6 +119,6 @@ int main() {
 
 // What the reader is told at the first write the union refuses.
 // CHECK-WHY-NOT: 'v': clad watches every address
-// CHECK-WHY: WrittenExtentsUnion.cpp:[[# @LINE - 65]]:3: remark: 'v': clad watches every address written here instead of copying one range
+// CHECK-WHY: WrittenExtentsUnion.cpp:[[# @LINE - 55]]:3: remark: 'v': clad watches every address written here instead of copying one range
 // CHECK-WHY: note: two writes here cover ranges that are not one range
 // CHECK-WHY: note: to avoid this, make it a bounded write (CLAD1003)

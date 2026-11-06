@@ -300,9 +300,8 @@ double condNewPointer(double x, int n) {
 
 // CHECK: void condNewPointer_grad_0(double x, int n, double *_d_x) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     bool _cond0 = n > 0;
-// CHECK-NEXT:     double *_d_p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
-// CHECK-NEXT:     double *p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *_d_p = n > 0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *p = n > 0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
 // CHECK-NEXT:     p[0] = x * x;
 // CHECK-NEXT:     double _d_r = 0.;
 // CHECK-NEXT:     double r = p[0];
@@ -401,9 +400,8 @@ double condPointerToPointer(double x, int c) {
 // CHECK-NEXT:     double *p = &y;
 // CHECK-NEXT:     double *_d_q = &_d_y;
 // CHECK-NEXT:     double *q = &y;
-// CHECK-NEXT:     bool _cond0 = c;
-// CHECK-NEXT:     double **_d_r = _cond0 ? &_d_p : &_d_q;
-// CHECK-NEXT:     double **r = _cond0 ? &p : &q;
+// CHECK-NEXT:     double **_d_r = c ? &_d_p : &_d_q;
+// CHECK-NEXT:     double **r = c ? &p : &q;
 // CHECK-NEXT:     **r = x * x;
 // CHECK-NEXT:     _d_y += 1;
 // CHECK-NEXT:     {
@@ -619,6 +617,15 @@ double pointerAliasing(double x) {
 }
 
 
+// A parameter named like the adjoint of another: the reverse_forw names that
+// adjoint _d_x0, as the pullback does.
+void scaleBy(double* x, double _d_x) { x[0] *= _d_x; }
+double callScale(double a, double k) {
+  double v[1] = {a};
+  scaleBy(v, k);
+  return v[0] * v[0];
+}
+
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
 var.execute(5,res);\
@@ -769,6 +776,11 @@ int main() {
   double d_parenthesized_x = 0;
   d_parenthesizedMember.execute(2, &d_parenthesized_x);
   printf("%.2f\n", d_parenthesized_x); // CHECK-EXEC: 4.00
+
+  // (a k)^2: {2 a k^2, 2 a^2 k}
+  double d_a = 0, d_k = 0;
+  clad::gradient(callScale).execute(2, 3, &d_a, &d_k);
+  printf("%.2f %.2f\n", d_a, d_k); // CHECK-EXEC: 36.00 24.00
 }
 
 // CHECK: void parenthesizedMember_grad(double x, double *_d_x) {
@@ -782,3 +794,5 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_x += _d_s.x;
 // CHECK-NEXT: }
+
+// CHECK: void scaleBy_reverse_forw(double *x, double _d_x, double *_d_x0, double _d__d_x, clad::restore_tracker &_tracker0) {
