@@ -109,6 +109,9 @@ namespace clad {
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<DfdxSeed> m_Stack;
+    /// The receiver whose returned adjoint is replaced by the caller's
+    /// temporary. Its default adjoint need not be materialized.
+    const clang::Expr* m_UnusedAdjointExpr = nullptr;
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.
