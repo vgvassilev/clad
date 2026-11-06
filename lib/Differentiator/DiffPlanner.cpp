@@ -394,8 +394,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   /// Adds to \p Written the variables of \p Vars that \p S may write, or a
-  /// part of: assigns or increments, calls a non-const member function of, or
-  /// passes to a non-const reference parameter.
+  /// part of: assigns or increments, calls a non-const member function of,
+  /// passes to a non-const reference parameter, or takes the address of.
   static void collectWrites(const Stmt* S,
                             const llvm::SmallPtrSetImpl<const VarDecl*>& Vars,
                             llvm::SmallPtrSetImpl<const VarDecl*>& Written) {
@@ -409,7 +409,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (BO->isAssignmentOp())
         mark(BO->getLHS());
     } else if (const auto* UO = dyn_cast<UnaryOperator>(S)) {
-      if (UO->isIncrementDecrementOp())
+      if (UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf)
         mark(UO->getSubExpr());
     } else if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(S)) {
       const CXXMethodDecl* MD = MCE->getMethodDecl();
@@ -1812,6 +1812,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return nullptr;
   }
 
+  /// Whether reverse mode has no adjoint for what \p E points or refers to in
+  /// \p Caller.
+  static bool hasNoAdjoint(const Expr* E, const DiffRequest& Caller,
+                           unsigned Depth = 0) {
+    E = E->IgnoreParenImpCasts();
+    // A local that starts null has no adjoint; a null argument is passed on
+    // as its own adjoint. clad writes a null tangent as nullptr of the
+    // pointer's type.
+    if (Depth && (isa<CXXNullPtrLiteralExpr>(E) ||
+                  E->isNullPointerConstant(Caller->getASTContext(),
+                                           Expr::NPC_ValueDependentIsNotNull)))
+      return true;
+    if (const auto* CO = dyn_cast<ConditionalOperator>(E))
+      return hasNoAdjoint(CO->getTrueExpr(), Caller, Depth) &&
+             hasNoAdjoint(CO->getFalseExpr(), Caller, Depth);
+    const ValueDecl* D = pointedToDecl(E);
+    if (isa_and_nonnull<FunctionDecl>(D))
+      return true;
+    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(D))
+      return !Caller.hasAdjoint(PVD);
+    const auto* VD = dyn_cast_or_null<VarDecl>(D);
+    if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
+      return false;
+    if (!Caller.shouldHaveAdjoint(VD))
+      return true;
+    // A local pointer has the adjoint of what it starts pointing to, unless
+    // the function points it elsewhere, as `cudaMalloc(&p, n)` does.
+    if (!VD->getType()->isPointerType() || !VD->getInit() || Depth >= 4 ||
+        !hasNoAdjoint(VD->getInit(), Caller, Depth + 1))
+      return false;
+    llvm::SmallPtrSet<const VarDecl*, 1> Vars{VD};
+    llvm::SmallPtrSet<const VarDecl*, 1> Written;
+    if (const Stmt* Body = Caller.Function->getBody())
+      collectWrites(Body, Vars, Written);
+    return Written.empty();
+  }
+
   /// Whether the argument of the call \p E for its parameter \p i is passed
   /// by reference or pointer, and reverse mode has no adjoint to pass for it.
   static bool passesNoAdjoint(const CallExpr* E, std::size_t i,
@@ -1823,14 +1860,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
     if (!utils::IsReferenceOrPointerArg(E->getArg(i)))
       return false;
-    const ValueDecl* D = pointedToDecl(E->getArg(i));
-    if (isa_and_nonnull<FunctionDecl>(D))
-      return true;
-    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(D))
-      return !Caller.hasAdjoint(PVD);
-    const auto* VD = dyn_cast_or_null<VarDecl>(D);
-    return VD && VD->hasLocalStorage() && !VD->getType()->isReferenceType() &&
-           !Caller.shouldHaveAdjoint(VD);
+    return hasNoAdjoint(E->getArg(i), Caller);
   }
 
   /// The assignments, increments and decrements in \p E, outermost first, in

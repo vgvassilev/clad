@@ -754,7 +754,12 @@ double weighted_sum(double* x, const double* w) {
   return w[0] * x[0] + w[1] * x[1];
 }
 
-// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x, clad::no_adjoint);
+// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x, clad::no_adjoint) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
+// CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double fn20(double* x, const double* w) {
   const double* auxW = w + 1;
@@ -765,6 +770,29 @@ double fn20(double* x, const double* w) {
 // CHECK-NEXT:     const double *auxW = w + 1;
 // CHECK-NEXT:     weighted_sum_pullback(x, auxW, 1, _d_x, clad::no_adjoint());
 // CHECK-NEXT: }
+
+// So does one that starts either at w or null.
+double fn20_cond(double* x, const double* w, bool b) {
+  const double* q = b ? w : nullptr;
+  return weighted_sum(x, q);
+}
+
+// CHECK: void fn20_cond_grad_0(double *x, const double *w, bool b, double *_d_x) {
+// CHECK-NEXT:     bool _d_b = false;
+// CHECK-NEXT:     const double *q = b ? w : nullptr;
+// CHECK-NEXT:     weighted_sum_pullback(x, q, 1, _d_x, clad::no_adjoint());
+// CHECK-NEXT: }
+
+// A local pointer that starts null but is pointed elsewhere later keeps its
+// adjoint.
+double fn20_later(double* x, const double* w) {
+  double* q = nullptr;
+  q = x;
+  return weighted_sum(q, w + 1);
+}
+
+// CHECK: void fn20_later_grad_0(double *x, const double *w, double *_d_x) {
+// CHECK:     weighted_sum_pullback(q, w + 1, 1, _d_q, clad::no_adjoint());
 
 double ptrRef(double*& ptr_ref) {
   return *ptr_ref;
@@ -1556,6 +1584,16 @@ int main() {
   fn20_grad_0.execute(x1, w1, dx1);
   printf("{%.2f, %.2f}\n", dx1[0], dx1[1]);  // CHECK-EXEC: {2.00, 3.00}
 
+  auto fn20_cond_grad_0 = clad::gradient(fn20_cond, "x");
+  double dx3[] = {0.0, 0.0};
+  fn20_cond_grad_0.execute(x1, w1, true, dx3);
+  printf("{%.2f, %.2f}\n", dx3[0], dx3[1]);  // CHECK-EXEC: {-1.00, 2.00}
+
+  auto fn20_later_grad_0 = clad::gradient(fn20_later, "x");
+  double dx2[] = {0.0, 0.0};
+  fn20_later_grad_0.execute(x1, w1, dx2);
+  printf("{%.2f, %.2f}\n", dx2[0], dx2[1]);  // CHECK-EXEC: {2.00, 3.00}
+
   INIT(fn21);
   TEST1(fn21, 8);  // CHECK-EXEC: {1.00}
 
@@ -1642,10 +1680,3 @@ double mul_defined_later(double x, double y) {
 double fn25_defined_later(double x) {
     return fn25(x);
 }
-
-// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x, clad::no_adjoint) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
-// CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
