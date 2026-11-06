@@ -43,6 +43,7 @@
 #include "llvm/Support/Casting.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <set>
 #include <vector>

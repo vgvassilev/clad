@@ -3318,11 +3318,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (!pullbackFD) {
           // Historical signatures always take a receiver pointer.
           if (pullbackRequest.NoAdjointThis) {
-            CallArgDx[0] = getTemporaryBaseAdjoint();
+            CallArgDx.front() = getTemporaryBaseAdjoint();
             pullbackCallArgs.insert(
                 std::next(pullbackCallArgs.begin(),
                           static_cast<std::ptrdiff_t>(adjointStart)),
-                CloneNode(CallArgDx[0]));
+                CloneNode(CallArgDx.front()));
             pullbackRequest.NoAdjointThis = false;
           }
           if (hasDynamicNonDiffParams) {
