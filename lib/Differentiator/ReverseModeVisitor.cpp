@@ -2464,7 +2464,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Visit using uninitialized reference.
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       if (shouldCopyInitialize) {
-        if (Expr* dInit = argDiff.getExpr_dx())
+        // The parameter is a copy, so its adjoint starts at zero: the
+        // pullback accumulates into it and the argument's own adjoint is
+        // reached from there through the constructor's pullback, which
+        // starting from that adjoint would do twice. Only where a zero can
+        // be built and means what it says -- an aggregate has one, a class
+        // of its own making may have no default constructor, and one that
+        // edits memory needs the pointers its initializer carries.
+        const CXXRecordDecl* dArgRD = dArgTy->getAsCXXRecordDecl();
+        bool zeroable = dArgRD && dArgRD->isAggregate() &&
+                        !utils::isMemoryType(dArgTy) && !dArgTy->isArrayType();
+        Expr* dInit = argDiff.getExpr_dx();
+        if (dInit && !zeroable)
           SetDeclInit(dArgDecl, dInit);
         else
           SetDeclInit(dArgDecl, getZeroInit(dArgTy));
@@ -4894,8 +4905,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // A call that returns an object by value gives no adjoint to start from:
     // start at zero, as any other adjoint does, rather than with what an
     // implicit default constructor leaves.
+    //
+    // A copy of another object does give one, its source's, and starting from
+    // that adds the source's gradient a second time: the copy's own reaches
+    // it through the constructor's pullback. Two adjoints keep what they are
+    // given -- one that edits memory, whose pointers are how the writes reach
+    // the storage the source shares, and one copy-initialized for a shape it
+    // cannot build from nothing, which declsToZeroInit zeroes once it has it.
+    // isMemoryType answers for a record or a pointer but not for an array of
+    // them, which is as load-bearing as one.
+    QualType adjointElemTy = VDDerivedType;
+    while (const auto* AT = m_Context.getAsArrayType(adjointElemTy))
+      adjointElemTy = AT->getElementType();
+    bool copyIsLoadBearing = utils::isMemoryType(adjointElemTy) ||
+                             isNonAggrClass ||
+                             isa<VariableArrayType>(VD->getType());
+    // An adjoint a reverse_forw hands back is built for this object rather
+    // than taken from another, and keeps the structure its author gave it.
+    bool isCopyOfObject = false;
+    if (const Expr* init = VD->getInit())
+      if (const auto* CE = dyn_cast<CXXConstructExpr>(init->IgnoreImplicit()))
+        isCopyOfObject = CE->getConstructor()->isCopyOrMoveConstructor();
     if (VDDerived && !isRefType && !isPointerType && !dummyInit &&
-        !initDiff.getExpr_dx()) {
+        (!initDiff.getExpr_dx() || (isCopyOfObject && !copyIsLoadBearing))) {
       initDiff.updateStmtDx(getZeroInit(VDDerivedType));
       isDirectInit = false;
     }

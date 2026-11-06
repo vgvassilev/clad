@@ -563,7 +563,7 @@ double fn10(double x, double y) {
 // CHECK:  void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      arrWrapper _d_a = {{.*0.*}};
 // CHECK-NEXT:      arrWrapper a = {{.*x, y.*}};
-// CHECK-NEXT:      arrWrapper _d_b = _d_a;
+// CHECK-NEXT:      arrWrapper _d_b = {{[{][{]}}0{{[}][}]}};
 // CHECK-NEXT:      arrWrapper b = a;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_b.arr[0] += 1;
@@ -595,7 +595,7 @@ double fn11(double x, double y) {
 // CHECK:  void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      arr2DWrapper _d_a = {{.*0.*}};
 // CHECK-NEXT:      arr2DWrapper a = {{.*x, y.*}};
-// CHECK-NEXT:      arr2DWrapper _d_b = _d_a;
+// CHECK-NEXT:      arr2DWrapper _d_b = {{[{][{]}}0{{[}][}]}};
 // CHECK-NEXT:      arr2DWrapper b = a;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_b.arr[0][0] += 1;
@@ -645,7 +645,7 @@ double fn12(double x, double y) {
 // CHECK:  void fn12_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      arrStructWrapper _d_a = {{.*}};
 // CHECK-NEXT:      arrStructWrapper a = {{.*x, y.*}};
-// CHECK-NEXT:      arrStructWrapper _d_b = _d_a;
+// CHECK-NEXT:      arrStructWrapper _d_b = {{[{][{]}}0{{[}][}]}};
 // CHECK-NEXT:      arrStructWrapper b = a;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_b.arr[0].val += 1;
