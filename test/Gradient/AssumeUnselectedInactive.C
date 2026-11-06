@@ -133,6 +133,31 @@ double state_loss(const Sample& data, double weight) {
   return value;
 }
 
+double legacy_buffered(const Sample& data, double weight) {
+  return data.value * weight;
+}
+
+namespace clad::custom_derivatives {
+double legacy_buffered_reverse_forw(const Sample& data, double weight,
+                                    const Sample& d_data, double,
+                                    clad::pullback_state<double>& state) {
+  state.data = data.value + d_data.value;
+  return data.value * weight;
+}
+void legacy_buffered_pullback(const Sample&, double weight, double seed,
+                              Sample* d_data, double* d_weight,
+                              clad::pullback_state<double> state) {
+  ++data_pullbacks;
+  d_data->value += weight * seed;
+  *d_weight += state.data * seed;
+}
+} // namespace clad::custom_derivatives
+
+double legacy_state_loss(const Sample& data, double weight) {
+  double value = legacy_buffered(data, weight);
+  return value;
+}
+
 double loss(const Sample& data, double weight) {
   return multiply(data, weight);
 }
@@ -255,6 +280,15 @@ int main() {
   loop_method.execute(data, 2, &dw);
   printf("loop method: %.0f\n", dw);
   // CHECK-EXEC: loop method: 9
+
+  // A full custom still needs the forward state and valid zeroed outputs.
+  auto legacy_state = clad::gradient<clad::opts::assume_unselected_inactive>(
+      legacy_state_loss, "weight");
+  dw = 0;
+  data_pullbacks = 0;
+  legacy_state.execute(data, 2, &dw);
+  printf("legacy state: %.0f, data pullbacks: %d\n", dw, data_pullbacks);
+  // CHECK-EXEC: legacy state: 3, data pullbacks: 1
 }
 
 // CHECK-LABEL: void loss_grad_1_assume_inactive(
