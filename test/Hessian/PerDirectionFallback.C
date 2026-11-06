@@ -60,10 +60,10 @@ double plain(double a, double b) { return a * a * b; }
 // CHECK-NEXT: double _d_a(0.);
 // CHECK-NEXT: double _d_b(0.);
 // CHECK-NEXT: _d_a = 1.;
-// CHECK-NEXT: plain_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT: plain_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT: _d_a = 0.;
 // CHECK-NEXT: _d_b = 1.;
-// CHECK-NEXT: plain_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+// CHECK-NEXT: plain_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT: _d_b = 0.;
 // CHECK-NEXT: }
 

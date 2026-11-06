@@ -1879,6 +1879,7 @@ namespace clad {
   }
 
   FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {
+    request.AssumeUnselectedInactive = m_DiffReq.AssumeUnselectedInactive;
     // Check if the call is recursive
     if (request == m_DiffReq)
       return m_Derivative;

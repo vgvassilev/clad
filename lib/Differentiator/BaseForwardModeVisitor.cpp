@@ -151,6 +151,8 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   }
   // Check if the function is already declared as a custom derivative.
   std::string gradientName = m_DiffReq.ComputeDerivativeName();
+  if (m_DiffReq.AssumeUnselectedInactive)
+    gradientName += "_assume_inactive";
 
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)

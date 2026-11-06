@@ -18,6 +18,8 @@ struct DerivedFnInfo {
   DiffInputVarsInfo m_DiffVarsInfo;
   std::vector<size_t> m_CUDAGlobalArgsIndexes;
   bool m_UsesEnzyme = false;
+  bool m_AssumeUnselectedInactive = false;
+  bool m_NoAdjointThis = false;
   bool m_DeclarationOnly = false;
   /// Whether the derivative took each fallback. Not part of which request it
   /// satisfies: clad gives one function one derivative name, so a request

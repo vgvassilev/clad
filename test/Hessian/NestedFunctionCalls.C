@@ -27,7 +27,7 @@ double f2(double x, double y){
 // CHECK-NEXT: }
 
 
-// CHECK: inline void f2_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1);
+// CHECK: inline void f2_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, clad::no_adjoint, clad::no_adjoint);
 
 // CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
@@ -35,16 +35,16 @@ double f2(double x, double y){
 // CHECK-NEXT:     double _d_x(0.);
 // CHECK-NEXT:     double _d_y0(0.);
 // CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     f2_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     f2_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_x = 0.;
 // CHECK-NEXT:     _d_y0 = 1.;
-// CHECK-NEXT:     f2_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+// CHECK-NEXT:     f2_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}}, clad::no_adjoint(), clad::no_adjoint());
 // CHECK-NEXT:     _d_y0 = 0.;
 // CHECK-NEXT: }
 
 // CHECK: inline void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, double *_d_d_x, double *_d_d_y);
 
-// CHECK: inline void f2_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1) {
+// CHECK: inline void f2_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, clad::no_adjoint, clad::no_adjoint) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     double _d_d_ans = 0.;

@@ -72,7 +72,7 @@ double ref_to_literal(double* params) {
 
 // The reverse pass keeps the alias and its tangent `const double*` and never
 // builds an adjoint out of them.
-// CHECK: void ptr_alias_pushforward_0_pullback(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
+// CHECK: void ptr_alias_pushforward_pullback(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0, clad::no_adjoint, clad::no_adjoint, clad::no_adjoint) {
 // CHECK-NEXT: const double *_d_t = _d_xlArr;
 // CHECK-NEXT: const double *t = xlArr;
 

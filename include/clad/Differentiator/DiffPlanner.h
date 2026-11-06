@@ -445,6 +445,10 @@ public:
   /// If function appears in the call to clad::gradient/differentiate,
   /// the call must be updated and the first arg replaced by the derivative.
   bool CallUpdateRequired = false;
+  /// Trust that unselected root parameters stay inactive.
+  bool AssumeUnselectedInactive = false;
+  /// The receiver of this pullback call has no adjoint to pass.
+  bool NoAdjointThis = false;
   /// A flag to enable/disable diag warnings/errors during differentiation.
   bool VerboseDiags = false;
   /// Whether each analysis runs for this request. One member per entry in
@@ -480,6 +484,7 @@ public:
   Remark##Id##Analysis = Other.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
     inheritFallbacksFrom(Other);
+    AssumeUnselectedInactive = Other.AssumeUnselectedInactive;
   }
   /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
   /// defined outside the main source file is differentiated by cloning its
@@ -535,6 +540,9 @@ public:
   /// UnresolvedLookupExpr or DeclRefExpr representing the custom derivative
   /// overload
   clang::Expr* CustomDerivative = nullptr;
+  /// The signature selected during custom lookup, including no_adjoint slots
+  /// and any trailing state. Used to resolve the same overload in the builder.
+  clang::QualType CustomDerivativeType;
 
   /// The trailing clad::pullback_state\<S\> parameter a custom reverse_forw /
   /// pullback carries, already in argument form (by reference for a
@@ -623,6 +631,8 @@ public:
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            Args == other.Args && Mode == other.Mode &&
+           AssumeUnselectedInactive == other.AssumeUnselectedInactive &&
+           NoAdjointThis == other.NoAdjointThis &&
            // Written out rather than expanded from the table, so that the loop
            // analysis can be left out: a pullback does not inherit it, so
            // comparing it would make the request that looks a derivative up
@@ -657,6 +667,8 @@ public:
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
+  /// A direct parameter argument whose adjoint the assumption omits.
+  bool isAssumedInactive(const clang::Expr* E) const;
   /// Whether \p E names a local variable that is given no adjoint because it
   /// does not vary.
   bool isInactiveLocal(const clang::Expr* E) const;
@@ -930,9 +942,11 @@ public:
     /// \param[in] request The request for the derivative to lookup.
     /// \param[out] foundAnyDecl If given, the lookup reports nothing, and is
     /// told whether a declaration of the derivative's name exists at all.
+    /// \param[in] onlyNoAdjoint Only match position-preserving marker outputs.
     /// \returns true if a custom derivative was found, false otherwise
     bool LookupCustomDerivativeDecl(DiffRequest& request,
-                                    bool* foundAnyDecl = nullptr);
+                                    bool* foundAnyDecl = nullptr,
+                                    bool onlyNoAdjoint = false);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;

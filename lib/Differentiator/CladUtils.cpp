@@ -43,6 +43,7 @@
 #include "llvm/Support/Casting.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <set>
 #include <vector>
@@ -1444,6 +1445,18 @@ namespace clad {
           S.getASTContext(), clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
+    clang::QualType GetNoAdjointType(clang::Sema& S) {
+      LookupResult R =
+          LookupQualifiedName("no_adjoint", S, GetCladNamespace(S));
+      QualType T = clad_compat::getRecordType(
+          S.Context, cast<RecordDecl>(R.getFoundDecl()));
+      CXXScopeSpec SS;
+      BuildNNS(S, GetCladNamespace(S), SS);
+      return clad_compat::getElaboratedType(
+          S.Context, clad_compat::ElaboratedTypeKeyword_None, SS.getScopeRep(),
+          T);
+    }
+
     clang::QualType GetRestoreTrackerType(clang::Sema& S) {
       NamespaceDecl* CladNS = GetCladNamespace(S);
       CXXScopeSpec CSS;
@@ -2053,8 +2066,12 @@ namespace clad {
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
                       bool forCustomDerv, bool shouldUseRestoreTracker,
-                      bool isForErrorEstimation) {
+                      bool isForErrorEstimation, QualType inactiveType,
+                      bool noAdjointThis) {
       ASTContext& C = S.getASTContext();
+      // Keep omitted outputs identifiable in every generated pullback.
+      if (mode == DiffMode::pullback && !forCustomDerv)
+        inactiveType = GetNoAdjointType(S);
       if (mode == DiffMode::forward) {
         // A function returning void leaves its result in a parameter, and the
         // tangent of that parameter is the only thing its derivative has to
@@ -2151,6 +2168,8 @@ namespace clad {
             !isa<CXXConstructorDecl>(MD)) {
           thisTy = MD->getThisType();
           QualType dthisTy = utils::GetParameterDerivativeType(S, mode, thisTy);
+          if (noAdjointThis && !inactiveType.isNull())
+            dthisTy = inactiveType;
           FnTypes.push_back(dthisTy);
           if (MD->isConst()) {
             QualType constObjTy = C.getConstType(thisTy->getPointeeType());
@@ -2180,10 +2199,13 @@ namespace clad {
           // breaks the hessian tests. We should implement more robust checks in
           // DiffInputVarInfo to check if this is a variable we differentiate
           // wrt.
-          for (const ValueDecl* param : diffParams)
-            if (utils::IsSameParam(param, FD->getParamDecl(i)))
-              FnTypes.push_back(
-                  utils::GetParameterDerivativeType(S, mode, PVDTy));
+          bool selected = llvm::any_of(diffParams, [&](const ValueDecl* param) {
+            return utils::IsSameParam(param, FD->getParamDecl(i));
+          });
+          if (selected)
+            FnTypes.push_back(GetParameterDerivativeType(S, mode, PVDTy));
+          else if (!inactiveType.isNull())
+            FnTypes.push_back(inactiveType);
         } else if (mode == DiffMode::reverse_mode_forward_pass ||
                    utils::IsDifferentiableType(PVDTy)) {
           QualType dPVDTy = utils::GetParameterDerivativeType(S, mode, PVDTy);

@@ -14,7 +14,7 @@ __attribute__((always_inline)) double f_cubed_add1(double a, double b) {
 //CHECK-NEXT:    return {_t0 * a + _t1 * b, (_d_a * a + a * _d_a) * a + _t0 * _d_a + (_d_b * b + b * _d_b) * b + _t1 * _d_b};
 //CHECK-NEXT:}
 
-//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}};
+//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0, clad::no_adjoint, clad::no_adjoint){{[ __attribute__((always_inline))]*}};
 
 void f_cubed_add1_hessian(double a, double b, double *hessianMatrix);
 //CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_hessian(double a, double b, double *hessianMatrix){{[ __attribute__((always_inline))]*}} {
@@ -23,10 +23,10 @@ void f_cubed_add1_hessian(double a, double b, double *hessianMatrix);
 //CHECK-NEXT:    double _d_a(0.);
 //CHECK-NEXT:    double _d_b(0.);
 //CHECK-NEXT:    _d_a = 1.;
-//CHECK-NEXT:    f_cubed_add1_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    f_cubed_add1_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 //CHECK-NEXT:    _d_a = 0.;
 //CHECK-NEXT:    _d_b = 1.;
-//CHECK-NEXT:    f_cubed_add1_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+//CHECK-NEXT:    f_cubed_add1_pushforward_pullback(a, b, _d_a, _d_b, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}}, clad::no_adjoint(), clad::no_adjoint());
 //CHECK-NEXT:    _d_b = 0.;
 //CHECK-NEXT:}
 
@@ -41,10 +41,10 @@ void f_suvat1_hessian(double u, double t, double *hessianMatrix);
 //CHECK-NEXT:    double _d_u(0.);
 //CHECK-NEXT:    double _d_t(0.);
 //CHECK-NEXT:    _d_u = 1.;
-//CHECK-NEXT:    f_suvat1_pushforward_pullback(u, t, _d_u, _d_t, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    f_suvat1_pushforward_pullback(u, t, _d_u, _d_t, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 //CHECK-NEXT:    _d_u = 0.;
 //CHECK-NEXT:    _d_t = 1.;
-//CHECK-NEXT:    f_suvat1_pushforward_pullback(u, t, _d_u, _d_t, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+//CHECK-NEXT:    f_suvat1_pushforward_pullback(u, t, _d_u, _d_t, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}}, clad::no_adjoint(), clad::no_adjoint());
 //CHECK-NEXT:    _d_t = 0.;
 //CHECK-NEXT:}
 
@@ -64,10 +64,10 @@ void f_cond3_hessian(double x, double c, double *hessianMatrix);
 //CHECK-NEXT:    double _d_x(0.);
 //CHECK-NEXT:    double _d_c(0.);
 //CHECK-NEXT:    _d_x = 1.;
-//CHECK-NEXT:    f_cond3_pushforward_pullback(x, c, _d_x, _d_c, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    f_cond3_pushforward_pullback(x, c, _d_x, _d_c, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}}, clad::no_adjoint(), clad::no_adjoint());
 //CHECK-NEXT:    _d_x = 0.;
 //CHECK-NEXT:    _d_c = 1.;
-//CHECK-NEXT:    f_cond3_pushforward_pullback(x, c, _d_x, _d_c, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+//CHECK-NEXT:    f_cond3_pushforward_pullback(x, c, _d_x, _d_c, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}}, clad::no_adjoint(), clad::no_adjoint());
 //CHECK-NEXT:    _d_c = 0.;
 //CHECK-NEXT:}
 
@@ -81,7 +81,7 @@ void f_power10_hessian(double x, double *hessianMatrix);
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_x(0.);
 //CHECK-NEXT:    _d_x = 1.;
-//CHECK-NEXT:    f_power10_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+//CHECK-NEXT:    f_power10_pushforward_pullback(x, _d_x, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, clad::no_adjoint());
 //CHECK-NEXT:    _d_x = 0.;
 //CHECK-NEXT:}
 
@@ -242,7 +242,7 @@ int main() {
   clad::hessian(byValueMembers, "k1, k2").execute(m2, 3, 5, result);
   printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3]); // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
 
-//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}} {
+//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0, clad::no_adjoint, clad::no_adjoint){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:    double _d_t0 = 0.;
 //CHECK-NEXT:    double _t00 = a * a;
 //CHECK-NEXT:    double _d_t1 = 0.;

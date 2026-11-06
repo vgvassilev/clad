@@ -102,7 +102,7 @@ class Fallback<string name, bit onByDefault, int requestBit, string summary> {
 }
 
 // A clad::opts bit that something other than an analysis has taken. These
-// four are generated into the enum like the analyses are, and are here for
+// are generated into the enum like the analyses are, and are here for
 // the same reason: so a position is spoken for in one place, and so the check
 // that hands them out can see the whole space and name what took the number
 // you picked.
@@ -140,7 +140,8 @@ def NumericalDiff : Fallback</*name=*/"numerical-diff-fallback", /*onByDefault=*
                              /*requestBit=*/13,
                              "approximates the callee's derivative by "
                              "central differences">;
-// 15 and up are free.
+def : Reserved</*firstBit=*/15, /*name=*/"assume_unselected_inactive">;
+// 16 and up are free.
 
 // One way an input can miss a construct. Detail says what the code does instead,
 // in one short sentence about that code -- not about the analysis, which the

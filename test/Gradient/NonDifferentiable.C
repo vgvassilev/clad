@@ -232,7 +232,7 @@ int main() {
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
 
-    // CHECK:     void fn_non_diff_param_pullback(double i, SimpleFunctions2 &S, double _d_y, double *_d_i) {
+    // CHECK:     void fn_non_diff_param_pullback(double i, SimpleFunctions2 &S, double _d_y, double *_d_i, clad::no_adjoint) {
     // CHECK-NEXT:         *_d_i += _d_y;
     // CHECK-NEXT:     }
 
@@ -240,7 +240,7 @@ int main() {
     // CHECK-NEXT:         SimpleFunctions2 obj1(j, j);
     // CHECK-NEXT:         {
     // CHECK-NEXT:             double _r0 = 0.;
-    // CHECK-NEXT:             fn_non_diff_param_pullback(i, obj1, 1, &_r0);
+    // CHECK-NEXT:             fn_non_diff_param_pullback(i, obj1, 1, &_r0, clad::no_adjoint());
     // CHECK-NEXT:             *_d_i += _r0;
     // CHECK-NEXT:         }
     // CHECK-NEXT:     }
@@ -251,7 +251,7 @@ int main() {
   // CHECK-NEXT:     *out = in.i;
   // CHECK-NEXT: }
 
-  // CHECK: void result_pullback(int *out, Input in, int *_d_out) {
+  // CHECK: void result_pullback(int *out, Input in, int *_d_out, clad::no_adjoint) {
   // CHECK-NEXT: *out = in.i;
   // CHECK-NEXT: {
   // CHECK-NEXT:    int _r_d0 = *_d_out;
@@ -261,7 +261,7 @@ int main() {
 
   // CHECK: void fn_grad_0(int *out, Input in, int *_d_out) {
   // CHECK-NEXT:    result(out, in);
-  // CHECK-NEXT:    result_pullback(out, in, _d_out);
+  // CHECK-NEXT:    result_pullback(out, in, _d_out, clad::no_adjoint());
   // CHECK-NEXT:}
 
   clad::gradient(fn_non_diff_ptr_param, "input");

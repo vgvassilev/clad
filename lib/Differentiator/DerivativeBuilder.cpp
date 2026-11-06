@@ -520,7 +520,10 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     for (const DiffInputVarInfo& VarInfo : request.DVI)
       diffParams.push_back(VarInfo.param);
     QualType DerivativeType = utils::GetDerivativeType(
-        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true);
+        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true,
+        /*shouldUseRestoreTracker=*/false, /*isForErrorEstimation=*/false,
+        request.Mode == DiffMode::pullback ? utils::GetNoAdjointType(m_Sema)
+                                           : QualType());
 
     diag(DiagnosticsEngine::Remark, Loc,
          "clad has no custom derivative for %0 and is differentiating its "
@@ -577,22 +580,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // that satisfies the given diff request. Now, we perform the
         // overload resolution using Sema::ActOnCallExpr to make sure we
         // follow the c++ standard.
-        llvm::SmallVector<const ValueDecl*, 4> diffParams{};
-        for (const DiffInputVarInfo& VarInfo : request.DVI)
-          diffParams.push_back(VarInfo.param);
-        QualType DerivativeType =
-            utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
-                                     diffParams, /*forCustomDerv=*/true);
-        // Generate dummy inits. A custom reverse_forw / pullback may carry a
-        // trailing clad::pullback_state<S> parameter that clad does not
-        // synthesize into DerivativeType; append it so the overload call has
-        // the right arity (see DiffRequest::PullbackStateParam).
-        llvm::ArrayRef<QualType> protoParamTypes =
-            cast<FunctionProtoType>(DerivativeType)->getParamTypes();
-        llvm::SmallVector<QualType, 8> paramTypes(protoParamTypes.begin(),
-                                                  protoParamTypes.end());
-        if (!request.PullbackStateParam.isNull())
-          paramTypes.push_back(request.PullbackStateParam);
+        llvm::ArrayRef<QualType> paramTypes =
+            cast<FunctionProtoType>(request.CustomDerivativeType)
+                ->getParamTypes();
         llvm::SmallVector<Expr*, 4> Inits;
         for (QualType parTy : paramTypes) {
           // Build dummy exprs of form ``static_cast<DesiredType>(*nullptr)``

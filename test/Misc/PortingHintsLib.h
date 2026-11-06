@@ -7,3 +7,5 @@ struct Widget {
   double value;
   double scale(double x) const { return x * value; }
 };
+
+inline double product(const double& data, const double& x) { return data * x; }

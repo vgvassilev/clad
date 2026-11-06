@@ -1341,6 +1341,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
            !isa<ParmVarDecl>(VD) && !VD->getType()->isReferenceType() &&
            !shouldHaveAdjoint(VD);
   }
+  bool DiffRequest::isAssumedInactive(const Expr* E) const {
+    if (!AssumeUnselectedInactive)
+      return false;
+    const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+    const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+    if (!PVD || HasIndependentParameter(PVD))
+      return false;
+    // The promise concerns the root's parameters. A callee's by-value copy
+    // can still become active when assigned from a selected parameter.
+    return Mode == DiffMode::reverse ||
+           (Mode == DiffMode::pullback &&
+            (PVD->getType()->isReferenceType() ||
+             PVD->getType()->isPointerType() || !writesVariable(PVD)));
+  }
   bool DiffRequest::shouldHavePushforward(const CallExpr* CE) const {
     auto found = m_ActivityRunInfo.VariedCalls.find(CE);
     return found == m_ActivityRunInfo.VariedCalls.end() || found->second;
@@ -1520,10 +1534,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // A gradient of every parameter keeps no list of them.
     if (Mode == DiffMode::reverse && !Args)
       return true;
-    // A parameter passed by value has a local adjoint, unless activity
-    // analysis planned the pullback without it.
+    // Root gradients create local adjoints for reference parameters too.
+    // Pullbacks need those from the caller; value parameters can have local
+    // adjoints unless activity analysis planned the pullback without them.
     QualType T = PVD->getType();
-    if (!utils::isArrayOrPointerType(T) && !T->isReferenceType() &&
+    if (!utils::isArrayOrPointerType(T) &&
+        (Mode == DiffMode::reverse || !T->isReferenceType()) &&
         !(Mode == DiffMode::pullback && EnableVariedAnalysis))
       return true;
     return llvm::any_of(DVI, [PVD](const DiffInputVarInfo& dParam) {
@@ -1659,6 +1675,17 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                   "reverse vector mode is not yet supported")
           << BeginLoc;
+      return true;
+    }
+
+    request.AssumeUnselectedInactive = clad::HasOption(
+        bitmasked_opts_value, clad::opts::assume_unselected_inactive);
+    if (request.AssumeUnselectedInactive &&
+        (request.Mode != DiffMode::reverse ||
+         clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))) {
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "assume_unselected_inactive requires clad::gradient "
+                  "with the Clad backend");
       return true;
     }
 
@@ -1829,7 +1856,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     const auto* MD = dyn_cast<CXXMethodDecl>(E->getDirectCallee());
     if (isa<CXXOperatorCallExpr>(E) && MD && MD->isInstance())
       ++i;
-    if (i >= E->getNumArgs() || !utils::IsReferenceOrPointerArg(E->getArg(i)))
+    if (Caller.isAssumedInactive(E->getArg(i)))
+      return true;
+    if (!utils::IsReferenceOrPointerArg(E->getArg(i)))
       return false;
     return hasNoAdjoint(E->getArg(i), Caller);
   }
@@ -1921,8 +1950,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
-                               bool* foundAnyDecl = nullptr,
-                               bool quiet = false) {
+                               bool* foundAnyDecl = nullptr, bool quiet = false,
+                               bool onlyNoAdjoint = false) {
     if (foundAnyDecl)
       *foundAnyDecl = false;
     // Error estimation only uses forward mode derivatives if they are
@@ -2032,16 +2061,42 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         params.push_back(stateArg);
         dTy = C.getFunctionType(FPT->getReturnType(), params,
                                 FPT->getExtProtoInfo());
-        // Remember it so Derive appends a matching argument when it builds the
-        // overload call for this custom derivative.
+        // The visitor also needs this type to create the state carrier.
         R.PullbackStateParam = stateArg;
       }
+
+    // A marker preserves which output is absent even when several parameters
+    // have the same type. A compact signature cannot identify that direction.
+    if (R.Mode == DiffMode::pullback &&
+        (R.DVI.size() != R.Function->getNumParams() || R.NoAdjointThis)) {
+      QualType taggedTy = utils::GetDerivativeType(
+          S, R.Function, R.Mode, diffParams, /*forCustomDerv=*/true,
+          /*shouldUseRestoreTracker=*/false, /*isForErrorEstimation=*/false,
+          utils::GetNoAdjointType(S), R.NoAdjointThis);
+      if (!R.PullbackStateParam.isNull()) {
+        const auto* FPT = cast<FunctionProtoType>(taggedTy);
+        llvm::SmallVector<QualType, 8> params(FPT->param_types());
+        params.push_back(R.PullbackStateParam);
+        taggedTy = C.getFunctionType(FPT->getReturnType(), params,
+                                     FPT->getExtProtoInfo());
+      }
+      TemplateSpecCandidateSet Candidates(R.CallContext->getBeginLoc(), false);
+      if (Expr* overload =
+              utils::MatchOverloadType(S, taggedTy, Found, Candidates)) {
+        R.CustomDerivativeType = taggedTy;
+        return overload;
+      }
+    }
+    if (onlyNoAdjoint)
+      return nullptr;
 
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
     if (Expr* overload =
-            utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
+            utils::MatchOverloadType(S, dTy, Found, FailedCandidates)) {
+      R.CustomDerivativeType = dTy;
       return overload;
+    }
 
     // For an original that returns `const T&`, the expected pushforward
     // returns ValueAndPushforward<const T&, const T&>. With two reference
@@ -2074,8 +2129,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           TemplateSpecCandidateSet RelaxedCandidates(
               R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
           if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
-                                                        RelaxedCandidates))
+                                                        RelaxedCandidates)) {
+            R.CustomDerivativeType = relaxedDTy;
             return overload;
+          }
         }
       }
     }
@@ -2136,7 +2193,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request,
-                                                 bool* foundAnyDecl) {
+                                                 bool* foundAnyDecl,
+                                                 bool onlyNoAdjoint) {
     if (foundAnyDecl)
       *foundAnyDecl = false;
     NamespaceDecl* cladNS =
@@ -2192,7 +2250,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
 
-    auto LookupOverload = [this, fnDecl, &request,
+    auto LookupOverload = [this, fnDecl, &request, onlyNoAdjoint,
                            quiet = foundAnyDecl != nullptr](NamespaceDecl* NSD,
                                                             bool* foundDecl) {
       DeclContext* DC = NSD;
@@ -2204,7 +2262,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             m_Sema, DC, utils::GetCustomDerivativeLookupContext(fnDecl));
       if (!DC)
         return static_cast<Expr*>(nullptr);
-      return getOverloadExpr(m_Sema, DC, request, foundDecl, quiet);
+      return getOverloadExpr(m_Sema, DC, request, foundDecl, quiet,
+                             onlyNoAdjoint);
     };
 
     // Look for the user overrides namespace nested inside custom_derivatives
@@ -2570,6 +2629,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           request.Mode != DiffMode::vector_pushforward) {
         // CUDA device function call in global kernel gradient
         bool useCUDA = !m_TopMostReq->CUDAGlobalArgsIndexes.empty();
+        if (MD && MD->isInstance()) {
+          const Expr* base =
+              isa<CXXOperatorCallExpr>(E)
+                  ? E->getArg(0)
+                  : cast<CXXMemberCallExpr>(E)->getImplicitObjectArgument();
+          request.NoAdjointThis = m_ParentReq->isAssumedInactive(base);
+        }
         bool droppedNoAdjoint = false;
         auto planParams = [&](DiffRequest& R, bool dropNoAdjoint) {
           R.DVI.clear();
@@ -2608,18 +2674,22 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           }
         };
         planParams(request, /*dropNoAdjoint=*/true);
-        // A user's pullback takes every parameter. Where there is one, plan it,
-        // and reverse mode passes a zero adjoint for what activity analysis
-        // leaves without one: every call then uses the user's derivative. A
-        // pullback whose signature is wrong is then reported against the one
-        // the user has to write.
-        if (droppedNoAdjoint) {
-          DiffRequest full = request;
-          planParams(full, /*dropNoAdjoint=*/false);
-          full.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
+        // Omitted outputs must be identified by markers in a custom signature.
+        // Otherwise retain the full custom, with disposable adjoints at the
+        // call.
+        if (droppedNoAdjoint || request.NoAdjointThis) {
+          request.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
           bool declared = false;
-          if (LookupCustomDerivativeDecl(full, &declared) || declared)
-            planParams(request, /*dropNoAdjoint=*/false);
+          if (!LookupCustomDerivativeDecl(request, &declared,
+                                          /*onlyNoAdjoint=*/true)) {
+            DiffRequest full = request;
+            planParams(full, /*dropNoAdjoint=*/false);
+            full.NoAdjointThis = false;
+            if (LookupCustomDerivativeDecl(full, &declared) || declared) {
+              planParams(request, /*dropNoAdjoint=*/false);
+              request.NoAdjointThis = false;
+            }
+          }
         }
       }
 
@@ -2689,6 +2759,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     bool hasCustomPullback =
         (!nonDiff || request.Mode != DiffMode::pushforward) &&
         LookupCustomDerivativeDecl(request);
+    // Generated member pullbacks retain their receiver output.
+    if (!hasCustomPullback)
+      request.NoAdjointThis = false;
     // Share one request between early classification and final scheduling.
     DiffRequest forwPassRequest;
     if (request.Mode == DiffMode::pullback) {
@@ -2698,6 +2771,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.CallContext = request.CallContext;
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       forwPassRequest.EnableLoopAnalysis = request.EnableLoopAnalysis;
+      forwPassRequest.AssumeUnselectedInactive =
+          request.AssumeUnselectedInactive;
     }
 
     if (hasNoMemoryInputForPointerOrRefReturn) {
@@ -3257,6 +3332,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     forwPassRequest.CallContext = E;
     forwPassRequest.EmitPortingHints = m_TopMostReq->EmitPortingHints;
     forwPassRequest.EnableLoopAnalysis = m_TopMostReq->EnableLoopAnalysis;
+    forwPassRequest.AssumeUnselectedInactive =
+        m_TopMostReq->AssumeUnselectedInactive;
     QualType recordTy = CD->getThisType()->getPointeeType();
     bool elideRevForw =
         utils::constructorReverseForwIsElidable(CD, m_Sema.getASTContext());

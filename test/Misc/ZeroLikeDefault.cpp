@@ -54,7 +54,7 @@ double reverse(double x) {
 
 // CHECK: void reverse_grad(double x, double *_d_x) {
 // CHECK: s.step_reverse_forw(e, &_d_s, clad::zero_like(e), _tracker0);
-// PULLBACK: void step_pullback(const Element &e, State *_d_this) {
+// PULLBACK: void step_pullback(const Element &e, State *_d_this, clad::no_adjoint) {
 // PULLBACK: Element _r0 = clad::zero_like(e);
 // PULLBACK-NEXT: e.scale_pullback(this->c * _r_d0, &_r0);
 

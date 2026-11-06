@@ -665,7 +665,7 @@ double add(double a, const double* b) {
 }
 
 
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, clad::no_adjoint) {
 //CHECK-NEXT:     *_d_a += _d_y;
 //CHECK-NEXT: }
 
@@ -701,7 +701,7 @@ double fn17 (double x, const double* y) {
 //CHECK-NEXT:         double _r_d0 = *_d_x;
 //CHECK-NEXT:         *_d_x = 0.;
 //CHECK-NEXT:         double _r0 = 0.;
-//CHECK-NEXT:         add_pullback(x, y, _r_d0, &_r0);
+//CHECK-NEXT:         add_pullback(x, y, _r_d0, &_r0, clad::no_adjoint());
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -754,7 +754,7 @@ double weighted_sum(double* x, const double* w) {
   return w[0] * x[0] + w[1] * x[1];
 }
 
-// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
+// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x, clad::no_adjoint) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
 // CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
@@ -768,7 +768,7 @@ double fn20(double* x, const double* w) {
 
 // CHECK: void fn20_grad_0(double *x, const double *w, double *_d_x) {
 // CHECK-NEXT:     const double *auxW = w + 1;
-// CHECK-NEXT:     weighted_sum_pullback(x, auxW, 1, _d_x);
+// CHECK-NEXT:     weighted_sum_pullback(x, auxW, 1, _d_x, clad::no_adjoint());
 // CHECK-NEXT: }
 
 // So does one that starts either at w or null.
@@ -780,7 +780,7 @@ double fn20_cond(double* x, const double* w, bool b) {
 // CHECK: void fn20_cond_grad_0(double *x, const double *w, bool b, double *_d_x) {
 // CHECK-NEXT:     bool _d_b = false;
 // CHECK-NEXT:     const double *q = b ? w : nullptr;
-// CHECK-NEXT:     weighted_sum_pullback(x, q, 1, _d_x);
+// CHECK-NEXT:     weighted_sum_pullback(x, q, 1, _d_x, clad::no_adjoint());
 // CHECK-NEXT: }
 
 // A local pointer that starts null but is pointed elsewhere later keeps its
@@ -792,7 +792,7 @@ double fn20_later(double* x, const double* w) {
 }
 
 // CHECK: void fn20_later_grad_0(double *x, const double *w, double *_d_x) {
-// CHECK:     weighted_sum_pullback(q, w + 1, 1, _d_q);
+// CHECK:     weighted_sum_pullback(q, w + 1, 1, _d_q, clad::no_adjoint());
 
 double ptrRef(double*& ptr_ref) {
   return *ptr_ref;
@@ -905,7 +905,7 @@ double inner_func(double *params, double const *constants) {
 
 // CHECK-NOT: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params, double *_d_constants) {
 
-// CHECK: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params) {
+// CHECK: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params, clad::no_adjoint) {
 // CHECK-NEXT:     _d_params[0] += _d_y * constants[0];
 // CHECK-NEXT: }
 
@@ -914,7 +914,7 @@ double fn26(double *params, double const *constants) {
 }
 
 // CHECK: void fn26_grad_0(double *params, const double *constants, double *_d_params) {
-// CHECK-NEXT:     inner_func_pullback(params, constants, 1, _d_params);
+// CHECK-NEXT:     inner_func_pullback(params, constants, 1, _d_params, clad::no_adjoint());
 // CHECK-NEXT: }
 
 void mult(double* x, double y) {
@@ -1121,7 +1121,7 @@ double fn30(double *params, const double *xlArr) {
    return flexibleInterp(params, xlArr + 2);
 }
 
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
+// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params, clad::no_adjoint) {
 // CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_total = 0.;
@@ -1139,7 +1139,7 @@ double fn30(double *params, const double *xlArr) {
 // CHECK-NEXT: }
 
 // CHECK: void fn30_grad_0(double *params, const double *xlArr, double *_d_params) {
-// CHECK-NEXT:     flexibleInterp_pullback(params, xlArr + 2, 1, _d_params);
+// CHECK-NEXT:     flexibleInterp_pullback(params, xlArr + 2, 1, _d_params, clad::no_adjoint());
 // CHECK-NEXT: }
 
 namespace clad {

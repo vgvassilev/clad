@@ -307,7 +307,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
   out[index] = device_fn_2(in, val);
 } 
 
-//CHECK: __attribute__((device)) inline void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
+//CHECK: __attribute__((device)) inline void device_fn_2_pullback_1(const double *in, double val, double _d_y, clad::no_adjoint, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    *_d_val += _d_y;
@@ -323,7 +323,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:        double _r_d0 = _d_out[index0];
 //CHECK-NEXT:        _d_out[index0] = 0.;
 //CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_fn_2_pullback_1(in, val, _r_d0, &_r0);
+//CHECK-NEXT:        device_fn_2_pullback_1(in, val, _r_d0, clad::no_adjoint(), &_r0);
 //CHECK-NEXT:        atomicAdd(_d_val, _r0);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
