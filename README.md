@@ -26,7 +26,7 @@ Clad provides five API functions:
 - [`clad::differentiate`](#forward-mode---claddifferentiate) to use forward-mode AD.
 - [`clad::gradient`](#reverse-mode---cladgradient) to use reverse-mode AD.
 - [`clad::hessian`](#hessian-mode---cladhessian) to compute Hessian matrix using a combination of forward-mode and reverse-mode AD.
-- [`clad::jacobian`](#jacobian-mode---cladjacobian) to compute Jacobian matrix using reverse-mode AD.
+- [`clad::jacobian`](#jacobian-mode---cladjacobian) to compute Jacobian matrix using vectorized forward-mode AD.
 - [`clad::estimate-error`](#floating-point-error-estimation---cladestimate_error) to compute the floating-point error of the given program using reverse-mode AD.
 
 API functions are used to label an existing function for differentiation.
