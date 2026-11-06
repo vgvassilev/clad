@@ -682,6 +682,42 @@ double fn21_darg0(double x, double y);
 
 
 
+double fn22(double u, double v) {
+    double res = 0;
+    for (; (res = u * v) < 0 ;) {}
+    return res;
+} // = u*v
+
+double fn22_darg0(double u, double v);
+// CHECK:       double fn22_darg0(double u, double v) {
+// CHECK-NEXT:      double _d_u = 1;
+// CHECK-NEXT:      double _d_v = 0;
+// CHECK-NEXT:      double _d_res = 0;
+// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      for (; ((_d_res = _d_u * v + u * _d_v) , (res = u * v)) < 0;) {
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return _d_res;
+// CHECK-NEXT:  }
+
+double fn23(double u, double v) {
+    double res = 0;
+    while ((res = u * v) < 0) {}
+    return res;
+} // = u*v
+
+double fn23_darg0(double u, double v);
+// CHECK:       double fn23_darg0(double u, double v) {
+// CHECK-NEXT:      double _d_u = 1;
+// CHECK-NEXT:      double _d_v = 0;
+// CHECK-NEXT:      double _d_res = 0;
+// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      while (((_d_res = _d_u * v + u * _d_v) , (res = u * v)) < 0)
+// CHECK-NEXT:          {
+// CHECK-NEXT:          }
+// CHECK-NEXT:      return _d_res;
+// CHECK-NEXT:  }
+
+
 #define TEST(fn)\
 auto d_##fn = clad::differentiate(fn, "i");\
 printf("%.2f\n", d_##fn.execute(3, 5));
@@ -760,4 +796,12 @@ int main() {
 
   clad::differentiate(fn21, 0);
   printf("Result is = %.2f\n", fn21_darg0(5, 1)); // CHECK-EXEC: Result is = 10.00
+
+  clad::differentiate(fn22, 0);
+  printf("Result is = %.2f\n", fn22_darg0(3, 5)); // CHECK-EXEC: Result is = 5.00
+  printf("Result is = %.2f\n", fn22_darg0(2, 7)); // CHECK-EXEC: Result is = 7.00
+
+  clad::differentiate(fn23, 0);
+  printf("Result is = %.2f\n", fn23_darg0(3, 5)); // CHECK-EXEC: Result is = 5.00
+  printf("Result is = %.2f\n", fn23_darg0(2, 7)); // CHECK-EXEC: Result is = 7.00
 }
