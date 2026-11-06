@@ -394,8 +394,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   /// Adds to \p Written the variables of \p Vars that \p S may write, or a
-  /// part of: assigns or increments, calls a non-const member function of, or
-  /// passes to a non-const reference parameter.
+  /// part of: assigns or increments, calls a non-const member function of,
+  /// passes to a non-const reference parameter, or takes the address of.
   static void collectWrites(const Stmt* S,
                             const llvm::SmallPtrSetImpl<const VarDecl*>& Vars,
                             llvm::SmallPtrSetImpl<const VarDecl*>& Written) {
@@ -409,7 +409,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (BO->isAssignmentOp())
         mark(BO->getLHS());
     } else if (const auto* UO = dyn_cast<UnaryOperator>(S)) {
-      if (UO->isIncrementDecrementOp())
+      if (UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf)
         mark(UO->getSubExpr());
     } else if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(S)) {
       const CXXMethodDecl* MD = MCE->getMethodDecl();
@@ -765,6 +765,63 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     m_WrittenVarInfo.OnlyLocals =
         Def && Def->hasBody() && !writes(Def->getBody());
     return *m_WrittenVarInfo.OnlyLocals;
+  }
+
+  /// Collects the calls in \p Body that write their arguments and whose value
+  /// is an operand of another expression.
+  static void findCallsInExpressions(const Stmt* Body,
+                                     std::set<const Stmt*>& Calls) {
+    class Finder : public RecursiveASTVisitor<Finder> {
+      std::set<const Stmt*>& m_Calls;
+
+      static bool writesArguments(const CallExpr* CE) {
+        const FunctionDecl* FD = CE->getDirectCallee();
+        return FD && llvm::any_of(FD->parameters(), [](const ParmVarDecl* P) {
+                 QualType T = P->getType();
+                 return (T->isLValueReferenceType() &&
+                         !T.getNonReferenceType().isConstQualified()) ||
+                        (T->isPointerType() &&
+                         !T->getPointeeType().isConstQualified());
+               });
+      }
+
+    public:
+      explicit Finder(std::set<const Stmt*>& Calls) : m_Calls(Calls) {}
+      bool VisitExpr(Expr* E) {
+        // What computes nothing is not the expression around an operand.
+        if (isa<ImplicitCastExpr, ParenExpr, FullExpr, MaterializeTemporaryExpr,
+                CXXBindTemporaryExpr>(E))
+          return true;
+        const Expr* RHS = nullptr;
+        if (const auto* BO = dyn_cast<BinaryOperator>(E))
+          if (BO->isAssignmentOp())
+            RHS = BO->getRHS()->IgnoreImplicit()->IgnoreParens();
+        for (const Stmt* Child : E->children()) {
+          const auto* Op = dyn_cast_or_null<Expr>(Child);
+          if (!Op)
+            continue;
+          Op = Op->IgnoreImplicit()->IgnoreParens();
+          const auto* CE = dyn_cast<CallExpr>(Op);
+          if (CE && CE != RHS && !isa<CXXOperatorCallExpr>(CE) &&
+              CE->isPRValue() && !CE->getType()->isVoidType() &&
+              writesArguments(CE))
+            m_Calls.insert(CE);
+        }
+        return true;
+      }
+    } F(Calls);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    F.TraverseStmt(const_cast<Stmt*>(Body));
+  }
+
+  bool DiffRequest::isCallInExpression(const CallExpr* CE) const {
+    if (!m_CallInExpressionInfo.HasAnalysisRun) {
+      const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+      if (Def && Def->hasBody())
+        findCallsInExpressions(Def->getBody(), m_CallInExpressionInfo.Calls);
+      m_CallInExpressionInfo.HasAnalysisRun = true;
+    }
+    return m_CallInExpressionInfo.Calls.count(CE) != 0;
   }
 
   bool DiffRequest::isUnreadCall(const Stmt* S) const {
@@ -1459,6 +1516,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return llvm::any_of(FD->parameters(), throughValue);
   }
 
+  bool DiffRequest::hasAdjoint(const ParmVarDecl* PVD) const {
+    // A gradient of every parameter keeps no list of them.
+    if (Mode == DiffMode::reverse && !Args)
+      return true;
+    // A parameter passed by value has a local adjoint, unless activity
+    // analysis planned the pullback without it.
+    QualType T = PVD->getType();
+    if (!utils::isArrayOrPointerType(T) && !T->isReferenceType() &&
+        !(Mode == DiffMode::pullback && EnableVariedAnalysis))
+      return true;
+    return llvm::any_of(DVI, [PVD](const DiffInputVarInfo& dParam) {
+      return dParam.param == PVD;
+    });
+  }
+
   bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
     // FIXME: We store the original function's params in DVI and here we need to
     // compare with the cloned ones by name. We can compare the pointers instead
@@ -1694,28 +1766,72 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     runVariedAnalysis(request, AnalysisDC);
   }
 
+  /// The declaration whose memory \p E points or refers to: `x` for `&x[i]`
+  /// or `x + 2`.
+  static const ValueDecl* pointedToDecl(const Expr* E) {
+    E = E->IgnoreParenImpCasts();
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      if (UO->getOpcode() == UO_AddrOf || UO->getOpcode() == UO_Deref)
+        return pointedToDecl(UO->getSubExpr());
+    if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+      return pointedToDecl(ASE->getBase());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      if (BO->isAdditiveOp())
+        return pointedToDecl(BO->getLHS()->getType()->isPointerType()
+                                 ? BO->getLHS()
+                                 : BO->getRHS());
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
+      return DRE->getDecl();
+    return nullptr;
+  }
+
+  /// Whether reverse mode has no adjoint for what \p E points or refers to in
+  /// \p Caller.
+  static bool hasNoAdjoint(const Expr* E, const DiffRequest& Caller,
+                           unsigned Depth = 0) {
+    E = E->IgnoreParenImpCasts();
+    // A local that starts null has no adjoint; a null argument is passed on
+    // as its own adjoint. clad writes a null tangent as nullptr of the
+    // pointer's type.
+    if (Depth && (isa<CXXNullPtrLiteralExpr>(E) ||
+                  E->isNullPointerConstant(Caller->getASTContext(),
+                                           Expr::NPC_ValueDependentIsNotNull)))
+      return true;
+    if (const auto* CO = dyn_cast<ConditionalOperator>(E))
+      return hasNoAdjoint(CO->getTrueExpr(), Caller, Depth) &&
+             hasNoAdjoint(CO->getFalseExpr(), Caller, Depth);
+    const ValueDecl* D = pointedToDecl(E);
+    if (isa_and_nonnull<FunctionDecl>(D))
+      return true;
+    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(D))
+      return !Caller.hasAdjoint(PVD);
+    const auto* VD = dyn_cast_or_null<VarDecl>(D);
+    if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
+      return false;
+    if (!Caller.shouldHaveAdjoint(VD))
+      return true;
+    // A local pointer has the adjoint of what it starts pointing to, unless
+    // the function points it elsewhere, as `cudaMalloc(&p, n)` does.
+    if (!VD->getType()->isPointerType() || !VD->getInit() || Depth >= 4 ||
+        !hasNoAdjoint(VD->getInit(), Caller, Depth + 1))
+      return false;
+    llvm::SmallPtrSet<const VarDecl*, 1> Vars{VD};
+    llvm::SmallPtrSet<const VarDecl*, 1> Written;
+    if (const Stmt* Body = Caller.Function->getBody())
+      collectWrites(Body, Vars, Written);
+    return Written.empty();
+  }
+
   /// Whether the argument of the call \p E for its parameter \p i is passed
-  /// by reference or pointer and names a variable of \p Caller that activity
-  /// analysis leaves without an adjoint: a local it gives none, or, in a
-  /// pullback it planned without a parameter, that parameter. Reverse mode
-  /// has none to pass for it.
+  /// by reference or pointer, and reverse mode has no adjoint to pass for it.
   static bool passesNoAdjoint(const CallExpr* E, std::size_t i,
                               const DiffRequest& Caller) {
-    if (!Caller.EnableVariedAnalysis)
-      return false;
     const auto* MD = dyn_cast<CXXMethodDecl>(E->getDirectCallee());
     if (isa<CXXOperatorCallExpr>(E) && MD && MD->isInstance())
       ++i;
     if (i >= E->getNumArgs() || !utils::IsReferenceOrPointerArg(E->getArg(i)))
       return false;
-    const auto* DRE =
-        dyn_cast<DeclRefExpr>(E->getArg(i)->IgnoreParenImpCasts());
-    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
-    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD))
-      return Caller.Mode == DiffMode::pullback &&
-             !Caller.HasIndependentParameter(PVD);
-    return VD && VD->hasLocalStorage() && !VD->getType()->isReferenceType() &&
-           !Caller.shouldHaveAdjoint(VD);
+    return hasNoAdjoint(E->getArg(i), Caller);
   }
 
   /// The assignments, increments and decrements in \p E, outermost first, in
