@@ -912,11 +912,11 @@ void InitTimers();
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;
-        // If higher order derivatives are required, proceed to compute them
-        // recursively.
+        // The next order differentiates what this one derived.
         request.Function = DerivativeDecl;
         request.CurrentDerivativeOrder += 1;
-        return ProcessDiffRequest(request);
+        getScheduler().PlanNextOrder(request);
+        return DerivativeDecl;
       }
       return nullptr;
     }

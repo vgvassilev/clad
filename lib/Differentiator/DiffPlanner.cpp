@@ -558,6 +558,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   void DiffCollector::PlanAsTopMost(DiffRequest& request) {
+    // A derivative calls templates, such as custom derivatives, that are not
+    // instantiated yet; their bodies are walked here.
+    m_Sema.PerformPendingInstantiations();
     // Nothing ran the varied or useful analysis for it.
     request.EnableVariedAnalysis = false;
     request.EnableUsefulAnalysis = false;
@@ -571,9 +574,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           getOverloadExpr(m_Sema, DC, request, /*foundAnyDecl=*/nullptr,
                           /*quiet=*/true);
     }
-    // Its callees are planned as a gradient's are, even for a pullback.
+    // Its callees are planned as a top-level request's are; a pullback's as a
+    // gradient's.
     DiffRequest Top = request;
-    Top.Mode = DiffMode::reverse;
+    if (Top.Mode == DiffMode::pullback)
+      Top.Mode = DiffMode::reverse;
     llvm::SaveAndRestore<const DiffRequest*> SavedTop(m_TopMostReq, &Top);
     llvm::SaveAndRestore<bool> SavedGlobals(m_PlansGlobalAdjoints, false);
     // Not a top-level declaration: what it calls must not end it.
@@ -2993,8 +2998,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         if (!request.UseHessianVectorProducts) {
           for (DiffRequest& fr : forwRequests)
             m_DiffRequestGraph.addNode(fr, /*isSource=*/true);
-          // A diagonal is derived in forward mode only.
-          hasReversePasses = request.Mode == DiffMode::hessian;
+          // A diagonal has no reverse passes, but its second derivatives are
+          // planned only once the first exist: it waits for them all the same.
+          hasReversePasses = true;
         }
       }
     }
