@@ -22,7 +22,7 @@ You will usually be told. Clad reports the construct by name:
 
 .. code-block:: text
 
-  warning: statement kind 'CXXThrowExpr' is not supported
+  warning: statement kind 'CXXTryStmt' is not supported
 
 The name in that warning is the construct Clad has no rule for, and it is the
 term to search the `issue tracker <https://github.com/vgvassilev/clad/issues>`__
