@@ -76,18 +76,20 @@ set_target_properties(benchmark-clad PROPERTIES FOLDER "Clad benchmarks")
 
 find_package(CUDAToolkit QUIET)
 if(CUDAToolkit_FOUND)
-  execute_process(
-  COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/LULESH_diff.patch"
-  WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/LULESH"
-  RESULT_VARIABLE patch_applied_or_not
-  )
-
-  if(patch_applied_or_not EQUAL 0)
+  foreach(bench LULESH XSBench RSBench)
     execute_process(
-      COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/LULESH_diff.patch"
-      WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/LULESH"
+      COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/${bench}_diff.patch"
+      WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/${bench}"
+      RESULT_VARIABLE patch_applied_or_not
     )
-  endif()  
+
+    if(patch_applied_or_not EQUAL 0)
+      execute_process(
+        COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/${bench}_diff.patch"
+        WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/${bench}"
+      )
+    endif()
+  endforeach()
 
   set(LULESH_SOURCES
     ${lulesh-cuda_SOURCE_DIR}/LULESH/allocator.cu
@@ -106,18 +108,6 @@ if(CUDAToolkit_FOUND)
   )
   
   target_include_directories(LULESH_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/LULESH) 
-  execute_process(
-    COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/XSBench_diff.patch"
-    WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/XSBench"
-    RESULT_VARIABLE xsbench_patch_applied_or_not
-  )
-
-  if(xsbench_patch_applied_or_not EQUAL 0)
-    execute_process(
-      COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/XSBench_diff.patch"
-      WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/XSBench"
-    )
-  endif()  
 
   set(XSBENCH_SOURCES
     ${lulesh-cuda_SOURCE_DIR}/XSBench/Main.cu
@@ -137,6 +127,26 @@ if(CUDAToolkit_FOUND)
   )
   
   target_include_directories(XSBench_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/XSBench)
+
+  set(RSBENCH_SOURCES
+    ${lulesh-cuda_SOURCE_DIR}/RSBench/main.cu
+    ${lulesh-cuda_SOURCE_DIR}/RSBench/simulation.cu
+    ${lulesh-cuda_SOURCE_DIR}/RSBench/io.cu
+    ${lulesh-cuda_SOURCE_DIR}/RSBench/init.cu
+    ${lulesh-cuda_SOURCE_DIR}/RSBench/material.cu
+    ${lulesh-cuda_SOURCE_DIR}/RSBench/utils.cu
+  )
+
+  set_source_files_properties(${RSBENCH_SOURCES} PROPERTIES LANGUAGE CXX)
+  CB_ADD_CUDA_BENCHMARK(RSBench_Benchmark ${RSBENCH_SOURCES})
+  target_compile_options(RSBench_Benchmark PRIVATE -fno-openmp)
+  target_compile_definitions(RSBench_Benchmark PRIVATE
+    VERIFY=1
+    ALWAYS_INLINE=1
+    USE_CLAD=1
+  )
+
+  target_include_directories(RSBench_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/RSBench)
 endif()
 
 
