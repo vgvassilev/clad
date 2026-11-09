@@ -1064,6 +1064,45 @@ StmtDiff BaseForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
 }
 
 StmtDiff
+BaseForwardModeVisitor::VisitDesignatedInitExpr(const DesignatedInitExpr* DIE) {
+  if (!DIE->getInit())
+    return StmtDiff(Clone(DIE));
+
+  StmtDiff initDiff = Visit(DIE->getInit());
+  Expr* clonedInit = initDiff.getExpr();
+  Expr* derivedInit = initDiff.getExpr_dx();
+
+  if (!derivedInit)
+    derivedInit = getZeroInit(DIE->getInit()->getType());
+
+  llvm::SmallVector<Expr*, 8> clonedIndexExprs(DIE->getNumSubExprs());
+  llvm::SmallVector<Expr*, 8> derivedIndexExprs(DIE->getNumSubExprs());
+  for (unsigned i = 0, e = DIE->getNumSubExprs(); i < e; ++i) {
+    clonedIndexExprs[i] = Clone(DIE->getSubExpr(i));
+    derivedIndexExprs[i] = Clone(DIE->getSubExpr(i));
+  }
+
+  llvm::ArrayRef<Expr*> clonedIndexRef;
+  llvm::ArrayRef<Expr*> derivedIndexRef;
+  if (!clonedIndexExprs.empty()) {
+    clonedIndexRef = clad_compat::makeArrayRef(&clonedIndexExprs[0] + 1,
+                                               clonedIndexExprs.size() - 1);
+    derivedIndexRef = clad_compat::makeArrayRef(&derivedIndexExprs[0] + 1,
+                                                derivedIndexExprs.size() - 1);
+  }
+
+  auto* clonedDIE = DesignatedInitExpr::Create(
+      m_Context, DIE->designators(), clonedIndexRef, DIE->getEqualOrColonLoc(),
+      DIE->usesGNUSyntax(), clonedInit);
+
+  auto* derivedDIE = DesignatedInitExpr::Create(
+      m_Context, DIE->designators(), derivedIndexRef, DIE->getEqualOrColonLoc(),
+      DIE->usesGNUSyntax(), derivedInit);
+
+  return StmtDiff(clonedDIE, derivedDIE);
+}
+
+StmtDiff
 BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   auto ASI = SplitArraySubscript(ASE);
   QualType ExprTy = ASE->getType();

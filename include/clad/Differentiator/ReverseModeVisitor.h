@@ -564,6 +564,7 @@ namespace clad {
     VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
     StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
     StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
+    StmtDiff VisitDesignatedInitExpr(const clang::DesignatedInitExpr* DIE);
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);

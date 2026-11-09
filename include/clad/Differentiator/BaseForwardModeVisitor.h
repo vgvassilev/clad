@@ -138,6 +138,7 @@ public:
   StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
   StmtDiff VisitCXXNamedCastExpr(const clang::CXXNamedCastExpr* NCE);
   StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
+  StmtDiff VisitDesignatedInitExpr(const clang::DesignatedInitExpr* DIE);
   virtual StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
   StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
   StmtDiff VisitParenExpr(const clang::ParenExpr* PE);

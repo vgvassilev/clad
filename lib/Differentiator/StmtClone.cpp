@@ -546,18 +546,20 @@ Stmt* StmtClone::VisitInitListExpr(InitListExpr* Node) {
 
 //---------------------------------------------------------
 Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
-  llvm::SmallVector<Expr*, 8> indexExprs(Node->getNumSubExprs());
-  for (int i = 0, e = indexExprs.size(); i < e; ++i)
+  unsigned numSubExprs = Node->getNumSubExprs();
+  llvm::SmallVector<Expr*, 8> indexExprs(numSubExprs);
+  for (unsigned i = 0; i < numSubExprs; ++i)
     indexExprs[i] = Clone(Node->getSubExpr(i));
 
   // no &indexExprs[1]
   llvm::ArrayRef<Expr*> indexExprsRef =
       clad_compat::makeArrayRef(&indexExprs[0] + 1, indexExprs.size() - 1);
 
-  return DesignatedInitExpr::Create(Ctx, Node->designators(),
-                                    indexExprsRef,
-                                    Node->getEqualOrColonLoc(),
-                                    Node->usesGNUSyntax(), Node->getInit());
+  return DesignatedInitExpr::Create(
+      Ctx, Node->designators(), indexExprsRef, Node->getEqualOrColonLoc(),
+      Node->usesGNUSyntax(),
+      indexExprs.empty() ? cast<Expr>(Clone(Node->getInit()))
+                         : cast<Expr>(indexExprs[0]));
 }
 
 Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {

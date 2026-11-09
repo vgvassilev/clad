@@ -2095,6 +2095,45 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(clonedILE, ILEDiff);
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitDesignatedInitExpr(const DesignatedInitExpr* DIE) {
+    if (!DIE->getInit())
+      return StmtDiff(Clone(DIE));
+
+    StmtDiff initDiff = Visit(DIE->getInit(), dfdx());
+    Expr* clonedInit = initDiff.getExpr();
+
+    llvm::SmallVector<Expr*, 8> indexExprs(DIE->getNumSubExprs());
+    for (unsigned i = 0, e = DIE->getNumSubExprs(); i < e; ++i)
+      indexExprs[i] = Clone(DIE->getSubExpr(i));
+
+    llvm::ArrayRef<Expr*> indexExprsRef;
+    if (!indexExprs.empty())
+      indexExprsRef =
+          clad_compat::makeArrayRef(&indexExprs[0] + 1, indexExprs.size() - 1);
+
+    auto* clonedDIE = DesignatedInitExpr::Create(
+        m_Context, DIE->designators(), indexExprsRef, DIE->getEqualOrColonLoc(),
+        DIE->usesGNUSyntax(), clonedInit);
+
+    Expr* derivedInit = initDiff.getExpr_dx();
+    Expr* derivedDIE = nullptr;
+    if (derivedInit) {
+      llvm::SmallVector<Expr*, 8> derivedIndexExprs(DIE->getNumSubExprs());
+      for (unsigned i = 0, e = derivedIndexExprs.size(); i < e; ++i)
+        derivedIndexExprs[i] = Clone(DIE->getSubExpr(i));
+      llvm::ArrayRef<Expr*> derivedIndexRef;
+      if (!derivedIndexExprs.empty())
+        derivedIndexRef = clad_compat::makeArrayRef(
+            &derivedIndexExprs[0] + 1, derivedIndexExprs.size() - 1);
+      derivedDIE = DesignatedInitExpr::Create(
+          m_Context, DIE->designators(), derivedIndexRef,
+          DIE->getEqualOrColonLoc(), DIE->usesGNUSyntax(), derivedInit);
+    }
+
+    return StmtDiff(clonedDIE, derivedDIE ? derivedDIE : initDiff.getStmt_dx());
+  }
+
   Expr* ReverseModeVisitor::BuildDiffIncrement(Expr* E) {
     if (!dfdx() || !E || !E->getType()->isRealType())
       return nullptr;
