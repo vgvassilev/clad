@@ -290,6 +290,9 @@ namespace clad {
     /// The currently visited statement. Useful for crash pretty-printing.
     const clang::Stmt* m_CurVisitedStmt = nullptr;
 
+    // Lambdas, from here to buildClonedLambda; defined in
+    // VisitorBaseLambda.cpp.
+
     /// Resolves the captures of a lambda synthesized from a body that was
     /// built outside the closure scope, so Sema never saw the uses. collect()
     /// finds the body's free variables -- locals and parameters it references
@@ -455,6 +458,15 @@ namespace clad {
     std::pair<clang::Expr*, clang::Expr*>
     getCaptureValueAndAdjoint(const clang::LambdaExpr* LE,
                               const clang::VarDecl* capVD, bool isByCopy);
+    /// Whether clad cannot differentiate \p LE; if so, says why.
+    bool diagnoseUnsupportedLambda(const clang::LambdaExpr* LE);
+    /// Build a primal copy of a lambda expression with a *fresh*
+    /// closure type, rather than reusing the original closure (as a plain
+    /// StmtClone does). Reusing the closure makes two clones share the
+    /// operator() body, violating the one-parent-per-node invariant. Only
+    /// captureless lambdas get a fresh closure; captured lambdas fall back to
+    /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
+    clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
@@ -751,8 +763,6 @@ namespace clad {
           << L;
     }
 
-    bool diagnoseUnsupportedLambda(const clang::LambdaExpr* LE);
-
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc) {
       diag(clang::DiagnosticsEngine::Warning, loc,
@@ -995,13 +1005,6 @@ namespace clad {
                                          bool pushOnScopeChains = false,
                                          bool cloneDefaultArg = true,
                                          clang::SourceLocation Loc = noLoc);
-    /// Build a primal copy of a lambda expression with a *fresh*
-    /// closure type, rather than reusing the original closure (as a plain
-    /// StmtClone does). Reusing the closure makes two clones share the
-    /// operator() body, violating the one-parent-per-node invariant. Only
-    /// captureless lambdas get a fresh closure; captured lambdas fall back to
-    /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
-    clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
     /// Builds a call to the numerical_diff function \p Name, whose first
     /// argument is the function to differentiate. That function's type is
     /// also written as the first template argument: it was deduced from a
