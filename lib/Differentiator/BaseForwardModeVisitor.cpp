@@ -308,8 +308,9 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     const CXXRecordDecl* RD = MD->getParent();
     if (MD->isInstance() && !RD->isLambda()) {
       IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
-      auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext, dThisII,
-                                           MD->getThisType());
+      auto* dPVD = utils::BuildParmVarDecl(
+          m_Sema, m_Sema.CurContext, dThisII,
+          utils::GetThisDerivativeType(m_Sema, m_DiffReq.Mode, MD));
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
       params.push_back(dPVD);
       // FIXME: Replace m_ThisExprDerivative in favor of lookups of _d_this.
@@ -996,6 +997,14 @@ StmtDiff BaseForwardModeVisitor::VisitParenExpr(const ParenExpr* PE) {
                   BuildParens(subStmtDiff.getExpr_dx()));
 }
 
+/// Whether \p Dx is a copy of the tangents of a member, which vector mode
+/// reads out of those of an object: what is written to it would be lost.
+static bool isMemberTangentsCopy(const Expr* Dx) {
+  const auto* CE = Dx ? dyn_cast<CallExpr>(Dx->IgnoreImplicit()) : nullptr;
+  const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+  return FD && FD->getQualifiedNameAsString() == "clad::member_vector";
+}
+
 StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
   auto clonedME = dyn_cast<MemberExpr>(Clone(ME));
   // Currently, we only differentiate member variables if we are
@@ -1042,12 +1051,35 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
            "Member functions are not supported yet!");
     auto clonedME = utils::BuildMemberExpr(
         m_Sema, getCurrentScope(), baseDiff.getExpr(), field->getName());
-    // Here we are implicitly assuming that the derived type and the original
-    // types are same. This may not be necessarily true in the future.
-    auto derivedME = utils::BuildMemberExpr(
-        m_Sema, getCurrentScope(), baseDiff.getExpr_dx(), field->getName());
-    return {clonedME, derivedME};
+    return {clonedME, memberTangent(baseDx, ME)};
   }
+}
+
+Expr* BaseForwardModeVisitor::memberTangent(Expr* BaseDx,
+                                            const MemberExpr* ME) {
+  // Here we are implicitly assuming that the derived type and the original
+  // types are same. This may not be necessarily true in the future.
+  return utils::BuildMemberExpr(m_Sema, getCurrentScope(), BaseDx,
+                                ME->getMemberDecl()->getName());
+}
+
+Expr* BaseForwardModeVisitor::thisTangentArgument(const CXXMethodDecl* /*MD*/,
+                                                  const Expr* Base,
+                                                  Expr* BaseDx) {
+  if (BaseDx)
+    return BaseDx->getType()->isPointerType()
+               ? BaseDx
+               : BuildOp(UnaryOperatorKind::UO_AddrOf, BaseDx);
+  // The pushforward's `_d_this` slot must stay filled: pass a zero-initialized
+  // placeholder, mirroring the zero adjoint reverse mode synthesizes for such a
+  // base.
+  QualType baseTy = Base->getType();
+  if (baseTy->isPointerType())
+    baseTy = baseTy->getPointeeType();
+  baseTy = baseTy.getNonReferenceType().getUnqualifiedType();
+  VarDecl* dBaseVD = BuildVarDecl(baseTy, "_d_base", getZeroInit(baseTy));
+  addToCurrentBlock(BuildDeclStmt(dBaseVD));
+  return BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(dBaseVD));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
@@ -1501,23 +1533,12 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         if (!anyVariedArg)
           return StmtDiff(Clone(CE),
                           getZeroInit(CE->getType().getNonReferenceType()));
-        // The arguments drive the derivative through the pushforward, whose
-        // `_d_this` slot must stay filled: pass a zero-initialized
-        // placeholder, mirroring the zero adjoint reverse mode synthesizes
-        // for such a base.
-        QualType baseTy = baseOriginalE->getType();
-        if (baseTy->isPointerType())
-          baseTy = baseTy->getPointeeType();
-        baseTy = baseTy.getNonReferenceType().getUnqualifiedType();
-        VarDecl* dBaseVD = BuildVarDecl(baseTy, "_d_base", getZeroInit(baseTy));
-        addToCurrentBlock(BuildDeclStmt(dBaseVD));
+        // The arguments drive the derivative through the pushforward.
         diffArgs.push_back(
-            BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(dBaseVD)));
+            thisTangentArgument(MD, baseOriginalE, /*BaseDx=*/nullptr));
       } else {
-        if (!baseDerivative->getType()->isPointerType())
-          baseDerivative =
-              BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-        diffArgs.push_back(baseDerivative);
+        diffArgs.push_back(
+            thisTangentArgument(MD, baseOriginalE, baseDerivative));
       }
     }
   }
@@ -2243,10 +2264,15 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
-    if (Ldiff.getExpr_dx() &&
-        (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
-         Expr::MLV_Valid) &&
-        !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
+    if (isMemberTangentsCopy(Ldiff.getExpr_dx())) {
+      diag(DiagnosticsEngine::Error, BinOp->getBeginLoc(),
+           "vector mode cannot yet differentiate an assignment to a member of "
+           "an object");
+      opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    } else if (Ldiff.getExpr_dx() &&
+               (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
+                Expr::MLV_Valid) &&
+               !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
       SourceLocation L = BinOp->getBeginLoc();
       diag(DiagnosticsEngine::Warning, L,
            "derivative of an assignment attempts to assign to unassignable "

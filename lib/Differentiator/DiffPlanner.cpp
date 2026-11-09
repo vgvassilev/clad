@@ -2685,6 +2685,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                m_TopMostReq->Mode == DiffMode::jacobian ||
                m_TopMostReq->Mode == DiffMode::vector_pushforward) {
         request.Mode = DiffMode::vector_pushforward;
+        // Vector mode copies the tangents of objects it assigns itself.
+        if (utils::isObjectTangentsAssignment(FD))
+          return true;
       } else {
         assert(0 && "unexpected mode.");
         return true;
