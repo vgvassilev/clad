@@ -296,6 +296,19 @@ jobs:
               fi
             fi
           fi
+          # Memory runs out before CPUs do: compiling ReverseModeVisitor.cpp or
+          # CladUtils.cpp takes about 1.6 GiB. A self-hosted machine runs
+          # more than one job, so count what is free when this one starts.
+          # Two builds at -j$(nproc) on the dell had the kernel kill gcc on
+          # 2a2c524c.
+          avail_kb=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+          bymem=$(( avail_kb / (2 * 1024 * 1024) ))
+          if [[ "$bymem" -lt 1 ]]; then
+            bymem=1
+          fi
+          if [[ "$bymem" -lt "$ncpus" ]]; then
+            ncpus="$bymem"
+          fi
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
     - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.flavor && format(' [{0}]', matrix.flavor) || '' }}
