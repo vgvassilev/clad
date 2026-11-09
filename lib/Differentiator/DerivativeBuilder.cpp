@@ -756,8 +756,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // The request represents a global variable, construct the adjoint and
       // register it.
       QualType type = VD->getType();
-      // add namespace specifier in variable declaration if needed.
-      type = utils::AddNamespaceSpecifier(m_Sema, m_Context, type);
+      type = utils::makeTypeReadable(m_Sema, type);
       IdentifierInfo* II = &m_Context.Idents.get("_d_" + VD->getNameAsString());
       auto* DC = const_cast<DeclContext*>(VD->getDeclContext());
       auto* VDDiff =

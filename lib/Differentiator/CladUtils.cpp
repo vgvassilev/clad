@@ -246,24 +246,6 @@ namespace clad {
       }
     }
 
-    // Adds a namespace specifier to the given type if the type is not already an elaborated type.
-    clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext &C, clang::QualType QT) {
-      auto typePtr = QT.getTypePtr();
-      if (typePtr->isRecordType() && !clad_compat::isElaboratedType(QT)) {
-        CXXScopeSpec CSS;
-        const clang::CXXRecordDecl* recordDecl = typePtr->getAsCXXRecordDecl();
-        const auto* declContext =
-            static_cast<const clang::DeclContext*>(recordDecl);
-        utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
-        clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
-        if (clad_compat::hasNNSPrefix(NS))
-          return clad_compat::getElaboratedType(
-              C, clad_compat::ElaboratedTypeKeyword_None,
-              clad_compat::getNNSPrefix(NS), QT);
-      }
-      return QT;
-    }
-
     const DeclContext* GetCustomDerivativeLookupContext(const Decl* Found) {
       const DeclContext* DC = Found->getDeclContext();
       if (DC->isFunctionOrMethod())

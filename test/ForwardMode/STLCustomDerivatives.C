@@ -26,10 +26,10 @@ double fnVec1(double u, double v) {
 // CHECK: double fnVec1_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, {{.*}}0{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<std::vector<double>, std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, {{.*}}0{{.*}});
 // CHECK-NEXT:     std::vector<double> _d_V1(_t0.pushforward);
 // CHECK-NEXT:     std::vector<double> V1(_t0.value);
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<long double>, ::std::vector<long double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<long double> >(), 4, {{.*}}0{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<std::vector<long double>, std::vector<long double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<long double> >(), 4, {{.*}}0{{.*}});
 // CHECK-NEXT:     std::vector<long double> _d_V2(_t1.pushforward);
 // CHECK-NEXT:     std::vector<long double> V2(_t1.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double &, double &> _t2 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V1, 0, &_d_V1, 0);
@@ -66,10 +66,10 @@ double fnVec2(double u, double v) {
 // CHECK: double fnVec2_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<std::vector<double>, std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
 // CHECK-NEXT:     const std::vector<double> _d_V1(_t0.pushforward);
 // CHECK-NEXT:     const std::vector<double> V1(_t0.value);
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, v, {{.*}}0, _d_v{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<std::vector<double>, std::vector<double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, v, {{.*}}0, _d_v{{.*}});
 // CHECK-NEXT:     const std::vector<double> _d_V2(_t1.pushforward);
 // CHECK-NEXT:     const std::vector<double> V2(_t1.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<const double &, const double &> _t2 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V1, 0, &_d_V1, 0);
@@ -88,7 +88,7 @@ double fnVec3(double u, double v) {
 // CHECK: double fnVec3_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<std::vector<double>, std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
 // CHECK-NEXT:     std::vector<double> _d_V1(_t0.pushforward);
 // CHECK-NEXT:     std::vector<double> V1(_t0.value);
 // CHECK-NEXT:     std::vector<double> &_d_V2 = _d_V1;
@@ -106,7 +106,7 @@ double fnVec4(double u, double v) {
 // CHECK: double fnVec4_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), {u, v, u * v}, {{.*}}{_d_u, _d_v, _d_u * v + u * _d_v}{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<std::vector<double>, std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), {u, v, u * v}, {{.*}}{_d_u, _d_v, _d_u * v + u * _d_v}{{.*}});
 // CHECK-NEXT:     std::vector<double> _d_V(_t0.pushforward);
 // CHECK-NEXT:     std::vector<double> V(_t0.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double &, double &> _t1 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V, 0, &_d_V, 0);
@@ -136,13 +136,13 @@ double fnVec5(double x, double y) {
 // CHECK-NEXT:          std::vector<double> _d_v;
 // CHECK-NEXT:          std::vector<double> v;
 // CHECK-NEXT:          {{.*}}reserve_pushforward(&v, 10, &_d_v, 0);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t0 = {{.*}}capacity_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t0 = {{.*}}capacity_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}} &_t1 = _t0.value;
 // CHECK-NEXT:          double _d_res = _d_x * _t1;
 // CHECK-NEXT:          double res = x * _t1;
 // CHECK-NEXT:          {{.*}}push_back_pushforward(&v, x, &_d_v, _d_x);
 // CHECK-NEXT:          {{.*}}shrink_to_fit_pushforward(&v, &_d_v);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t2 = {{.*}}capacity_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t2 = {{.*}}capacity_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}} &_t3 = _t2.value;
 // CHECK-NEXT:          _d_res += _d_x * _t3;
 // CHECK-NEXT:          res += x * _t3;
@@ -188,33 +188,33 @@ double fnVec6(double x, double y) {
 // CHECK:      double fnVec6_darg0(double x, double y) {
 // CHECK-NEXT:          double _d_x = 1;
 // CHECK-NEXT:          double _d_y = 0;
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = {{.*}}constructor_pushforward(clad::Tag<std::vector<double> >(), 3, y{{.*}}, 0, _d_y{{.*}});
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<std::vector<double>, std::vector<double> > _t0 = {{.*}}constructor_pushforward(clad::Tag<std::vector<double> >(), 3, y{{.*}}, 0, _d_y{{.*}});
 // CHECK-NEXT:          std::vector<double> _d_v(_t0.pushforward);
 // CHECK-NEXT:          std::vector<double> v(_t0.value);
 // CHECK-NEXT:          {{.*}}pop_back_pushforward(&v, &_d_v);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t1 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t1 = {{.*}}size_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}} &_t2 = _t1.value;
 // CHECK-NEXT:          double _d_res = _t2 * _d_x;
 // CHECK-NEXT:          double res = _t2 * x;
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t3 = {{.*}}begin_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t4 = {{.*}}erase_pushforward(&v, {{.*}}_t3.value{{.*}}, &_d_v, {{.*}}_t3.pushforward{{.*}});
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t5 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t5 = {{.*}}size_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}} &_t6 = _t5.value;
 // CHECK-NEXT:          _d_res += _t6 * _d_x;
 // CHECK-NEXT:          res += _t6 * x;
 // CHECK-NEXT:          std::vector<double> _d_w;
 // CHECK-NEXT:          std::vector<double> w;
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::vector<double> &, ::std::vector<double> &> _t7 = {{.*}}operator_equal_pushforward(&w, v, &_d_w, _d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<std::vector<double> &, std::vector<double> &> _t7 = {{.*}}operator_equal_pushforward(&w, v, &_d_w, _d_v);
 // CHECK-NEXT:          {{.*}}clear_pushforward(&w, &_d_w);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t8 = {{.*}}size_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t8 = {{.*}}size_pushforward(&w, &_d_w);
 // CHECK-NEXT:          {{.*}} &_t9 = _t8.value;
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t10 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t10 = {{.*}}size_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}} &_t11 = _t10.value;
 // CHECK-NEXT:          _d_res += _t9 * _d_x + _t11 * _d_x;
 // CHECK-NEXT:          res += _t9 * x + _t11 * x;
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t12 = {{.*}}end_pushforward(&w, &_d_w);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t13 = {{.*}}insert_pushforward(&w, {{.*}}_t12.value{{.*}}, 5, &_d_w, {{.*}}_t12.pushforward{{.*}}, 0);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t14 = {{.*}}size_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t14 = {{.*}}size_pushforward(&w, &_d_w);
 // CHECK-NEXT:          {{.*}} &_t15 = _t14.value;
 // CHECK-NEXT:          _d_res += _t15 * _d_x;
 // CHECK-NEXT:          res += _t15 * x;
@@ -301,12 +301,12 @@ double fnVec7(double x, double y) {
 // CHECK-NEXT:          const std::vector<double> v2 = v;
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t4 = {{.*}}front_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t5 = {{.*}}back_pushforward(&v, &_d_v);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t6 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t6 = {{.*}}size_pushforward(&v, &_d_v);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t7 = {{.*}}operator_subscript_pushforward(&v, _t6.value - 1, &_d_v, 0U{{L*}});
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t8 = {{.*}}at_pushforward(&v2, 0, &_d_v2, 0);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t9 = {{.*}}front_pushforward(&v2, &_d_v2);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t10 = {{.*}}back_pushforward(&v2, &_d_v2);
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t11 = {{.*}}size_pushforward(&v2, &_d_v2);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{(std::)?}}size_t, {{(std::)?}}size_t> _t11 = {{.*}}size_pushforward(&v2, &_d_v2);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t12 = {{.*}}operator_subscript_pushforward(&v2, _t11.value - 1, &_d_v2, 0U{{L*}});
 // CHECK-NEXT:          return _d_res + _t4.pushforward + _t5.pushforward - _t7.pushforward + _t8.pushforward + _t9.pushforward + _t10.pushforward - _t12.pushforward;
 // CHECK-NEXT:      }
