@@ -273,15 +273,6 @@ double f13(double x) {
 //CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::custom_f13_pushforward(x, _d_x);
 //CHECK-NEXT:     return _t0.pushforward;
 //CHECK-NEXT: }
-//CHECK-NEXT: double f13_d2arg0(double x) {
-//CHECK-NEXT:     double _d_x = 1;
-//CHECK-NEXT:     double _d__d_x = 0;
-//CHECK-NEXT:     double _d_x0 = 1;
-//CHECK-NEXT:     clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > _t0 = clad::custom_derivatives::custom_f13_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
-//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = _t0.pushforward;
-//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = _t0.value;
-//CHECK-NEXT:     return _d__t0.pushforward;
-//CHECK-NEXT: }
 
 double f14(double x) {
   return __builtin_pow(x, 3);
@@ -650,6 +641,16 @@ double f_cyl_bessel_k(double nu, double x) { return std::cyl_bessel_k(nu, x); }
 // CHECK-NEXT:      {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}cyl_bessel_k_pushforward(nu, x, _d_nu, _d_x);
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT: }
+
+//CHECK: double f13_d2arg0(double x) {
+//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     double _d__d_x = 0;
+//CHECK-NEXT:     double _d_x0 = 1;
+//CHECK-NEXT:     clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > _t0 = clad::custom_derivatives::custom_f13_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = _t0.pushforward;
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = _t0.value;
+//CHECK-NEXT:     return _d__t0.pushforward;
+//CHECK-NEXT: }
 // sincos, a GNU extension, writes sin(x) and cos(x) through its pointers.
 #if defined(__GLIBC__)
 double f_sincos(double x) {

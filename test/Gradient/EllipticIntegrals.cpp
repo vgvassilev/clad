@@ -74,8 +74,8 @@ long double fPi_l(long double k, long double nu, long double phi) {
 
 // The hessian differentiates ellint_1_pushforward itself in reverse mode,
 // which exercises the pullbacks from inside the pushforward's body.
-// CHECK: void fF_hessian(double k, double phi, double *hessianMatrix) {
 // CHECK: inline void ellint_1_pushforward_pullback(double k, double phi, double d_k, double d_phi, ValueAndPushforward<double, double> _d_y, double *_d_k, double *_d_phi, double *_d_d_k, double *_d_d_phi)
+// CHECK: void fF_hessian(double k, double phi, double *hessianMatrix) {
 
 // Prints the forward-mode partials of a two-argument function and whether
 // the gradient reproduces them bitwise.

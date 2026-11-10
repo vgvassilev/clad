@@ -202,8 +202,8 @@ void InitTimers();
 
     CladPlugin::~CladPlugin() {}
 
-    ALLOW_ACCESS(MultiplexConsumer, Consumers,
-                 std::vector<std::unique_ptr<ASTConsumer>>);
+    CLAD_ALLOW_ACCESS(MultiplexConsumer, Consumers,
+                      std::vector<std::unique_ptr<ASTConsumer>>);
 
     void CladPlugin::Initialize(clang::ASTContext& C) {
       // We know we have a multiplexer. We commit a sin here by stealing it and
@@ -211,7 +211,7 @@ void InitTimers();
       // until clad is happy.
 
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
-      auto& RobbedCs = ACCESS(MultiplexC, Consumers);
+      auto& RobbedCs = CLAD_ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
 
       const auto& Macros = m_CI.getPreprocessorOpts().Macros;
@@ -767,6 +767,12 @@ void InitTimers();
               *m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
       }
 
+      // Not a derivative: it plans what could not be planned before.
+      if (request.DefersPlanning) {
+        getScheduler().PlanDeferred(request);
+        return nullptr;
+      }
+
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
         auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
@@ -906,11 +912,11 @@ void InitTimers();
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;
-        // If higher order derivatives are required, proceed to compute them
-        // recursively.
+        // The next order differentiates what this one derived.
         request.Function = DerivativeDecl;
         request.CurrentDerivativeOrder += 1;
-        return ProcessDiffRequest(request);
+        getScheduler().PlanNextOrder(request);
+        return DerivativeDecl;
       }
       return nullptr;
     }

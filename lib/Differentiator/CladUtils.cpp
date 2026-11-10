@@ -28,6 +28,7 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
@@ -1593,7 +1594,29 @@ namespace clad {
       // caller writes, const or not, lvalue or rvalue.
       if (T->isReferenceType() && T.getNonReferenceType()->isRealFloatingType())
         return true;
+      // So does a class of such references, as the pushforward of a function
+      // returning one is.
+      if (const auto* RD = T->getAsCXXRecordDecl())
+        if (RD->hasDefinition() && !RD->field_empty() &&
+            llvm::all_of(RD->fields(), [](const FieldDecl* F) {
+              QualType FT = F->getType();
+              return FT->isReferenceType() &&
+                     FT.getNonReferenceType()->isRealFloatingType();
+            }))
+          return true;
       return isMemoryType(T);
+    }
+
+    bool isValueInitializable(Sema& S, QualType T) {
+      T = T.getNonReferenceType();
+      if (T->isIncompleteType())
+        return false;
+      // Only ask: an InitializationSequence diagnoses nothing until performed.
+      SourceLocation Loc = noLoc;
+      InitializedEntity Entity = InitializedEntity::InitializeTemporary(T);
+      InitializationKind Kind = InitializationKind::CreateValue(Loc, Loc, Loc);
+      InitializationSequence Seq(S, Entity, Kind, {});
+      return !Seq.Failed();
     }
 
     bool isMemoryType(QualType T) {

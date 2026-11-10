@@ -52,6 +52,42 @@ public:
   /// Plan a single lazily-scheduled request (a nested or higher-order
   /// derivative) that the static walk never reached.
   void Plan(DiffRequest& R) { m_Collector.PlanNestedRequest(R); }
+
+  /// Plans \p R, the next order of a derivative now derived, as the first
+  /// order was planned: what it calls first, then itself.
+  void PlanNextOrder(DiffRequest& R) { m_Collector.PlanAsTopMost(R); }
+
+  /// Plans what \p Entry deferred, now that what it differentiates exists
+  /// (see DiffRequest::DefersPlanning).
+  void PlanDeferred(const DiffRequest& Entry) {
+    if (Entry.Mode == DiffMode::hessian ||
+        Entry.Mode == DiffMode::hessian_diagonal)
+      return PlanReversePasses(Entry);
+    DiffRequest R = Entry;
+    R.DefersPlanning = false;
+    m_Collector.PlanAsTopMost(R);
+  }
+
+  /// Plans the reverse passes a hessian is built from, now that the
+  /// first-order derivatives they differentiate exist.
+  void PlanReversePasses(const DiffRequest& Hessian) {
+    // A diagonal is derived in forward mode only.
+    if (Hessian.Mode == DiffMode::hessian_diagonal)
+      return;
+    auto PlanPass = [&](const DiffRequest& First) {
+      // A first derivative clad could not build has no reverse pass.
+      if (const clang::FunctionDecl* FD = m_DFC.Find(First).DerivedFn()) {
+        DiffRequest Pass = Hessian.hessianReversePass(FD);
+        Pass.UpdateDiffParamsInfo(m_Sema);
+        m_Collector.PlanAsTopMost(Pass);
+      }
+    };
+    if (Hessian.UseHessianVectorProducts)
+      PlanPass(Hessian.pushforwardRequestForHessian(m_Sema));
+    else
+      Hessian.forEachHessianDirection(
+          m_Sema, [&](DiffRequest& First, bool) { PlanPass(First); });
+  }
 };
 
 } // namespace clad

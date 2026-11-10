@@ -2938,41 +2938,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         nonDiff = true;
     }
 
-    // A request scheduled on the fly (the pullback of a hessian's pushforward,
-    // and everything it calls) never went through the planner, which is what
-    // schedules the reverse_forw of a callee that may write through its
-    // arguments. Without one nothing restores what the callee overwrote, so
-    // each pullback in the reverse sweep reads the state left by the last
-    // call instead of the state its own call saw. Ask for the reverse_forw
-    // here, under the same condition the planner uses.
-    bool forwRequestedHere = false;
-    // FIXME: A callee returning a struct of references, such as the
-    // pushforward of an accessor (ValueAndPushforward<T&, T&>), would need a
-    // reverse_forw returning ValueAndAdjoint of such structs, which clad can
-    // neither declare nor tape. Such a callee is left as it was.
-    auto returnsReferenceFields = [](QualType T) {
-      if (const auto* RD = T->getAsCXXRecordDecl())
-        return llvm::any_of(RD->fields(), [](const FieldDecl* F) {
-          return F->getType()->isReferenceType();
-        });
-      return false;
-    };
-    if (!nonDiff && asGrad && !calleeFnForwPassFD && !m_DiffReq.CallContext &&
-        !isCastSem && FD->isDefined() && utils::shouldUseRestoreTracker(FD) &&
-        !returnsReferenceFields(FD->getReturnType())) {
-      calleeFnForwPassReq.UseRestoreTracker = true;
-      calleeFnForwPassReq.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
-      calleeFnForwPassFD =
-          m_Builder.HandleNestedDiffRequest(calleeFnForwPassReq);
-      forwRequestedHere = calleeFnForwPassFD != nullptr;
-      if (calleeFnForwPassFD && !calleeFnForwPassFD->parameters().empty())
-        usingRestoreTracker = clad_compat::hasSameUnqualifiedType(
-            m_Context,
-            utils::GetValueType(
-                calleeFnForwPassFD->parameters().back()->getType()),
-            trackerType);
-    }
-
     llvm::SmallVector<Stmt*, 16> PreCallStmts{};
     // Save current index in the current block, to potentially put some
     // statements there later.
@@ -3075,10 +3040,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // once more after it. The forward sweep then calls the primal.
     llvm::SmallVector<Stmt*, 4> PostCallStmts;
     bool callerRestoresWrites = false;
-    // A reverse_forw asked for here takes the tracker it was asked with.
     if (!nonDiff && usingRestoreTracker && !m_RestoreTracker &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass &&
-        !needsForwPass && pullbackStateType.isNull() && !forwRequestedHere &&
+        !needsForwPass && pullbackStateType.isNull() &&
         !isa<CUDAKernelCallExpr>(CE))
       callerRestoresWrites = m_DiffReq.restoresCallWrites(CE);
 
@@ -4727,13 +4691,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* dummyInit = nullptr;
     // FIXME: We need to have a more general way of determining this.
     const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
-    // Nor can a class with a reference member that has no initializer of its
-    // own: it has no default constructor.
-    bool noDefaultCtor =
-        RD && RD->hasDefinition() &&
-        llvm::any_of(RD->fields(), [](const FieldDecl* F) {
-          return F->getType()->isReferenceType() && !F->hasInClassInitializer();
-        });
+    // Nor can `{}` build every class, such as one with a reference member that
+    // has no initializer of its own. One that can be copied is built from the
+    // value instead.
+    bool noDefaultCtor = RD && RD->hasDefinition() && utils::isCopyable(RD) &&
+                         !utils::isValueInitializable(m_Sema, VDType);
+    // VisitDeclStmt starts the adjoint from the value, as clad::zero_like.
+    bool initFromValue = noDefaultCtor && !promoteToFnScope;
     if (shouldCopyInitialize || isRefType || noDefaultCtor ||
         (CAT && CAT->getElementType()->isRecordType())) {
       QualType dummyTy = VDDerivedType;
@@ -4894,6 +4858,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // A call that returns an object by value gives no adjoint to start from:
     // start at zero, as any other adjoint does, rather than with what an
     // implicit default constructor leaves.
+    // Without an adjoint to start from, one `{}` cannot build starts from the
+    // value; VisitDeclStmt declares it after the value.
+    Expr* dx = initDiff.getExpr_dx();
+    if (initFromValue && VDDerived &&
+        (!dx || isa<InitListExpr>(dx->IgnoreImplicit()))) {
+      if (Expr* zeroLike = GetCladZeroLike(BuildDeclRef(VDClone)))
+        initDiff.updateStmtDx(zeroLike);
+    }
     if (VDDerived && !isRefType && !isPointerType && !dummyInit &&
         !initDiff.getExpr_dx()) {
       initDiff.updateStmtDx(getZeroInit(VDDerivedType));
@@ -5007,6 +4979,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {StmtDiff(ForwardResult, ReverseResult), EDiff};
   }
 
+  /// Whether \p S names \p VD.
+  static bool names(const Stmt* S, const VarDecl* VD) {
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+      return DRE->getDecl() == VD;
+    return llvm::any_of(S->children(), [VD](const Stmt* Child) {
+      return Child && names(Child, VD);
+    });
+  }
+
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     if (const auto* DD = dyn_cast_or_null<DecompositionDecl>(
             DS->isSingleDecl() ? DS->getSingleDecl() : nullptr)) {
@@ -5036,6 +5017,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
     llvm::SmallVector<Decl*, 4> declsToZeroInit;
+    llvm::SmallVector<Decl*, 4> declsFromValue;
     llvm::SmallVector<Stmt*, 4> memsetCalls;
     // reverse_mode_forward_pass does not have a reverse pass so declarations
     // don't have to be moved to the function global scope.
@@ -5110,7 +5092,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
 
         decls.push_back(VDDiff.getDecl());
-        if (VDDiff.getDecl_dx()) {
+        VarDecl* VDDx = VDDiff.getDecl_dx();
+        if (VDDx && VDDx->getInit() &&
+            names(VDDx->getInit(), VDDiff.getDecl())) {
+          // Its adjoint starts from the value, so it comes after it.
+          declsFromValue.push_back(VDDx);
+        } else if (VDDiff.getDecl_dx()) {
           const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
           bool isNonAggrClass = RD && !RD->isAggregate();
           if (isa<VariableArrayType>(VD->getType()) || isNonAggrClass)
@@ -5262,8 +5249,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    if (!declsFromValue.empty()) {
+      addToCurrentBlock(DSClone, direction::forward);
+      DSClone = nullptr;
+      addToCurrentBlock(BuildDeclStmt(declsFromValue), direction::forward);
+    }
+
     if (m_ExternalSource) {
       declsDiff.append(declsToZeroInit.begin(), declsToZeroInit.end());
+      declsDiff.append(declsFromValue.begin(), declsFromValue.end());
       m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     }
 
@@ -5645,15 +5639,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         utils::getNonConstType(clad_compat::stripPredefinedSugar(E->getType()),
                                m_Sema),
         prefix, force, zeroInit);
-  }
-
-  /// Whether \p S names \p VD.
-  static bool names(const Stmt* S, const VarDecl* VD) {
-    if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
-      return DRE->getDecl() == VD;
-    return llvm::any_of(S->children(), [VD](const Stmt* Child) {
-      return Child && names(Child, VD);
-    });
   }
 
   bool ReverseModeVisitor::canRecomputeInLoop(const VarDecl* VD) {

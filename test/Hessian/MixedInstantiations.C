@@ -25,8 +25,8 @@ double sumOfScales(double x) { return scale(x, 2.) + scale(x, 3); }
 // CHECK-NEXT:     return {_t0 * n, (_d_x * x + x * _d_x) * n + _t0 * _d_n};
 // CHECK-NEXT: }
 
-// CHECK: inline void scale_pushforward_pullback(double x, double n, double _d_x, double _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, double *_d_n0, double *_d_d_x, double *_d_d_n);
-// CHECK-NEXT: inline void scale_pushforward_pullback(double x, int n, double _d_x, int _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, int *_d_n0, double *_d_d_x, int *_d_d_n);
+// CHECK: inline void scale_pushforward_pullback(double x, double n, double _d_x, double _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, double *_d_n0, double *_d_d_x, double *_d_d_n) {
+// CHECK: inline void scale_pushforward_pullback(double x, int n, double _d_x, int _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, int *_d_n0, double *_d_d_x, int *_d_d_n) {
 
 // CHECK: inline void sumOfScales_pushforward_pullback(double x, double _d_x, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
@@ -67,8 +67,8 @@ double sumOfStaticScales(double x) {
   return Scaler::scale(x, 2.) + Scaler::scale(x, 3);
 }
 
-// CHECK: static inline void scale_pushforward_pullback(double x, double n, double _d_x, double _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, double *_d_n0, double *_d_d_x, double *_d_d_n);
-// CHECK-NEXT: static inline void scale_pushforward_pullback(double x, int n, double _d_x, int _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, int *_d_n0, double *_d_d_x, int *_d_d_n);
+// CHECK: static inline void scale_pushforward_pullback(double x, double n, double _d_x, double _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, double *_d_n0, double *_d_d_x, double *_d_d_n) {
+// CHECK: static inline void scale_pushforward_pullback(double x, int n, double _d_x, int _d_n, clad::ValueAndPushforward<double, double> _d_y, double *_d_x0, int *_d_n0, double *_d_d_x, int *_d_d_n) {
 
 // The same clash reached clad through std::pow: an integral exponent and a
 // floating-point one are two instantiations sharing the name pow_pushforward.
