@@ -4882,6 +4882,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isPointerType && derivedVDE && promoteToFnScope) {
       Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
                                         derivedVDE, initDiff.getExpr_dx());
+      // The reverse sweep undoes each step of the adjoint pointer taken after
+      // this declaration, so it enters the iteration with the pointer as the
+      // iteration left it, and restores the previous value only here.
+      if (isInsideLoop()) {
+        StmtDiff pushPop = StoreAndRestore(derivedVDE);
+        addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+      }
       addToCurrentBlock(assignDerivativeE, direction::forward);
       // An early return between this declaration and the assignment above
       // leaves the reverse sweep writing through the placeholder.
@@ -4889,12 +4897,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           BuildDereferenceablePlaceholder(VDDerivedType, m_Globals);
       SetDeclInit(VDDerived,
                   placeholder ? placeholder : getZeroInit(VDDerivedType));
-      if (isInsideLoop()) {
-        StmtDiff pushPop = StoreAndRestore(derivedVDE);
-        if (!keepLocal)
-          addToCurrentBlock(pushPop.getStmt(), direction::forward);
-        m_LoopBlock.back().push_back(pushPop.getStmt_dx());
-      }
     }
 
     if (!valueDx)
