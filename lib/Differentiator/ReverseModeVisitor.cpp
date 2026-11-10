@@ -1692,6 +1692,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Differentiate the increment expression of the for loop
     StmtDiff incDiff;
     if (const Expr* inc = FS->getInc()) {
+      // The increment steps the index between storing a value and reading it
+      // back, so a slot at the index would not be found again: what it stores
+      // goes on a tape.
+      llvm::SaveAndRestore<VarDecl*> NoSlots(Loop.Index, nullptr);
       // incExprDiff.getExpr() is the reconstructed expression,
       // incDiff.getStmt() a block with all the intermediate statements used to
       // reconstruct it on the forward pass, incDiff.getStmt_dx() is the reverse
