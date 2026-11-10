@@ -122,6 +122,8 @@ public:
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* CE);
+  StmtDiff
+  VisitCXXRewrittenBinaryOperator(const clang::CXXRewrittenBinaryOperator* RBO);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
