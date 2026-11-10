@@ -2161,7 +2161,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto ASI = SplitArraySubscript(ASE);
     const Expr* Base = ASI.first;
     const auto& Indices = ASI.second;
+    // As for a dereference, the element's adjoint is added before what undoes
+    // the base, such as stepping back the adjoint of `p++`.
+    beginBlock(direction::reverse);
     StmtDiff BaseDiff = Visit(Base);
+    Stmts baseRevBlock = EndBlockWithoutCreatingCS(direction::reverse);
+    auto addBaseRevBlock = [&]() {
+      for (Stmt* S : baseRevBlock)
+        addToCurrentBlock(S, direction::reverse);
+    };
     llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
     llvm::SmallVector<Expr*, 4> reverseIndices(Indices.size());
     for (std::size_t i = 0; i < Indices.size(); i++) {
@@ -2175,8 +2183,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto* valueForRevSweep =
         BuildArraySubscript(CloneNode(BaseDiff.getExpr()), reverseIndices);
     Expr* target = BaseDiff.getExpr_dx();
-    if (!target)
+    if (!target) {
+      addBaseRevBlock();
       return cloned;
+    }
     Expr* result = nullptr;
     // Create the target[idx] expression. reverseIndices are consumed by
     // valueForRevSweep above, so clone them for this subscript.
@@ -2194,6 +2204,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       incTarget = CloneNode(result);
     if (Expr* add_assign = BuildDiffIncrement(incTarget))
       addToCurrentBlock(add_assign, direction::reverse);
+    addBaseRevBlock();
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
     return StmtDiff(cloned, result, valueForRevSweep);
@@ -4003,6 +4014,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(BuildOp(op, CloneNode(diff_dx)), direction::reverse);
 
       ResultRef = diff_dx;
+      // p++ yields p from before the step, so its derivative is the adjoint
+      // pointer from before its step: what is read through it belongs there.
+      if (isPointerOp)
+        ResultRef = BuildParens(BuildOp(
+            opCode == UO_PostInc ? BO_Sub : BO_Add, CloneNode(diff_dx),
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1)));
       valueForRevPass = diff.getRevSweepAsExpr();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalizingPostIncDecOp(diff);
@@ -4018,8 +4035,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_DiffReq.shouldBeRecorded(E))
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
-      if (isPointerOp)
+      if (isPointerOp) {
         addToCurrentBlock(BuildOp(op, CloneNode(diff_dx)), direction::reverse);
+        // ++p yields p itself, so its derivative is the stepped adjoint
+        // pointer, which a member access or dereference of it writes through.
+        ResultRef = diff_dx;
+      }
       auto binOp = opCode == UO_PreInc ? BinaryOperatorKind::BO_Add
                                        : BinaryOperatorKind::BO_Sub;
       auto* sum = BuildOp(
@@ -4882,6 +4903,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isPointerType && derivedVDE && promoteToFnScope) {
       Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
                                         derivedVDE, initDiff.getExpr_dx());
+      // The reverse sweep undoes each step of the adjoint pointer taken after
+      // this declaration, so it enters the iteration with the pointer as the
+      // iteration left it, and restores the previous value only here.
+      if (isInsideLoop()) {
+        StmtDiff pushPop = StoreAndRestore(derivedVDE);
+        addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+      }
       addToCurrentBlock(assignDerivativeE, direction::forward);
       // An early return between this declaration and the assignment above
       // leaves the reverse sweep writing through the placeholder.
@@ -4889,12 +4918,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           BuildDereferenceablePlaceholder(VDDerivedType, m_Globals);
       SetDeclInit(VDDerived,
                   placeholder ? placeholder : getZeroInit(VDDerivedType));
-      if (isInsideLoop()) {
-        StmtDiff pushPop = StoreAndRestore(derivedVDE);
-        if (!keepLocal)
-          addToCurrentBlock(pushPop.getStmt(), direction::forward);
-        m_LoopBlock.back().push_back(pushPop.getStmt_dx());
-      }
     }
 
     if (!valueDx)
@@ -5462,19 +5485,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {clonedME, derivedME};
     }
 
+    // The base's reverse statements undo what evaluating it did, such as
+    // stepping a pointer or running an assignment's pullback. The member's
+    // adjoint must be added before them, while the base still denotes the
+    // object the member was read from.
+    beginBlock(direction::reverse);
     auto baseDiff = Visit(base);
+    Stmts baseRevBlock = EndBlockWithoutCreatingCS(direction::reverse);
+    auto addBaseRevBlock = [&]() {
+      for (Stmt* S : baseRevBlock)
+        addToCurrentBlock(S, direction::reverse);
+    };
     Expr* clonedME = baseDiff.getExpr();
     if (clonedME && !fieldName.empty())
       clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(), clonedME,
                                         fieldName);
     if (nonDiffMember) {
+      addBaseRevBlock();
       auto* zero = ConstantFolder::synthesizeLiteral(ME->getType(), m_Context,
                                                      /*val=*/0);
       return {clonedME, zero};
     }
     if (!baseDiff.getExpr_dx() ||
-        baseDiff.getExpr_dx()->getType()->isVoidType())
+        baseDiff.getExpr_dx()->getType()->isVoidType()) {
+      addBaseRevBlock();
       return {clonedME, nullptr};
+    }
     Expr* derivedME = baseDiff.getExpr_dx();
     if (!fieldName.empty())
       derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
@@ -5501,6 +5537,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                 CloneNode(dfdx()));
       addToCurrentBlock(addAssign, direction::reverse);
     }
+    addBaseRevBlock();
     return {clonedME, derivedME};
   }
 
@@ -6703,10 +6740,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
     llvm::SmallVector<Expr*, 1> placementArgs;
     llvm::SmallVector<StmtDiff, 1> placementArgDiffs;
+    // What undoes the placement arguments, such as stepping back the adjoint
+    // of `p++`, runs after the storage's adjoint is read through them.
+    beginBlock(direction::reverse);
     for (const Expr* arg : CNE->placement_arguments()) {
       placementArgDiffs.push_back(Visit(arg));
       placementArgs.push_back(placementArgDiffs.back().getExpr());
     }
+    Stmts placementRevBlock = EndBlockWithoutCreatingCS(direction::reverse);
     llvm::SmallVector<Expr*, 1> derivedPlacementArgs =
         BuildDerivedPlacementArgs(CNE, placementArgDiffs);
 
@@ -6744,6 +6785,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff initializerDiff;
     if (CNE->hasInitializer())
       initializerDiff = Visit(CNE->getInitializer(), initDfdx);
+    for (Stmt* S : placementRevBlock)
+      addToCurrentBlock(S, direction::reverse);
 
     Expr* clonedArraySizeE = nullptr;
     Expr* derivedArraySizeE = nullptr;
