@@ -3169,6 +3169,58 @@ double fn56(const double* x) {
 //CHECK:         i--;
 //CHECK-NEXT:         a = -x[i];
 
+double fn59(double x) {
+  double a[2] = {x, x * x};
+  double s = 0;
+  int j = 0;
+  for (int i = 0; i < 2; ++i, s += a[j++] * x)
+    ;
+  return s * s;
+}
+
+double fn60(double x) {
+  double s = 1;
+  for (int i = 0; i < 3; ++i, s *= x * i + s)
+    ;
+  return s;
+}
+
+// CHECK: void fn59_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_a[2] = {0};
+// CHECK-NEXT:     double a[2] = {x, x * x};
+// CHECK-NEXT:     double _d_s = 0.;
+// CHECK-NEXT:     double s = 0;
+// CHECK-NEXT:     int _d_j = 0;
+// CHECK-NEXT:     int j = 0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; clad::push(_t1, a[j++]) , (++i , s += clad::back(_t1) * x)) {
+// CHECK-NEXT:         ;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_s += 1 * s;
+// CHECK-NEXT:         _d_s += s * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d0 = _d_s;
+// CHECK-NEXT:             j--;
+// CHECK-NEXT:             _d_a[j] += _r_d0 * x;
+// CHECK-NEXT:             *_d_x += clad::back(_t1) * _r_d0;
+// CHECK-NEXT:             clad::pop(_t1);
+// CHECK-NEXT:             _d_i += 0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         ;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_a[0];
+// CHECK-NEXT:         *_d_x += _d_a[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_a[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3314,4 +3366,7 @@ int main() {
   double x56[3] = {0.5, 1.5, 1.2}, d56[3] = {0};
   clad::gradient(fn56).execute(x56, d56);
   printf("{%.2f, %.2f, %.2f}\n", d56[0], d56[1], d56[2]); // CHECK-EXEC: {0.01, -279.10, -139.48}
+
+  TEST(fn59, 1); // CHECK-EXEC: {20.00}
+  TEST(fn60, 0.5); // CHECK-EXEC: {74.25}
 }
