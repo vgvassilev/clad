@@ -212,4 +212,17 @@ int main() {
   // CHECK-EXEC: 0 : 1.00
   // CHECK-EXEC: 1 : 2.00
   // CHECK-EXEC: 2 : 3.00
+
+  // An array_ref made from a C-style array keeps the array's size, while one
+  // made from a pointer still refers to a single element.
+  clad::array_ref<double> c_arr_ref(double_test_arr3);
+  clad::array_ref<double> c_arr_ref_copy = double_test_arr3;
+  clad::array_ref<const double> const_c_arr_ref(double_test_arr3);
+  clad::array_ref<double> ptr_ref(&double_test_arr3[0]);
+  printf("%zu %zu %zu %zu\n", c_arr_ref.size(), c_arr_ref_copy.size(),
+         const_c_arr_ref.size(), ptr_ref.size());
+  // CHECK-EXEC: 3 3 3 1
+  c_arr_ref[2] = 4;
+  printf("%.2f\n", double_test_arr3[2]);
+  // CHECK-EXEC: 4.00
 }
