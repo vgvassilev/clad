@@ -91,7 +91,7 @@ public:
                            !std::is_array<std::remove_reference_t<U>>::value &&
                            !std::is_same<std::decay_t<U>, array_ref>::value,
                        int> = 0>
-  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+  // NOLINTNEXTLINE(bugprone-forwarding-reference-overload,cppcoreguidelines-missing-std-forward)
   constexpr CUDA_HOST_DEVICE array_ref(U&& a) : m_arr(a), m_size(1) {}
   // NOLINTEND(modernize-type-traits)
   /// Constructor for C-style arrays, which keeps their size
