@@ -156,9 +156,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
 
   // Instantiate a variable indepVarCount to store the total number of
   // independent variables requested.
-  // size_t indepVarCount = indVarCountExpr;
-  auto* totalIndVars =
-      BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
+  auto* totalIndVars = BuildVarDecl(utils::GetSizeTType(m_Sema),
+                                    "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
   m_IndVarCountDecl = totalIndVars;
 
