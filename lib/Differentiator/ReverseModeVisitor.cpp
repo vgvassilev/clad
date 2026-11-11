@@ -791,6 +791,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff();
   }
 
+  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+  StmtDiff ReverseModeVisitor::VisitCXXThrowExpr(const CXXThrowExpr* TE) {
+    return StmtDiff(Clone(TE));
+  }
+
   StmtDiff ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI,
                                                      Expr* thisExpr) {
     // If we're dealing with a delegating constructor or a
@@ -1294,6 +1299,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       StmtDiff ExprDiff = Result.second;
       Stmt* Forward = utils::unwrapIfSingleStmt(BranchDiff.getStmt());
       Stmt* Reverse = utils::unwrapIfSingleStmt(BranchDiff.getStmt_dx());
+      if (!Forward &&
+          (isa_and_nonnull<CXXThrowExpr>(Branch->IgnoreParenCasts()) ||
+           (ExprDiff.getExpr() &&
+            isa<CXXThrowExpr>(ExprDiff.getExpr()->IgnoreParenCasts()))))
+        Forward = CloneNode(ExprDiff.getExpr());
       return {StmtDiff(Forward, Reverse), ExprDiff};
     };
 
