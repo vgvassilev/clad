@@ -970,6 +970,38 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
   return Result;
 }
 
+static bool canZeroInitType(QualType T) {
+  if (const CXXRecordDecl* RD = T->getAsCXXRecordDecl())
+    return RD->hasDefinition() && !RD->isAbstract() &&
+           (RD->isAggregate() || RD->hasDefaultConstructor());
+  return !T->isVoidType() && !T->isReferenceType() &&
+         !isa<VariableArrayType>(T);
+}
+
+Expr* BaseForwardModeVisitor::zeroReturnTangent(const Expr* RetVal,
+                                                QualType RetTy) {
+  SourceLocation L = RetVal->getBeginLoc();
+  // A non-const reference return needs an lvalue tangent to bind to; a
+  // value without a derivative has none.
+  if (RetTy->isLValueReferenceType() &&
+      !RetTy.getNonReferenceType().isConstQualified()) {
+    diag(DiagnosticsEngine::Error, L,
+         "cannot differentiate '%0': the returned reference refers to a "
+         "value without a derivative")
+        << m_DiffReq->getNameAsString() << L;
+    return nullptr;
+  }
+  QualType T = RetTy.getNonReferenceType().getUnqualifiedType();
+  if (!canZeroInitType(T)) {
+    diag(DiagnosticsEngine::Error, L,
+         "cannot differentiate '%0': the returned expression has no "
+         "derivative and %1 has no zero value")
+        << m_DiffReq->getNameAsString() << T << L;
+    return nullptr;
+  }
+  return getZeroInit(T);
+}
+
 StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
   if (!RS->getRetValue()) {
@@ -984,9 +1016,26 @@ StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
+  Expr* retValDx = retValDiff.getExpr_dx();
+  if (RS->getRetValue()->getType()->isVoidType()) {
+    if (Expr* outputTangent = GetOutputParamTangent()) {
+      if (retValDx && retValDx->HasSideEffects(m_Context))
+        addToCurrentBlock(retValDx);
+      return StmtDiff(BuildReturnStmt(outputTangent));
+    }
+  } else {
+    QualType RetTy = m_DiffReq->getReturnType();
+    bool invalidNonConstRef = RetTy->isLValueReferenceType() &&
+                              !RetTy.getNonReferenceType().isConstQualified() &&
+                              (!retValDx || !retValDx->isLValue());
+    if (!retValDx || invalidNonConstRef) {
+      retValDx = zeroReturnTangent(RS->getRetValue(), RetTy);
+      if (!retValDx)
+        return {};
+    }
+  }
   Stmt* returnStmt =
-      m_Sema.ActOnReturnStmt(noLoc, retValDiff.getExpr_dx(), getCurrentScope())
-          .get();
+      m_Sema.ActOnReturnStmt(noLoc, retValDx, getCurrentScope()).get();
   return StmtDiff(returnStmt);
 }
 
@@ -2182,17 +2231,32 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     return BuildOp(BO_Add, LHS, RHS);
   };
 
-  auto deriveDiv = [this, &mulTerm](StmtDiff& Ldiff, StmtDiff& Rdiff,
-                                    bool dropsRTerm = false) {
-    // The `dL * R` term is always built: when both tangents are zero the
-    // caller emits a plain zero instead of calling here, so the denominator
-    // survives and R is stored -- a zero dL term is then safe to keep for the
-    // folder.
-    Expr* nominator = mulTerm(Ldiff.getExpr_dx(), CloneNode(Rdiff.getExpr()));
-    if (!dropsRTerm)
+  auto negateTangent = [this](Expr* Tangent, QualType PrimalTy) {
+    // clad::array_expression provides binary `operator-` but not unary `-`.
+    if (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+        m_DiffReq.Mode == DiffMode::vector_pushforward)
+      return BuildOp(BO_Sub, getZeroInit(PrimalTy), Tangent);
+    return BuildOp(UO_Minus, Tangent);
+  };
+
+  auto deriveDiv = [this, &mulTerm, &negateTangent](StmtDiff& Ldiff,
+                                                    StmtDiff& Rdiff,
+                                                    bool dropsRTerm = false) {
+    // The `dL * R` term is built whenever L has a tangent: when both tangents
+    // are zero the caller emits a plain zero instead of calling here, so the
+    // denominator survives and R is stored -- a zero dL term is then safe to
+    // keep for the folder. When L has no tangent (nullptr), drop `dL * R`.
+    Expr* dL = Ldiff.getExpr_dx();
+    Expr* lhsTerm = dL ? mulTerm(dL, CloneNode(Rdiff.getExpr())) : nullptr;
+    Expr* rhsTerm =
+        dropsRTerm ? nullptr
+                   : mulTerm(CloneNode(Ldiff.getExpr()), Rdiff.getExpr_dx());
+    Expr* nominator = lhsTerm;
+    if (lhsTerm && rhsTerm)
+      nominator = BuildOp(BO_Sub, lhsTerm, rhsTerm);
+    else if (!lhsTerm && rhsTerm)
       nominator =
-          BuildOp(BO_Sub, nominator,
-                  mulTerm(CloneNode(Ldiff.getExpr()), Rdiff.getExpr_dx()));
+          negateTangent(BuildParens(rhsTerm), Rdiff.getExpr()->getType());
 
     Expr* denominator =
         mulTerm(CloneNode(Rdiff.getExpr()), CloneNode(Rdiff.getExpr()));
@@ -2200,18 +2264,21 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   };
 
   if (opCode == BO_Mul || opCode == BO_Div) {
-    // A term of the product/quotient rule guarded by a constant-zero tangent
-    // is dead. Use the folder's own zero predicate to decide which terms to
-    // build, so this choice and the fold's identities cannot drift apart.
-    bool dropsLTerm =
-        ConstantFolder::evaluatesToZero(Ldiff.getExpr_dx(), m_Context);
-    bool dropsRTerm =
-        ConstantFolder::evaluatesToZero(Rdiff.getExpr_dx(), m_Context);
+    // A term of the product/quotient rule guarded by a constant-zero or
+    // missing tangent is dead. Use the folder's own zero predicate alongside
+    // nullness to decide which terms to build, so this choice and the
+    // fold's identities cannot drift apart.
+    bool dropsLTerm = !Ldiff.getExpr_dx() || ConstantFolder::evaluatesToZero(
+                                                 Ldiff.getExpr_dx(), m_Context);
+    bool dropsRTerm = !Rdiff.getExpr_dx() || ConstantFolder::evaluatesToZero(
+                                                 Rdiff.getExpr_dx(), m_Context);
     if (dropsLTerm && dropsRTerm) {
-      // Both tangents are zero: the numerator collapses to zero, and for
+      // Both tangents are zero/missing: the numerator collapses, and for
       // division `0 / (R * R)` folds away the denominator with it, so no
       // primal needs storing at all.
-      opDiff = getZeroInit(BinOp->getType());
+      opDiff = (Ldiff.getExpr_dx() || Rdiff.getExpr_dx())
+                   ? getZeroInit(BinOp->getType())
+                   : nullptr;
     } else {
       // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
       // expressions in variables to avoid reevaluation. Only store an operand
@@ -2241,7 +2308,20 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = CloneNode(derivedR);
     if (opCode == BO_Sub)
       derivedR = BuildParens(derivedR);
-    opDiff = BuildOp(opCode, derivedL, derivedR);
+    if (!derivedL || !derivedR) {
+      // For non-pointer +/- where only one side has a tangent, keep it.
+      if (!utils::isArrayOrPointerType(Ldiff.getExpr()->getType()) &&
+          !utils::isArrayOrPointerType(Rdiff.getExpr()->getType())) {
+        if (derivedL)
+          opDiff = derivedL;
+        else if (derivedR)
+          opDiff = (opCode == BO_Sub)
+                       ? negateTangent(derivedR, Rdiff.getExpr()->getType())
+                       : derivedR;
+      }
+    } else {
+      opDiff = BuildOp(opCode, derivedL, derivedR);
+    }
   } else if (BinOp->isAssignmentOp()) {
     if (Ldiff.getExpr_dx() &&
         (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
@@ -2266,8 +2346,20 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
         derivedR = CloneNode(derivedR);
       // `q = xlArr + 1` carries the arithmetic on the right; `q += 1` performs
       // it on the tangent itself, so there the whole update is guarded.
-      if (opCode == BO_Assign)
+      if (opCode == BO_Assign) {
+        // Assigning a value with no tangent to an existing tangent resets it
+        // to zero rather than leaving the previous derivative intact.
+        if (derivedL && !derivedR) {
+          QualType LTy = BinOp->getLHS()->getType().getUnqualifiedType();
+          if (isCladArrayType(derivedL->getType()) &&
+              (LTy->isArithmeticType() || LTy->isPointerType()))
+            derivedR = ConstantFolder::synthesizeLiteral(
+                m_Context.getPointerType(LTy), m_Context, /*val=*/0);
+          else if (canZeroInitType(LTy))
+            derivedR = getZeroInit(LTy);
+        }
         derivedR = KeepTangentNullness(BinOp->getRHS(), derivedR);
+      }
       opDiff = BuildOp(opCode, derivedL, derivedR);
       if (opCode != BO_Assign)
         opDiff = KeepTangentNullness(BinOp->getLHS(), opDiff);
@@ -2293,49 +2385,59 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       //
       // (The constant folder may collapse the derivative expression further;
       // the ordering of the stored references is the point here.)
-      auto LdiffExprDx = StoreAndRef(Ldiff.getExpr_dx());
-      Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
-      // In vector mode an expression of vectors may refer to temporaries, as
-      // a numerically differentiated call's partials: stored, it is kept as a
-      // vector, of the wider floating type of the two sides' tangents, as the
-      // primal's product is; double where neither is floating.
-      Expr* RdiffExprDx = nullptr;
-      QualType RdxTy = Rdiff.getExpr_dx()->getType();
-      QualType RdxElem = tangentElementType(RdxTy);
-      if (!RdxElem.isNull()) {
-        QualType LElem = tangentElementType(Ldiff.getExpr_dx()->getType());
-        if (!RdxElem->isRealFloatingType())
-          RdxElem = QualType();
-        if (!LElem.isNull() && LElem->isRealFloatingType() &&
-            (RdxElem.isNull() ||
-             m_Context.getFloatingTypeOrder(LElem, RdxElem) > 0))
-          RdxElem = LElem;
-        if (RdxElem.isNull())
-          RdxElem = m_Context.DoubleTy;
+      if (Ldiff.getExpr_dx()) {
+        Expr* LdiffExprDx = StoreAndRef(Ldiff.getExpr_dx());
+        Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
+        Expr* RdiffExprDx = Rdiff.getExpr_dx();
+        if (RdiffExprDx) {
+          // In vector mode an expression of vectors may refer to temporaries,
+          // as a numerically differentiated call's partials: stored, it is kept
+          // as a vector, of the wider floating type of the two sides'
+          // tangents, as the primal's product is; double where neither is
+          // floating.
+          QualType RdxTy = RdiffExprDx->getType();
+          QualType RdxElem = tangentElementType(RdxTy);
+          if (!RdxElem.isNull()) {
+            QualType LElem = tangentElementType(Ldiff.getExpr_dx()->getType());
+            if (!RdxElem->isRealFloatingType())
+              RdxElem = QualType();
+            if (!LElem.isNull() && LElem->isRealFloatingType() &&
+                (RdxElem.isNull() ||
+                 m_Context.getFloatingTypeOrder(LElem, RdxElem) > 0))
+              RdxElem = LElem;
+            if (RdxElem.isNull())
+              RdxElem = m_Context.DoubleTy;
+          }
+          const auto* RdxRD = RdxTy->getAsCXXRecordDecl();
+          if (!RdxElem.isNull() && RdxRD &&
+              RdxRD->getQualifiedNameAsString() != "clad::array")
+            RdiffExprDx = StoreAndRef(
+                RdiffExprDx, utils::GetCladArrayOfType(m_Sema, RdxElem),
+                getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+          else
+            RdiffExprDx = StoreAndRef(RdiffExprDx);
+        }
+        Rdiff = {StoreAndRef(Rdiff.getExpr()), RdiffExprDx};
+        // deriveMul/deriveDiv reuse Ldiff.getExpr_dx() (the stored derivative
+        // ref) on the right-hand side; clone it for the assignment target so
+        // the two occurrences do not share.
+        if (opCode == BO_MulAssign)
+          opDiff = BuildOp(BO_Assign, CloneNode(Ldiff.getExpr_dx()),
+                           deriveMul(Ldiff, Rdiff, /*dropsLTerm=*/false,
+                                     /*dropsRTerm=*/!RdiffExprDx));
+        else if (opCode == BO_DivAssign)
+          opDiff =
+              BuildOp(BO_Assign, CloneNode(Ldiff.getExpr_dx()),
+                      deriveDiv(Ldiff, Rdiff, /*dropsRTerm=*/!RdiffExprDx));
       }
-      const auto* RdxRD = RdxTy->getAsCXXRecordDecl();
-      if (!RdxElem.isNull() && RdxRD &&
-          RdxRD->getQualifiedNameAsString() != "clad::array")
-        RdiffExprDx = StoreAndRef(
-            Rdiff.getExpr_dx(), utils::GetCladArrayOfType(m_Sema, RdxElem),
-            getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
-      else
-        RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
-      Rdiff = {StoreAndRef(Rdiff.getExpr()), RdiffExprDx};
-      // deriveMul/deriveDiv reuse Ldiff.getExpr_dx() (the stored derivative
-      // ref) on the right-hand side; clone it for the assignment target so the
-      // two occurrences do not share.
-      if (opCode == BO_MulAssign)
-        opDiff = BuildOp(BO_Assign, CloneNode(Ldiff.getExpr_dx()),
-                         deriveMul(Ldiff, Rdiff));
-      else if (opCode == BO_DivAssign)
-        opDiff = BuildOp(BO_Assign, CloneNode(Ldiff.getExpr_dx()),
-                         deriveDiv(Ldiff, Rdiff));
     }
   } else if (opCode == BO_Comma) {
     // if expression is (E1, E2) then derivative is (E1', E1, E2')
     // because E1 may change some variables that E2 depends on.
-    if (Ldiff.getExpr_dx() && !isUnusedResult(Ldiff.getExpr_dx())) {
+    if (!Rdiff.getExpr_dx()) {
+      if (Ldiff.getExpr_dx() && !isUnusedResult(Ldiff.getExpr_dx()))
+        addToCurrentBlock(Ldiff.getExpr_dx());
+    } else if (Ldiff.getExpr_dx() && !isUnusedResult(Ldiff.getExpr_dx())) {
       opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr_dx()),
                        BuildParens(Ldiff.getExpr()));
       opDiff = BuildOp(BO_Comma, BuildParens(opDiff),
@@ -2677,8 +2779,10 @@ StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
   Expr* dx = castExprDiff.getExpr_dx();
   if (Expr* castDx = castTangent(dx, FCE))
     return {clonedFCE, castDx};
-  Expr* derivedFCE =
-      BuildFunctionalCast(FCE->getTypeInfoAsWritten(), FCE->getType(), dx);
+  Expr* derivedFCE = nullptr;
+  if (dx && (!dx->getType()->isVoidType() || isa<InitListExpr>(dx)))
+    derivedFCE =
+        BuildFunctionalCast(FCE->getTypeInfoAsWritten(), FCE->getType(), dx);
   return {clonedFCE, derivedFCE};
 }
 
@@ -2692,14 +2796,16 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
                            CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
                            CSCE->getRParenLoc(), subExprDiff.getExpr())
                        .get();
-  if (Expr* castDx = castTangent(subExprDiff.getExpr_dx(), CSCE))
+  Expr* dx = subExprDiff.getExpr_dx();
+  if (Expr* castDx = castTangent(dx, CSCE))
     return StmtDiff(castExpr, castDx);
-  Expr* castExprDiff =
-      m_Sema
-          .BuildCStyleCastExpr(CSCE->getLParenLoc(),
-                               CSCE->getTypeInfoAsWritten(),
-                               CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
-          .get();
+  Expr* castExprDiff = nullptr;
+  if (dx && (!dx->getType()->isVoidType() || isa<InitListExpr>(dx)))
+    castExprDiff = m_Sema
+                       .BuildCStyleCastExpr(CSCE->getLParenLoc(),
+                                            CSCE->getTypeInfoAsWritten(),
+                                            CSCE->getRParenLoc(), dx)
+                       .get();
   return StmtDiff(castExpr, castExprDiff);
 }
 

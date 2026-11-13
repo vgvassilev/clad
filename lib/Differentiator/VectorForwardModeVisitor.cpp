@@ -314,9 +314,16 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
 
 StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   const Expr* retVal = RS->getRetValue();
+  if (!retVal)
+    return StmtDiff(BuildReturnStmt(nullptr));
   QualType retType = retVal->getType();
   StmtDiff retValDiff = Visit(retVal);
   Expr* derivedRetValE = retValDiff.getExpr_dx();
+  if (retType->isVoidType()) {
+    if (derivedRetValE && derivedRetValE->HasSideEffects(m_Context))
+      addToCurrentBlock(derivedRetValE);
+    return StmtDiff(BuildReturnStmt(nullptr));
+  }
   derivedRetValE = asTangentVector(derivedRetValE, retType);
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
@@ -506,7 +513,7 @@ void VectorForwardModeVisitor::matchBranchTangents(StmtDiff& TrueDiff,
   // vector of its own size, or a vector of zeros of the branch's type, which
   // the other's vector may not convert to. Give it the other's type.
   auto isZero = [this](const Expr* Dx) {
-    return isScalarZero(Dx, m_Context) != ScalarZero::No ||
+    return !Dx || isScalarZero(Dx, m_Context) != ScalarZero::No ||
            isZeroVectorCall(Dx);
   };
   auto match = [&](StmtDiff& Vector, StmtDiff& Zero) {
