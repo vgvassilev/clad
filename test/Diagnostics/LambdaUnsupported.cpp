@@ -57,6 +57,35 @@ double vector_mode(double x, double y) {
   return f(x);
 }
 
+void jacobian_captured(double x, double y, double* out) {
+  double c = y;
+  auto g = [c](double t) { return c * t; }; // expected-error {{Jacobian differentiation of a lambda with captures is not supported yet}}
+  out[0] = g(x);
+  out[1] = x;
+}
+
+double vector_mode_callee_helper(double x, double y) {
+  double c = y;
+  auto h = [c](double t) { return c * t; }; // expected-error {{vector-mode differentiation of a lambda with captures is not supported yet}}
+  return h(x);
+}
+
+double vector_mode_callee(double x, double y) {
+  return vector_mode_callee_helper(x, y);
+}
+
+double higher_order_captured(double x, double y) {
+  double c = x * y;
+  auto g = [c](double t) { return c * t; }; // expected-error {{higher-order differentiation of a lambda with captures is not supported yet}}
+  return g(x);
+}
+
+double hessian_captured(double x, double y) {
+  double c = x * y;
+  auto g = [c](double t) { return c * t; }; // expected-error {{Hessian differentiation of a lambda with captures is not supported yet}}
+  return g(x);
+}
+
 int main() {
   clad::differentiate(&Scaled::forward, "x");
   clad::gradient(&Scaled::reverse);
@@ -66,4 +95,8 @@ int main() {
   clad::gradient(in_loop_reverse);
   clad::gradient(mutable_reverse);
   clad::differentiate(byref_write_forward, 0);
+  clad::jacobian(jacobian_captured);
+  clad::differentiate<clad::opts::vector_mode>(vector_mode_callee, "x,y");
+  clad::differentiate<2>(higher_order_captured, "x");
+  clad::hessian(hessian_captured);
 }
