@@ -55,6 +55,15 @@ namespace clad {
   template <class F>
   using argument_types_t = typename function_traits<F>::argument_types;
 
+  template <class List> struct list_size;
+
+  template <typename... Args>
+  struct list_size<list<Args...>>
+      : std::integral_constant<std::size_t, sizeof...(Args)> {};
+
+  template <class F>
+  using arity_of = list_size<argument_types_t<F>>;
+
   // specializations for non-member functions pointer types
   template <class ReturnType, class... Args>
   struct function_traits<ReturnType (*)(Args...)> {
@@ -368,8 +377,18 @@ namespace clad {
     return wrapRest<Idx...>(wrap<T>{}...);
   }
 
+  template <bool Over, std::size_t N, typename... T>
+  struct DropHelper {
+    using type = decltype(dropUsingIndex<T...>(MakeIndexSequence<N>{}));
+  };
+
   template <std::size_t N, typename... T>
-  using Drop_t = decltype(dropUsingIndex<T...>(MakeIndexSequence<N>{}));
+  struct DropHelper<true, N, T...> {
+    using type = list<>;
+  };
+
+  template <std::size_t N, typename... T>
+  using Drop_t = typename DropHelper<(N >= sizeof...(T)), N, T...>::type;
 
   template <std::size_t N, typename... Args>
   constexpr auto DropArgs(list<Args...>) -> Drop_t<N, Args...>;
@@ -382,9 +401,19 @@ namespace clad {
   constexpr auto TakeNFirstArgs(IndexSequence<Idx...>)
       -> list<typename std::tuple_element<Idx, std::tuple<Args...>>::type...>;
 
+  template <bool Over, std::size_t N, typename... Args>
+  struct TakeNFirstArgsHelper {
+    using type = decltype(TakeNFirstArgs<Args...>(MakeIndexSequence<N>{}));
+  };
+
+  template <std::size_t N, typename... Args>
+  struct TakeNFirstArgsHelper<true, N, Args...> {
+    using type = list<Args...>;
+  };
+
   template <std::size_t N, typename... Args>
   constexpr auto TakeNFirstArgs(list<Args...>)
-      -> decltype(TakeNFirstArgs<Args...>(MakeIndexSequence<N>{}));
+      -> typename TakeNFirstArgsHelper<(N >= sizeof...(Args)), N, Args...>::type;
 
   // Returns the first N arguments in the function F
   template <size_t N, typename F>
