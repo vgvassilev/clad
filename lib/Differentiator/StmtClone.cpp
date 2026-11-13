@@ -75,11 +75,20 @@ DEFINE_CREATE_EXPR(UnaryOperator,
 Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   TemplateArgumentListInfo TAListInfo;
   Node->copyTemplateArgumentsInto(TAListInfo);
+  ValueDecl* D = Node->getDecl();
+  NamedDecl* FoundD = Node->getFoundDecl();
+  if (m_DeclSubst)
+    if (const auto* VD = dyn_cast<VarDecl>(D))
+      if (VarDecl* ClonedVD = m_DeclSubst->lookup(VD)) {
+        if (FoundD == D)
+          FoundD = ClonedVD;
+        D = ClonedVD;
+      }
   return DeclRefExpr::Create(
-      Ctx, Node->getQualifierLoc(), Node->getTemplateKeywordLoc(),
-      Node->getDecl(), Node->refersToEnclosingVariableOrCapture(),
-      Node->getNameInfo(), CloneType(Node->getType()), Node->getValueKind(),
-      Node->getFoundDecl(), &TAListInfo, Node->isNonOdrUse());
+      Ctx, Node->getQualifierLoc(), Node->getTemplateKeywordLoc(), D,
+      Node->refersToEnclosingVariableOrCapture(), Node->getNameInfo(),
+      CloneType(Node->getType()), Node->getValueKind(), FoundD, &TAListInfo,
+      Node->isNonOdrUse());
 }
 DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
@@ -774,6 +783,8 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
         Ctx, VD->getDeclContext(), VD->getLocation(), VD->getInnerLocStart(),
         VD->getIdentifier(), CloneType(VD->getType()), VD->getTypeSourceInfo(),
         VD->getStorageClass());
+    if (m_DeclSubst)
+      (*m_DeclSubst)[VD] = cloned_Decl;
     if (VD->getInit())
       m_Sema.AddInitializerToDecl(cloned_Decl, Clone(VD->getInit()), VD->isDirectInit());
     cloned_Decl->setTSCSpec(VD->getTSCSpec());
@@ -830,7 +841,22 @@ ReferencesUpdater::ReferencesUpdater(
     : m_Sema(SemaRef), m_CurScope(S), m_Function(FD),
       m_DeclReplacements(DeclReplacements) {}
 
+bool ReferencesUpdater::VisitVarDecl(VarDecl* VD) {
+  m_LocalDecls.insert(VD);
+  return true;
+}
+
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
+  // Keep references to variables declared within the traversed subtree so an
+  // identically named declaration in m_CurScope cannot overwrite them.
+  if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+    if (m_LocalDecls.count(VD)) {
+      VD->setReferenced();
+      VD->setIsUsed();
+      updateType(DRE->getType());
+      return true;
+    }
+
   // We should only update references of the declarations that were inside
   // the original function declaration context.
   // Original function = function that we are currently differentiating.
