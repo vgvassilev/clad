@@ -87,6 +87,12 @@ public:
     return nullptr;
   }
 
+  /// \returns a zero tangent for a non-void return expression \p RetVal of
+  /// type \p RetTy when it has no derivative, or null after diagnosing if
+  /// \p RetTy has no valid zero value.
+  clang::Expr* zeroReturnTangent(const clang::Expr* RetVal,
+                                 clang::QualType RetTy);
+
   /// \returns \p read, the derivative expression dereferencing \p tangent,
   /// wrapped so that it evaluates to \p zero instead of dereferencing a null
   /// \p tangent. \p ptr is the primal pointer expression \p tangent is the

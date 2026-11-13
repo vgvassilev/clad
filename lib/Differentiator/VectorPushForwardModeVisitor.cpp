@@ -61,16 +61,17 @@ VectorPushForwardModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Expr* retVal = retValDiff.getExpr();
-  // `return g(x);` in a function returning void returns what g's derivative
-  // does: nothing, so there is no value or tangent to pair. Only for a call:
-  // what another void expression changes may be in its tangent alone.
-  if (RS->getRetValue()->getType()->isVoidType() &&
-      isa<CallExpr>(RS->getRetValue()->IgnoreParens()) &&
-      !retValDiff.getExpr_dx())
+  Expr* retValDx = retValDiff.getExpr_dx();
+  QualType RetTy = m_DiffReq->getReturnType();
+  // A pushforward of a void function returns void as well, while preserving any
+  // tangent side effects produced by the return operand (e.g., comma).
+  if (RetTy->isVoidType()) {
+    if (retValDx && retValDx->HasSideEffects(m_Context))
+      addToCurrentBlock(retValDx);
     return StmtDiff(BuildReturnStmt(retVal));
+  }
   // As in scalar mode: the value member has the function's return type, and
   // a braced list does not narrow to it.
-  QualType RetTy = m_DiffReq->getReturnType();
   if (!clad_compat::hasSameUnqualifiedType(m_Context, retVal->getType(),
                                            RetTy)) {
     auto* TSI = m_Context.getTrivialTypeSourceInfo(RetTy);
@@ -79,11 +80,19 @@ VectorPushForwardModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
                                       BuildParens(retVal))
                  .get();
   }
+  bool needsNonConstRef = RetTy->isLValueReferenceType() &&
+                          !RetTy.getNonReferenceType().isConstQualified();
   // The pushforward member is a vector of tangents; a constant zero would
-  // size it rather than fill it.
-  llvm::SmallVector<Expr*, 2> returnValues = {
-      retVal,
-      asTangentVector(retValDiff.getExpr_dx(), RS->getRetValue()->getType())};
+  // size it rather than fill it, while a non-const reference return needs an
+  // lvalue tangent directly.
+  if (!needsNonConstRef)
+    retValDx = asTangentVector(retValDx, RS->getRetValue()->getType());
+  if (!retValDx || (needsNonConstRef && !retValDx->isLValue())) {
+    retValDx = zeroReturnTangent(RS->getRetValue(), RetTy);
+    if (!retValDx)
+      return {};
+  }
+  llvm::SmallVector<Expr*, 2> returnValues = {retVal, retValDx};
   Expr* initList = BuildInitList(returnValues);
   Stmt* returnStmt = BuildReturnStmt(initList);
   return StmtDiff(returnStmt);
