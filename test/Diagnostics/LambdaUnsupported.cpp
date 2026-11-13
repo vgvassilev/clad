@@ -57,6 +57,30 @@ double vector_mode(double x, double y) {
   return f(x);
 }
 
+double generic_lambda_capture_forward(double x) {
+  double c = x * x;
+  auto g = [c](auto t) { return c * t; }; // expected-error {{differentiation of a generic lambda with captures is not supported yet}}
+  return g(x);
+}
+
+double generic_lambda_capture_reverse(double x) {
+  double c = x * x;
+  auto g = [c](auto t) { return c * t; }; // expected-error {{differentiation of a generic lambda with captures is not supported yet}}
+  return g(x);
+}
+
+double lambda_capturing_lambda_forward(double x) {
+  auto h = [x](double t) { return x * t; };
+  auto g = [h](double t) { return h(t) + t; }; // expected-error {{differentiation of a lambda capturing another lambda is not supported yet}}
+  return g(x);
+}
+
+double lambda_capturing_lambda_reverse(double x) {
+  auto h = [x](double t) { return x * t; };
+  auto g = [h](double t) { return h(t) + t; }; // expected-error {{differentiation of a lambda capturing another lambda is not supported yet}}
+  return g(x);
+}
+
 int main() {
   clad::differentiate(&Scaled::forward, "x");
   clad::gradient(&Scaled::reverse);
@@ -66,4 +90,8 @@ int main() {
   clad::gradient(in_loop_reverse);
   clad::gradient(mutable_reverse);
   clad::differentiate(byref_write_forward, 0);
+  clad::differentiate(generic_lambda_capture_forward, 0);
+  clad::gradient(generic_lambda_capture_reverse);
+  clad::differentiate(lambda_capturing_lambda_forward, 0);
+  clad::gradient(lambda_capturing_lambda_reverse);
 }

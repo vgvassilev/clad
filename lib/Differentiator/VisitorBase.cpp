@@ -2040,7 +2040,7 @@ namespace clad {
     // The function, or the lambda, LE is written in.
     const auto* Enclosing =
         cast<FunctionDecl>(LE->getLambdaClass()->getDeclContext());
-    for (const LambdaCapture& Cap : LE->captures())
+    for (const LambdaCapture& Cap : LE->captures()) {
       if (!Cap.capturesVariable()) {
         diag(DiagnosticsEngine::Error, Cap.getLocation(),
              "differentiation of a lambda that captures %select{'this'|a "
@@ -2048,6 +2048,23 @@ namespace clad {
             << !Cap.capturesThis();
         return true;
       }
+      if (const auto* CapVD = dyn_cast_or_null<VarDecl>(Cap.getCapturedVar())) {
+        QualType CapQT = CapVD->getType().getNonReferenceType();
+        const auto* CapRD = CapQT->getAsCXXRecordDecl();
+        if (CapRD && CapRD->isLambda()) {
+          diag(DiagnosticsEngine::Error, Cap.getLocation(),
+               "differentiation of a lambda capturing another lambda is not "
+               "supported yet");
+          return true;
+        }
+      }
+    }
+    if (LE->capture_size() && LE->isGenericLambda()) {
+      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
+           "differentiation of a generic lambda with captures is not "
+           "supported yet");
+      return true;
+    }
     if (LE->capture_size() && m_DiffReq.Mode == DiffMode::vector_forward_mode) {
       diag(DiagnosticsEngine::Error, CallOp->getLocation(),
            "vector-mode differentiation of a lambda with captures is not "
