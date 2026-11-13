@@ -39,3 +39,33 @@ TEST(DifferentiatorH, RestoreTrackerCopiesGrownRecords) {
   smallMoved.restore();
   EXPECT_EQ(c, 3);
 }
+
+TEST(DifferentiatorH, DropAndTakeArgsOutOfBounds) {
+  using Fn = void (*)(int, double, float);
+  static_assert(clad::arity_of<Fn>::value == 3, "");
+
+  // N < arity
+  using First2 = clad::TakeNFirstArgs_t<2, Fn>;
+  static_assert(std::is_same<First2, clad::list<int, double>>::value, "");
+  using Drop2 = clad::DropArgs_t<2, Fn>;
+  static_assert(std::is_same<Drop2, clad::list<float>>::value, "");
+
+  // N == arity
+  using First3 = clad::TakeNFirstArgs_t<3, Fn>;
+  static_assert(std::is_same<First3, clad::list<int, double, float>>::value, "");
+  using Drop3 = clad::DropArgs_t<3, Fn>;
+  static_assert(std::is_same<Drop3, clad::list<>>::value, "");
+
+  // N > arity: must not fail template instantiation or exceed tuple bounds
+  using First5 = clad::TakeNFirstArgs_t<5, Fn>;
+  static_assert(std::is_same<First5, clad::list<int, double, float>>::value, "");
+  using Drop5 = clad::DropArgs_t<5, Fn>;
+  static_assert(std::is_same<Drop5, clad::list<>>::value, "");
+
+  // N == 0
+  using First0 = clad::TakeNFirstArgs_t<0, Fn>;
+  static_assert(std::is_same<First0, clad::list<>>::value, "");
+  using Drop0 = clad::DropArgs_t<0, Fn>;
+  static_assert(std::is_same<Drop0, clad::list<int, double, float>>::value, "");
+}
+
