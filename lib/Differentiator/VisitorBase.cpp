@@ -939,6 +939,8 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildInitList(llvm::MutableArrayRef<Expr*> Elements) {
+    if (llvm::is_contained(Elements, nullptr))
+      return nullptr;
     // A location each, not one for both: the two braces are distinct positions
     // in the printed derivative, and one location for both would make a range
     // whose ends coincide.

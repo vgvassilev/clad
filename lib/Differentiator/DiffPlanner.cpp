@@ -2527,6 +2527,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
+      if (request.Mode == DiffMode::vector_forward_mode &&
+          utils::GetNonConstValueType(request.Function->getReturnType())
+              ->isRecordType()) {
+        const FunctionDecl* PrimalFD = request.Function;
+        utils::diag(
+            m_Sema, DiagnosticsEngine::Error,
+            request.CallContext->getBeginLoc(),
+            "vector mode currently does not support function %0 returning a "
+            "struct or class type")
+            << PrimalFD;
+        SourceLocation NoteLoc =
+            PrimalFD->getReturnTypeSourceRange().getBegin();
+        if (NoteLoc.isInvalid())
+          NoteLoc = PrimalFD->getLocation();
+        utils::diag(m_Sema, DiagnosticsEngine::Note, NoteLoc,
+                    "%0 declared here with return type %1")
+            << PrimalFD << PrimalFD->getReturnType();
+        return true;
+      }
+
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
 
@@ -2688,6 +2708,22 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       } else {
         assert(0 && "unexpected mode.");
         return true;
+      }
+
+      if (request.Mode == DiffMode::vector_pushforward &&
+          utils::GetNonConstValueType(FD->getReturnType())->isRecordType()) {
+        utils::diag(
+            m_Sema, DiagnosticsEngine::Error, E->getBeginLoc(),
+            "cannot differentiate call to %0 in vector mode: functions "
+            "returning a struct or class are not supported yet")
+            << FD;
+        SourceLocation NoteLoc = FD->getReturnTypeSourceRange().getBegin();
+        if (NoteLoc.isInvalid())
+          NoteLoc = FD->getLocation();
+        utils::diag(m_Sema, DiagnosticsEngine::Note, NoteLoc,
+                    "%0 declared here with return type %1")
+            << FD << FD->getReturnType();
+        nonDiff = true;
       }
 
       // FIXME: Use CLAD_ELIDABLE_REVERSE_FORW

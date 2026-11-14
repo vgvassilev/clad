@@ -81,9 +81,25 @@ VectorPushForwardModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   }
   // The pushforward member is a vector of tangents; a constant zero would
   // size it rather than fill it.
-  llvm::SmallVector<Expr*, 2> returnValues = {
-      retVal,
-      asTangentVector(retValDiff.getExpr_dx(), RS->getRetValue()->getType())};
+  Expr* retVal_dx =
+      asTangentVector(retValDiff.getExpr_dx(), RS->getRetValue()->getType());
+  if (!retVal_dx) {
+    SourceLocation L = RS->getRetValue()->getBeginLoc();
+    if (utils::GetNonConstValueType(RS->getRetValue()->getType())
+            ->isRecordType()) {
+      diag(DiagnosticsEngine::Error, L,
+           "cannot differentiate %0 in vector mode: functions returning a "
+           "struct or class are not supported yet")
+          << m_DiffReq->getNameAsString() << L;
+    } else {
+      diag(DiagnosticsEngine::Error, L,
+           "cannot differentiate %0 in vector mode: the return value has no "
+           "tangent vector")
+          << m_DiffReq->getNameAsString() << L;
+    }
+    return {};
+  }
+  llvm::SmallVector<Expr*, 2> returnValues = {retVal, retVal_dx};
   Expr* initList = BuildInitList(returnValues);
   Stmt* returnStmt = BuildReturnStmt(initList);
   return StmtDiff(returnStmt);
