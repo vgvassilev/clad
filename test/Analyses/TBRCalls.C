@@ -1,5 +1,8 @@
 // RUN: %cladclang %s -I%S/../../include -oTBRCalls.out 2>&1 | %filecheck %s
 // RUN: ./TBRCalls.out | %filecheck_exec %s
+// RUN: %cladclang -std=c++20 %s -I%S/../../include -oTBRCalls.out 2>&1 \
+// RUN:   | %filecheck %s
+// RUN: ./TBRCalls.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s \
 // RUN:   -I%S/../../include -oTBRCalls.out
 // RUN: ./TBRCalls.out | %filecheck_exec %s
@@ -12,7 +15,10 @@
 // post-call values.
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/STLBuiltins.h"
+#include <cstddef>
 #include <cstdio>
+#include <vector>
 
 void fillfrom(int d, const double* x, double* out) {
   for (int i = 0; i < d; i++)
@@ -142,6 +148,106 @@ double t10(const double* x) {
   return t1 + t2;
 }
 
+// A recursive function reads its index list through a non-const operator[]
+// that writes nothing. The pullback comes from the request planned at the
+// recursive call, which must still know that: else every read stores ix.
+struct Idx {
+  int v[3];
+  int& operator[](int i) { return v[i]; }
+};
+
+double rec(const double* x, Idx& ix, int n) {
+  if (n == 0)
+    return 1;
+  int k = ix[n - 1];
+  return x[k] * rec(x, ix, n - 1);
+}
+
+double t11(const double* x) {
+  Idx ix{{0, 1, 1}};
+  return rec(x, ix, 3);
+}
+
+// recw writes p[0] only after its recursive call. At that call TBR reads
+// what recw writes from the summary it is still building of recw: unless it
+// runs again, the call seems to write nothing and p[0] is not restored.
+double recw(double* p, int n) {
+  if (n == 0)
+    return p[0];
+  double a = recw(p, n - 1);
+  double r = a * p[0];
+  p[0] = p[0] * p[0];
+  return r;
+}
+
+double t12(const double* x) {
+  double p[1] = {x[1]};
+  return recw(p, 3);
+}
+
+// data() and operator[] of a std::vector refer to elements without reading
+// them. fillfrom overwrites values that were only read linearly, so they are
+// not stored.
+double t13(const double* x) {
+  std::vector<double> k(2);
+  double r = 0;
+  for (int s = 0; s < 2; s++) {
+    fillfrom(2, x, k.data());
+    r += k[0] + 2 * k[1];
+  }
+  return r;
+}
+
+// k[0] * k[1] reads k nonlinearly before squarer overwrites it, so k is
+// stored.
+double t14(const double* x) {
+  std::vector<double> k(2);
+  fillfrom(2, x, k.data());
+  double r = k[0] * k[1];
+  squarer(2, k.data());
+  return r + k[1];
+}
+
+// A container of the user's, classified as contiguous: data() refers to all
+// its elements, as for std::vector, and size() reads none, so fillfrom stores
+// nothing.
+struct Buf {
+  double e[2];
+  double* data() { return e; }
+  std::size_t size() const { return 2; }
+};
+namespace clad {
+template <> struct is_contiguous_container<Buf> : std::true_type {};
+} // namespace clad
+
+double t15(const double* x) {
+  Buf k;
+  double r = 0;
+  for (int s = 0; s < 2; s++) {
+    fillfrom(k.size(), x, k.data());
+    r += k.e[0] + 2 * k.e[1];
+  }
+  return r;
+}
+
+// The same container, not classified: data() is a call TBR knows nothing
+// about, so the elements it may write are recorded.
+struct Raw {
+  double e[2];
+  double* data() { return e; }
+  std::size_t size() const { return 2; }
+};
+
+double t16(const double* x) {
+  Raw k;
+  double r = 0;
+  for (int s = 0; s < 2; s++) {
+    fillfrom(2, x, k.data());
+    r += k.e[0] + 2 * k.e[1];
+  }
+  return r;
+}
+
 // Nothing is read nonlinearly, so no pre-call state may be stored.
 double t7(const double* x) {
   double buf[2];
@@ -176,6 +282,47 @@ double t7(const double* x) {
 // CHECK: diffem_pullback(2, x, m + 2 * k, &
 // CHECK-NEXT: clad::peek_range(_rec0, &buf[0], 2UL);
 // CHECK-NEXT: clad::drop_range(_rec0, 2UL);
+
+// CHECK: void rec_pullback(const double *x, Idx &ix, int n, double _d_y, double *_d_x, Idx *_d_ix, int *_d_n) {
+// CHECK-NOT: Idx _t
+// CHECK: rec_pullback(x, ix, n - 1, x[k] * _d_y, _d_x, _d_ix, &_r1);
+// CHECK-NOT: ix = _t
+// CHECK: ix.operator_subscript_pullback(n - 1, _d_ix, &_r0);
+
+// CHECK: void t13_grad(const double *x, double *_d_x) {
+// CHECK-NOT: record_range
+// CHECK: fillfrom(2, x, {{.*}});
+
+// CHECK: void t14_grad(const double *x, double *_d_x) {
+// CHECK: clad::record_range(_rec{{[0-9]+}}, k.data(), 2UL);
+// CHECK: squarer(2, {{.*}});
+
+// CHECK: void t15_grad(const double *x, double *_d_x) {
+// CHECK-NOT: record_range
+// CHECK: fillfrom(k.size(), x, {{.*}});
+
+// CHECK: void t16_grad(const double *x, double *_d_x) {
+// CHECK: clad::record_range(_rec0, k.data(), 2UL);
+// CHECK-NEXT: fillfrom(2, x, {{.*}});
+
+// A write through a local reference is a write to what it refers to: the
+// caller stores v before the call, as the pullback reads v[1] from before it.
+void scaleRef(double *v, double k) {
+  double &r = v[1];
+  double &alias = r;
+  alias *= k;
+}
+double t17(const double *x) {
+  double v[2] = {x[0], x[1]};
+  scaleRef(v, x[1]);
+  return v[1] * v[1];
+}
+
+// CHECK: void t17_grad(const double *x, double *_d_x) {
+// CHECK: scaleRef_reverse_forw(v, x[1], _d_v, 0., _tracker0);
+// CHECK: _tracker0.restore();
+// CHECK-NEXT: double _r0 = 0.;
+// CHECK-NEXT: scaleRef_pullback(v, x[1], _d_v, &_r0);
 
 int main() {
   double x[2] = {1, 2};
@@ -212,4 +359,14 @@ int main() {
   }
   // f = |x|^2 + |x^2|^2 => df/dx_i = 2 x_i + 4 x_i^3
   TEST(t10); // CHECK-EXEC: t10: dx={6.00, 36.00}
+  // f = x0 x1^2 => df/dx0 = x1^2, df/dx1 = 2 x0 x1
+  TEST(t11); // CHECK-EXEC: t11: dx={4.00, 4.00}
+  // f = x1^8 => df/dx1 = 8 x1^7
+  TEST(t12); // CHECK-EXEC: t12: dx={0.00, 1024.00}
+  TEST(t13); // CHECK-EXEC: t13: dx={2.00, 4.00}
+  TEST(t14); // CHECK-EXEC: t14: dx={2.00, 5.00}
+  TEST(t15); // CHECK-EXEC: t15: dx={2.00, 4.00}
+  TEST(t16); // CHECK-EXEC: t16: dx={2.00, 4.00}
+  // f = x1^4 => df/dx1 = 4 x1^3
+  TEST(t17); // CHECK-EXEC: t17: dx={0.00, 32.00}
 }

@@ -15,11 +15,13 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Casting.h"
@@ -211,7 +213,30 @@ private:
   mutable struct WrittenVarInfo {
     std::set<const clang::VarDecl*> Written;
     bool HasAnalysisRun = false;
+    /// Cached result of writesOnlyLocals(), computed on first use.
+    std::optional<bool> OnlyLocals;
   } m_WrittenVarInfo;
+
+  /// The locals of the primal's loops the reverse pass can compute again
+  /// instead of storing. A property of the Function, so worked out once.
+  mutable struct RecomputeInfo {
+    llvm::SmallPtrSet<const clang::VarDecl*, 8> Locals;
+    bool HasAnalysisRun = false;
+  } m_RecomputeInfo;
+
+  /// The calls of the primal's body whose results nothing reads. A property
+  /// of the Function, so worked out once and kept.
+  mutable struct UnreadCallInfo {
+    std::set<const clang::Stmt*> Unread;
+    bool HasAnalysisRun = false;
+  } m_UnreadCallInfo;
+
+  /// The calls of the primal's body that write their arguments inside a
+  /// larger expression. A property of the Function, so worked out once.
+  mutable struct CallInExpressionInfo {
+    std::set<const clang::Stmt*> Calls;
+    bool HasAnalysisRun = false;
+  } m_CallInExpressionInfo;
 
   /// What the loop analysis proved about the primal, worked out once on first
   /// use. Held by pointer: a request is copied often, and every copy of a
@@ -295,6 +320,28 @@ public:
   /// variable with static or external storage (a callee may write it), and one
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
+  /// Whether \p E uses only parameters that the function never writes,
+  /// combined with arithmetic, comparison and logical operators. Such an
+  /// expression has the same value anywhere in the body. Globals do not
+  /// qualify: a callee can write them without the body showing it.
+  bool readsOnlyUnwrittenParams(const clang::Expr* E) const;
+  /// Whether the function stores only to its own locals and makes no call,
+  /// construction or allocation that could store elsewhere. If so, memory it
+  /// loads from is not changed by the function.
+  bool writesOnlyLocals() const;
+  /// Whether the reverse pass can compute the initial value of \p VD, a local
+  /// declared in the body of a loop, again when it enters an iteration,
+  /// instead of storing it (see findRecomputableLocals).
+  bool isRecomputableInLoop(const clang::VarDecl* VD) const;
+
+  /// Whether \p S, a statement of the primal's body, is a call whose results
+  /// nothing reads, so the forward sweep need not run it. False where the
+  /// liveness analysis is off.
+  bool isUnreadCall(const clang::Stmt* S) const;
+  /// Whether \p CE writes its arguments and its value is an operand of
+  /// another expression, not a whole statement, an initializer or the
+  /// right-hand side of an assignment.
+  bool isCallInExpression(const clang::CallExpr* CE) const;
 
   /// What is known about the loop \p S, or an empty result when nothing is.
   /// Reading the facts does not build anything: a caller that wants a
@@ -352,6 +399,42 @@ public:
   argWrites(const clang::Expr* Arg) const {
     auto found = ArgWrites.find(Arg);
     return found == ArgWrites.end() ? nullptr : &found->second;
+  }
+  /// The calls in this function's body whose pullback needs nothing from the
+  /// forward sweep beyond the arguments: they have a pullback, and their
+  /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
+  /// forward sweep may leave such a call out when nothing reads its results.
+  std::set<const clang::Expr*> ReplayableCalls;
+  /// Calls in this function that have a user-provided pullback but no
+  /// reverse_forw. The pullback may not re-execute the callee, so the caller
+  /// saves and restores the memory the call writes.
+  std::set<const clang::Expr*> NonReplayingCalls;
+  /// The operator[] calls in this function whose custom reverse_forw is
+  /// elidable. The derivative accesses the returned element directly, like an
+  /// array subscript, instead of calling the reverse_forw.
+  std::set<const clang::Expr*> ElementAccesses;
+  /// The classes of the containers this function calls members of that are
+  /// classified as contiguous (see clad::is_contiguous_container).
+  std::set<const clang::CXXRecordDecl*> ContiguousContainers;
+  /// The globals each call in this function's body assigns, directly or
+  /// through what it calls. Its pullback replays those assignments, so the
+  /// reverse sweep puts the globals back around it, as it does for the
+  /// arguments the call changes.
+  std::map<const clang::Expr*, std::vector<const clang::VarDecl*>>
+      CalleeGlobalWrites;
+  /// The variables each lambda in this function's body captures by reference
+  /// and may write, in capture order. The pullback of a call to it reads them
+  /// as they were before the call, so the reverse sweep puts them back around
+  /// it, as it does for the arguments the call changes.
+  std::map<const clang::LambdaExpr*, std::vector<const clang::VarDecl*>>
+      LambdaCaptureWrites;
+  /// The by-reference captures \p LE may write; empty if none.
+  llvm::ArrayRef<const clang::VarDecl*>
+  lambdaCaptureWrites(const clang::LambdaExpr* LE) const {
+    auto found = LambdaCaptureWrites.find(LE);
+    if (found == LambdaCaptureWrites.end())
+      return {};
+    return found->second;
   }
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
@@ -420,6 +503,13 @@ public:
   /// pushforward); HessianModeVisitor only consumes the decision. Derived
   /// from Function, Mode and Args, so excluded from request equality.
   bool UseHessianVectorProducts = false;
+  /// Marks a copy of a request that plans, once the graph reaches it, what
+  /// the planner could not plan before: the functions to differentiate do not
+  /// exist yet. A hessian's are its first derivatives, and the entry plans the
+  /// reverse passes over them (a diagonal has none, but waits here for its
+  /// second derivatives). A derivative declared in the source has none until
+  /// clad defines it, and the entry plans the request itself.
+  bool DefersPlanning = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -514,6 +604,17 @@ public:
   /// scheduled derivative, so the two must stay structurally identical.
   [[nodiscard]] DiffRequest
   pushforwardRequestForHessian(clang::Sema& semaRef) const;
+  /// Calls \p Fn with the forward request of each direction this hessian,
+  /// assembled per direction, differentiates along. The request is reused:
+  /// \p FirstRow says whether it starts a parameter, an array's first row.
+  void forEachHessianDirection(
+      clang::Sema& S,
+      llvm::function_ref<void(DiffRequest&, bool FirstRow)> Fn) const;
+  /// The reverse pass over \p FirstDerivative this hessian calls: the
+  /// pullback of its pushforward, or the gradient of its forward derivative
+  /// in one direction.
+  DiffRequest
+  hessianReversePass(const clang::FunctionDecl* FirstDerivative) const;
 
   /// Whether \p Other takes the same fallbacks. A fallback changes the values
   /// a derivative computes, so two requests that differ in one are two
@@ -551,6 +652,7 @@ public:
            takesSameFallbacks(other) && DVI == other.DVI &&
            use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
+           DefersPlanning == other.DefersPlanning &&
            CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
 
@@ -566,11 +668,23 @@ public:
   void print(llvm::raw_ostream& Out) const;
   LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
+  /// Whether the derivative has an adjoint for \p PVD, a parameter of
+  /// Function, to pass on to what it calls.
+  bool hasAdjoint(const clang::ParmVarDecl* PVD) const;
   bool shouldBeRecorded(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
+  /// Whether \p E names a local variable that is given no adjoint because it
+  /// does not vary.
+  bool isInactiveLocal(const clang::Expr* E) const;
+  /// Whether nothing differentiated flows into the value of \p E: it is an
+  /// inactive local, or built only of constants, parameters not
+  /// differentiated, and locals never written after they are initialized
+  /// from such. The other factor of a product with it is then read by no
+  /// adjoint that matters.
+  bool carriesNoDerivative(const clang::Expr* E) const;
   /// Whether forward mode has to differentiate through the call \p CE. False
   /// only when varied analysis proved that no argument of the call depends on
   /// the direction this request differentiates along. A call the analysis
@@ -593,6 +707,11 @@ public:
   /// \p CE writes: the callee writes only into objects passed by non-const
   /// reference that reach no other memory, and each of them is recorded.
   bool restoresCallWrites(const clang::CallExpr* CE) const;
+  /// Whether the callee \p FD may write through a struct passed by value,
+  /// which can hold a pointer or a reference into the caller's memory: the
+  /// to-be-recorded analysis lists such a parameter as written, or, without
+  /// its summary of \p FD, any such parameter counts.
+  bool writesThroughValueParam(const clang::FunctionDecl* FD) const;
   void addFunctionModifiedParams(const clang::FunctionDecl* FD,
                                  const ParamSet& params) {
     m_TbrRunInfo.m_ModifiedParams[FD] = params;
@@ -621,6 +740,40 @@ public:
   /// another direction -- as the hessian reuses one forward request per row --
   /// has to be analyzed from scratch.
   void resetActivityInfo() const { m_ActivityRunInfo = ActivityRunInfo(); }
+
+  /// Widens what the analyses found of this request with what they found of
+  /// \p other, an equal request planned for another call. The two compare
+  /// equal and share one derivative, but each call seeds what varies in the
+  /// callee: the derivative has to be right for all of them. Every analysis
+  /// errs on the side of more, so the union is right for each.
+  void mergeAnalyses(const DiffRequest& other) const {
+    const ActivityRunInfo& A = other.m_ActivityRunInfo;
+    m_ActivityRunInfo.VariedDecls.insert(A.VariedDecls.begin(),
+                                         A.VariedDecls.end());
+    m_ActivityRunInfo.VariedS.insert(A.VariedS.begin(), A.VariedS.end());
+    // VariedCalls is filled only for a forward request clad::differentiate
+    // asks for, seeded from its DVI alone: equal ones agree on it.
+    m_ActivityRunInfo.HasAnalysisRun |= A.HasAnalysisRun;
+    const std::set<const clang::VarDecl*>& U =
+        other.m_UsefulRunInfo.UsefulDecls;
+    m_UsefulRunInfo.UsefulDecls.insert(U.begin(), U.end());
+    m_UsefulRunInfo.HasAnalysisRun |= other.m_UsefulRunInfo.HasAnalysisRun;
+    // TBR keeps a factor of a product for the adjoint of the other only if
+    // that one varies: what the union of what varies needs kept is what
+    // either call's analysis kept.
+    const TbrRunInfo& T = other.m_TbrRunInfo;
+    if (!T.HasAnalysisRun)
+      return;
+    m_TbrRunInfo.ToBeRecorded.insert(T.ToBeRecorded.begin(),
+                                     T.ToBeRecorded.end());
+    for (const auto& Params : T.m_ModifiedParams)
+      m_TbrRunInfo.m_ModifiedParams[Params.first].insert(Params.second.begin(),
+                                                         Params.second.end());
+    for (const auto& Params : T.m_UsedParams)
+      m_TbrRunInfo.m_UsedParams[Params.first].insert(Params.second.begin(),
+                                                     Params.second.end());
+    m_TbrRunInfo.HasAnalysisRun = true;
+  }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }
@@ -660,6 +813,9 @@ public:
     /// add them for implicit diff.
     ///
     const DiffRequest* m_TopMostReq = nullptr;
+    /// Off while planning a hessian's reverse passes: they keep no adjoints
+    /// for globals, as before they were planned.
+    bool m_PlansGlobalAdjoints = true;
 
     DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
@@ -671,11 +827,24 @@ public:
     /// each get a walk: what it records goes to the request walked.
     std::vector<DiffRequest> m_Traversed;
 
+    /// What each function TBR analysed so far writes and reads of its
+    /// parameters. That depends on the function alone, and a request that
+    /// was not walked -- a recursive call met inside the walk of an equal
+    /// request -- has no other way to learn it of the functions it calls:
+    /// each analysis starts from those of its direct callees.
+    ParamInfo m_ModifiedSummaries;
+    ParamInfo m_UsedSummaries;
+
     /// The globals a function's own body reads and assigns, and the functions
     /// it calls directly.
     struct GlobalAccess {
       std::set<const clang::VarDecl*> Reads;
       std::set<const clang::VarDecl*> Writes;
+      /// Every global the body assigns, and every global it reads, of any
+      /// type a caller can copy aside: what a caller may have to put back
+      /// around a replay of it.
+      std::set<const clang::VarDecl*> AnyWrites;
+      std::set<const clang::VarDecl*> AnyReads;
       std::set<const clang::VarDecl*> IndirectReads;
       std::vector<const clang::FunctionDecl*> Callees;
     };
@@ -738,6 +907,23 @@ public:
     bool VisitBinaryOperator(clang::BinaryOperator* BO);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
+    /// The variable a binding of a tuple-like type refers to is initialized
+    /// with a call to get: plan its calls, which only newer clang traverses
+    /// as implicit code.
+    bool TraverseBindingDecl(clang::BindingDecl* BD) {
+      if (clang::VarDecl* Holding = BD->getHoldingVar())
+        return TraverseDecl(Holding);
+      return true;
+    }
+    /// The operand of `decltype` or `sizeof` is never evaluated, so it needs
+    /// no derivative. clang-22 added a trailing bool (TraverseQualifier) to
+    /// TraverseDecltypeTypeLoc; a defaulted parameter matches both calls.
+    bool TraverseDecltypeTypeLoc(clang::DecltypeTypeLoc, bool = false) {
+      return true;
+    }
+    bool TraverseUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr*) {
+      return true;
+    }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
     /// new nested DiffRequest is created before the visitor goes to the capture
     /// or constructor initializers. If we use Visit they would be processed
@@ -750,14 +936,28 @@ public:
     /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
     /// its early-return flag by walking the request's own body.
     bool PlanNestedRequest(DiffRequest& request);
+    /// Plans \p request as a top-level request is planned: what it calls
+    /// first, then itself.
+    void PlanAsTopMost(DiffRequest& request);
     /// Walks the body of the function of \p request, once for each request.
     bool TraverseFunctionDeclOnce(const DiffRequest& request);
+    /// Records in \p request the operator[] calls in its body whose custom
+    /// reverse_forw is elidable, and the classes it calls members of that are
+    /// classified as contiguous containers, for TBR.
+    void noteElementAccesses(DiffRequest& request);
+    /// Caches: whether each operator[] has an elidable custom reverse_forw,
+    /// and whether each class is classified as a contiguous container.
+    llvm::DenseMap<const clang::CXXMethodDecl*, bool> m_ElidedAccessors;
+    llvm::DenseMap<const clang::CXXRecordDecl*, bool> m_Contiguous;
     /// Looks up if the user has defined a custom derivative for the given
     /// derivative function. If found, it is automatically attached to the
     /// request in derived function collector.
     /// \param[in] request The request for the derivative to lookup.
+    /// \param[out] foundAnyDecl If given, the lookup reports nothing, and is
+    /// told whether a declaration of the derivative's name exists at all.
     /// \returns true if a custom derivative was found, false otherwise
-    bool LookupCustomDerivativeDecl(DiffRequest& request);
+    bool LookupCustomDerivativeDecl(DiffRequest& request,
+                                    bool* foundAnyDecl = nullptr);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;

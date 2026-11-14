@@ -5,10 +5,12 @@
 //------------------------------------------------------------------------------
 
 #include "ClangPlugin.h"
+#include "GeneratedSourceFile.h"
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Options.h"
+#include "clad/Differentiator/PerfAdvisor.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
@@ -200,8 +202,8 @@ void InitTimers();
 
     CladPlugin::~CladPlugin() {}
 
-    ALLOW_ACCESS(MultiplexConsumer, Consumers,
-                 std::vector<std::unique_ptr<ASTConsumer>>);
+    CLAD_ALLOW_ACCESS(MultiplexConsumer, Consumers,
+                      std::vector<std::unique_ptr<ASTConsumer>>);
 
     void CladPlugin::Initialize(clang::ASTContext& C) {
       // We know we have a multiplexer. We commit a sin here by stealing it and
@@ -209,7 +211,7 @@ void InitTimers();
       // until clad is happy.
 
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
-      auto& RobbedCs = ACCESS(MultiplexC, Consumers);
+      auto& RobbedCs = CLAD_ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
 
       const auto& Macros = m_CI.getPreprocessorOpts().Macros;
@@ -510,10 +512,12 @@ void InitTimers();
               Out.emplace_back(S, VD);
       // A value kept once per iteration goes onto a tape rather than into its
       // own variable. The push is the thing that costs, not the tape.
+      // Only clad::push(tape, value) keeps a value; an operator has no name.
       if (const auto* CE = llvm::dyn_cast<clang::CallExpr>(S))
         if (const clang::FunctionDecl* Callee = CE->getDirectCallee())
-          if (Callee->getName() == "push" && CE->getNumArgs() == 2)
-            Out.emplace_back(S, nullptr);
+          if (const clang::IdentifierInfo* II = Callee->getIdentifier())
+            if (II->isStr("push") && CE->getNumArgs() == 2)
+              Out.emplace_back(S, nullptr);
       for (const clang::Stmt* Child : S->children())
         collectKeptValues(Child, Out);
     }
@@ -652,7 +656,8 @@ void InitTimers();
     }
 
     static void printDerivative(clang::Decl* D, bool DeclarationOnly,
-                                const Options& DO) {
+                                const Options& DO,
+                                GeneratedSourceFile* Source) {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -669,16 +674,9 @@ void InitTimers();
       if (DO.DumpDerivedAST)
         D->dumpColor();
 
-      // if enabled, print the derivatives in a file
-      if (DO.GenerateSourceFile) {
-        std::error_code err;
-        llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                               CLAD_COMPAT_llvm_sys_fs_Append);
-        D->print(f, Policy);
-        if (DeclarationOnly)
-          f << ";\n";
-        f.flush();
-      }
+      // if enabled, gather the derivatives for the source file.
+      if ((DO.GenerateSourceFile || DO.GeneratedSourceFile) && Source)
+        Source->add(D, DeclarationOnly);
     }
 
     class AttachedLoopStmtFinder
@@ -736,17 +734,18 @@ void InitTimers();
             *it, getAttachedLoopLoc(request.Function, *it, SM));
     }
 
-    static void diagnoseUnusedPragma(Sema& S, DiffRequest& request) {
+    static void
+    diagnoseUnusedPragma(Sema& S, DiffRequest& request,
+                         std::set<SourceLocation>& DiagnosedCheckpoints) {
       if (request.Mode != DiffMode::reverse &&
           request.Mode != DiffMode::pullback)
         return;
 
-      static std::set<clang::SourceLocation> DiagnosedCladLoopCheckpoints;
       for (const auto& pair : request.m_CladLoopCheckpoints) {
         if (pair.second.isValid())
           continue;
 
-        if (!DiagnosedCladLoopCheckpoints.insert(pair.first).second)
+        if (!DiagnosedCheckpoints.insert(pair.first).second)
           continue;
 
         unsigned diagID = S.Diags.getCustomDiagID(
@@ -768,12 +767,19 @@ void InitTimers();
               *m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
       }
 
+      // Not a derivative: it plans what could not be planned before.
+      if (request.DefersPlanning) {
+        getScheduler().PlanDeferred(request);
+        return nullptr;
+      }
+
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
         auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
         ProcessTopLevelDecl(VDDiff);
         // Dump the declaration if requested.
-        printDerivative(VDDiff, request.DeclarationOnly, m_DO);
+        printDerivative(VDDiff, request.DeclarationOnly, m_DO,
+                        &m_GeneratedSource);
         return nullptr;
       }
 
@@ -838,7 +844,7 @@ void InitTimers();
       }
 
       // Propagate relevant pragmas to diffrequests
-      diagnoseUnusedPragma(S, request);
+      diagnoseUnusedPragma(S, request, m_DiagnosedLoopCheckpoints);
 
       if (OverloadedDerivativeDecl) {
         S.MarkFunctionReferenced(SourceLocation(), OverloadedDerivativeDecl);
@@ -856,6 +862,7 @@ void InitTimers();
           Generated G;
           G.Derivative = DerivativeDecl;
           G.AnalysisRan = request.EnableTBRAnalysis;
+          G.Mode = request.Mode;
           // Where a user asked for this derivative, when one did. Clad asks
           // for some itself -- the second derivative a hessian needs -- and
           // those were written on no line at all.
@@ -864,7 +871,10 @@ void InitTimers();
             G.RequestedAt = request.CallContext->getBeginLoc();
           }
           m_Generated.push_back(G);
-          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
+          // A custom derivative is the user's, already in their source.
+          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO,
+                          request.CustomDerivative ? nullptr
+                                                   : &m_GeneratedSource);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           // We ideally should not call `HandleTopLevelDecl` for declarations
@@ -902,11 +912,11 @@ void InitTimers();
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;
-        // If higher order derivatives are required, proceed to compute them
-        // recursively.
+        // The next order differentiates what this one derived.
         request.Function = DerivativeDecl;
         request.CurrentDerivativeOrder += 1;
-        return ProcessDiffRequest(request);
+        getScheduler().PlanNextOrder(request);
+        return DerivativeDecl;
       }
       return nullptr;
     }
@@ -1082,9 +1092,20 @@ void InitTimers();
         }
 
         FinalizeTranslationUnit();
+        if (m_DO.RemarkPerf) {
+          llvm::SmallVector<AdvisedDerivative, 16> Advised;
+          for (const Generated& G : m_Generated)
+            if (G.Derivative->doesThisDeclarationHaveABody())
+              Advised.push_back({G.Derivative, G.Original, G.Mode});
+          adviseOnPerformance(m_CI.getSema(), Advised);
+        }
         // Before the multiplexer: this is the last point at which every
         // derivative exists and none has reached code generation.
         materializeGeneratedCode();
+        if (m_DO.GenerateSourceFile || m_DO.GeneratedSourceFile)
+          m_GeneratedSource.write(m_CI, m_DO.GeneratedSourceFile
+                                            ? *m_DO.GeneratedSourceFile
+                                            : "Derivatives.cpp");
         SendToMultiplexer();
       }
       if (m_Multiplexer)

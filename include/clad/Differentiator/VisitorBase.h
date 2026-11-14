@@ -657,11 +657,24 @@ namespace clad {
     /// m_Sema.PopDeclContextIsUsed.
     clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
                                              bool isInline);
+    /// Re-declares a using-directive or using-declaration of the primal in
+    /// the derivative.
+    clang::Decl* BuildUsing(const clang::Decl* D);
     /// Re-declares \p TND in the derivative and makes it findable there by
     /// name, so the statements that follow can go on naming the type as they
     /// did.
     clang::TypedefNameDecl*
     BuildTypedefNameDecl(const clang::TypedefNameDecl* TND);
+    /// The name a variable's clone takes: its own, or, for the unnamed
+    /// variable a structured binding decomposes, one to refer to it by.
+    static std::string CloneName(const clang::VarDecl* VD);
+    /// Diagnoses a structured binding clad does not differentiate yet, and
+    /// then returns false.
+    bool CheckStructuredBinding(const clang::DecompositionDecl* DD);
+    /// A statement declaring each variable a structured binding of a
+    /// tuple-like type introduces for its bindings.
+    llvm::SmallVector<clang::DeclStmt*, 4>
+    BuildHoldingVarStmts(const clang::DecompositionDecl* DD);
 
     /// Wraps a declaration in DeclStmt.
     /// \n Variable declaration cannot be added to code directly, instead we
@@ -950,6 +963,17 @@ namespace clad {
         llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
         llvm::ArrayRef<clang::TemplateArgument> templateArgs);
 
+    /// Builds the placement arguments of the derivative of \p CNE from its
+    /// differentiated placement arguments \p argDiffs. The derivative of
+    /// `new (p, ...) T(...)` is placed in the derivative of the storage it
+    /// reuses, `new (_d_p, ...) T(...)`; placement arguments that are not
+    /// storage, such as std::nothrow, are passed unchanged. Returns no
+    /// arguments, so that the derivative is allocated instead, when the
+    /// storage has no derivative to hold it.
+    llvm::SmallVector<clang::Expr*, 1>
+    BuildDerivedPlacementArgs(const clang::CXXNewExpr* CNE,
+                              llvm::MutableArrayRef<StmtDiff> argDiffs);
+
     /// Checks if the type is of clad::array\<T\> or clad::array_ref\<T\> type
     bool isCladArrayType(clang::QualType QT);
 
@@ -1093,6 +1117,18 @@ namespace clad {
     /// Builds the QualType of the derivative to be generated.
     ///
     clang::QualType GetDerivativeType();
+    /// The number of template tags the derivative takes first; see
+    /// utils::GetTemplateTagTypes.
+    unsigned getNumTemplateTags();
+    /// Builds the template tags of the derivative, unnamed, at the front of
+    /// \p params.
+    void PrependTemplateTagParams(
+        llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+    /// Inserts at \p Pos of \p Args the tags a call to a derivative of
+    /// \p Callee passes.
+    void InsertTemplateTagArgs(const clang::FunctionDecl* Callee,
+                               llvm::SmallVectorImpl<clang::Expr*>& Args,
+                               unsigned Pos);
 
     /// Which flavour of overload CreateDerivativeOverload should build.
     ///

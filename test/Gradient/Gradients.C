@@ -192,8 +192,7 @@ double f_cond1(double x, double y) {
 }
 
 //CHECK:   void f_cond1_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:     if (x > y)
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           *_d_y += 1;
@@ -206,15 +205,9 @@ double f_cond2(double x, double y) {
 }
 
 //CHECK:   void f_cond2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond1;
-//CHECK-NEXT:       bool _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
-//CHECK-NEXT:           ;
-//CHECK-NEXT:       else
-//CHECK-NEXT:           _cond1 = y > 0;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:     if (x > y)
 //CHECK-NEXT:           *_d_x += 1;
-//CHECK-NEXT:       else if (_cond1)
+//CHECK-NEXT:     else if (y > 0)
 //CHECK-NEXT:           *_d_y += 1;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           *_d_y += -1;
@@ -227,8 +220,7 @@ double f_cond3(double x, double c) {
 }
 
 //CHECK:   void f_cond3_grad(double x, double c, double *_d_x, double *_d_c) {
-//CHECK-NEXT:       bool _cond0 = c > 0;
-//CHECK-NEXT:       if (_cond0) {
+//CHECK-NEXT:     if (c > 0) {
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:           *_d_c += 1;
 //CHECK-NEXT:       } else {
@@ -715,10 +707,7 @@ double fn_template_non_type(double x) {
 // CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
 // CHECK-NEXT:     size_t _d_m = {{0U|0UL}};
 // CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL|15ULL}};
-// CHECK-NEXT:     {
-// CHECK-NEXT:       *_d_x += 1 * m;
-// CHECK-NEXT:       _d_m += x * 1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1 * m;
 // CHECK-NEXT:     if (_cond0)
 // CHECK-NEXT:         _d_maxN += _d_m;
 // CHECK-NEXT: }
@@ -770,6 +759,28 @@ double fn_cond_decl(double x, double y) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
+
+// scale_if writes through a pointer, so it gets a reverse_forw, which keeps
+// the condition's variable where it is declared: the condition is that
+// variable.
+void scale_if(double* p, int n) {
+  if (int k = n)
+    p[0] = p[0] * k;
+}
+
+double fn_cond_decl_forw(double x) {
+  double p[1] = {x};
+  scale_if(p, 2);
+  return p[0] * x;
+} // = 2 x^2
+
+//CHECK:        void scale_if_reverse_forw(double *p, int n, double *_d_p, int _d_n, clad::restore_tracker &_tracker0) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         int k = n;
+//CHECK-NEXT:         int _d_k = 0;
+//CHECK-NEXT:         _cond0 = k;
+//CHECK-NEXT:         if (_cond0) {
 
 double fn_cond_side_eff(double x) {
     if (x += x) {
@@ -852,7 +863,6 @@ double fn_const_cond_op(double x) {
 }
 
 //CHECK:               void fn_const_cond_op_grad(double x, double *_d_x) {
-//CHECK-NEXT:              bool _cond0 = x > 0;
 //CHECK-NEXT:              *_d_x += 1;
 //CHECK-NEXT:          }
 
@@ -1161,12 +1171,14 @@ double f_reuse_global(double x, double t) {
 //CHECK: void f_reuse_global_grad(double x, double t, double *_d_x, double *_d_t) {
 //CHECK-NEXT:     _d_glob1 = 0.;
 //CHECK-NEXT:     double _t0 = t;
-//CHECK-NEXT:     t = g(t, x);
 //CHECK-NEXT:     double _t1 = glob1;
+//CHECK-NEXT:     t = g(t, x);
+//CHECK-NEXT:     double _t2 = glob1;
 //CHECK-NEXT:     glob1 *= t;
+//CHECK-NEXT:     double _final0 = glob1;
 //CHECK-NEXT:     _d_glob1 += -1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         glob1 = _t1;
+//CHECK-NEXT:         glob1 = _t2;
 //CHECK-NEXT:         double _r_d1 = _d_glob1;
 //CHECK-NEXT:         _d_glob1 = 0.;
 //CHECK-NEXT:         _d_glob1 += _r_d1 * t;
@@ -1178,10 +1190,13 @@ double f_reuse_global(double x, double t) {
 //CHECK-NEXT:         *_d_t = 0.;
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
+//CHECK-NEXT:         glob1 = _t1;
 //CHECK-NEXT:         g_pullback(t, x, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:         glob1 = _t1;
 //CHECK-NEXT:         *_d_t += _r0;
 //CHECK-NEXT:         *_d_x += _r1;
 //CHECK-NEXT:     }
+//CHECK-NEXT:     glob1 = _final0;
 //CHECK-NEXT: }
 
 double f_static_assert(double x, double y) {
@@ -1194,6 +1209,23 @@ double f_static_assert(double x, double y) {
 //CHECK-NEXT:         *_d_x += 1;
 //CHECK-NEXT:         *_d_y += 1;
 //CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+// A type trait is a constant.
+double f_type_trait(double x, double y) {
+  bool trivial = __is_trivially_copyable(double);
+  return trivial ? x * y : x;
+}
+
+//CHECK: void f_type_trait_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     bool _d_trivial = false;
+//CHECK-NEXT:     bool trivial = __is_trivially_copyable(double);
+//CHECK-NEXT:     bool _cond0 = trivial;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         *_d_x += 1 * y;
+//CHECK-NEXT:         *_d_y += x * 1;
+//CHECK-NEXT:     } else
+//CHECK-NEXT:         *_d_x += 1;
 //CHECK-NEXT: }
 
 double f_infinity(double x, double y) {
@@ -1286,6 +1318,10 @@ int main() {
 
   INIT_GRADIENT(fn_cond_decl);
 
+  INIT_GRADIENT(fn_cond_decl_forw);
+  dx = 0;
+  TEST_GRADIENT(fn_cond_decl_forw, /*numOfDerivativeArgs=*/1, 3, &dx); // CHECK-EXEC: 12.00
+
   INIT_GRADIENT(fn_cond_side_eff);
   TEST_GRADIENT(fn_cond_side_eff, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 2.00
   TEST_GRADIENT(fn_cond_side_eff, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 2.00
@@ -1330,6 +1366,8 @@ int main() {
 
   INIT_GRADIENT(f_static_assert);
   TEST_GRADIENT(f_static_assert, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
+  INIT_GRADIENT(f_type_trait);
+  TEST_GRADIENT(f_type_trait, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {4.00, -3.00}
 
   INIT_GRADIENT(f_infinity);
   TEST_GRADIENT(f_infinity, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {0.00, 1.00}

@@ -11,13 +11,16 @@
 #include "clad/Differentiator/CladConfig.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 
 /// Marks a reverse_forw that clad need not call: it calls the primal on the
 /// arguments and again on their adjoints instead. Write it before the
@@ -48,7 +51,7 @@ template <typename T, typename U> struct ValueAndPushforward {
   // ValueAndPushforward<V, w> where V is convertible to T and W is
   // convertible to U.
   template <typename V = T, typename W = U>
-  operator ValueAndPushforward<V, W>() const {
+  CUDA_HOST_DEVICE operator ValueAndPushforward<V, W>() const {
     return {static_cast<V>(value), static_cast<W>(pushforward)};
   }
 };
@@ -114,6 +117,18 @@ template <class T> class Tag {};
 #else
 #define CLAD_NONDIFFERENTIABLE __attribute__((annotate("non_differentiable")))
 #endif
+
+/// Opt out of copying a type before a call through a mutable reference.
+/// Use only when reverse propagation never needs the type's pre-call state.
+/// A derivative that needs the old state must save it explicitly.
+#define CLAD_NO_PRIMAL_TAPE __attribute__((annotate("no_primal_tape")))
+
+/// Mark a library type that cannot be annotated at its own declaration. If
+/// Tag<T> is already specialized, add the attribute to that specialization.
+#define CLAD_NO_PRIMAL_TAPE_TYPE(...)                                          \
+  namespace clad {                                                             \
+  template <> class CLAD_NO_PRIMAL_TAPE Tag<__VA_ARGS__> {};                   \
+  }
 
 /// Marks a type you do NOT own -- a library type you cannot annotate at its own
 /// declaration -- non-differentiable, by specializing clad::Tag for it. Use at
@@ -287,6 +302,41 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_x += t.pushforward * d_y;
   t = __builtin_powf_pushforward(x, exponent, /*d_x=*/0., /*d_exponent=*/1.);
   *d_exponent += t.pushforward * d_y;
+}
+
+// sincos and sincosf, GNU extensions, write sin(x) and cos(x) through their
+// pointers. Computed with std::sin and std::cos, so that these build where
+// sincos is not declared. What was in *s and *c before is overwritten, so its
+// adjoint is dropped.
+CUDA_HOST_DEVICE inline void sincos_pushforward(double x, double* s, double* c,
+                                                double d_x, double* d_s,
+                                                double* d_c) {
+  *s = ::std::sin(x);
+  *c = ::std::cos(x);
+  *d_s = *c * d_x;
+  *d_c = -*s * d_x;
+}
+CUDA_HOST_DEVICE inline void sincos_pullback(double x, const double* /*s*/,
+                                             const double* /*c*/, double* d_x,
+                                             double* d_s, double* d_c) {
+  *d_x += (::std::cos(x) * *d_s) - (::std::sin(x) * *d_c);
+  *d_s = 0;
+  *d_c = 0;
+}
+CUDA_HOST_DEVICE inline void sincosf_pushforward(float x, float* s, float* c,
+                                                 float d_x, float* d_s,
+                                                 float* d_c) {
+  *s = ::std::sin(x);
+  *c = ::std::cos(x);
+  *d_s = *c * d_x;
+  *d_c = -*s * d_x;
+}
+CUDA_HOST_DEVICE inline void sincosf_pullback(float x, const float* /*s*/,
+                                              const float* /*c*/, float* d_x,
+                                              float* d_s, float* d_c) {
+  *d_x += (::std::cos(x) * *d_s) - (::std::sin(x) * *d_c);
+  *d_s = 0;
+  *d_c = 0;
 }
 
 namespace std {
@@ -2121,6 +2171,78 @@ CUDA_HOST_DEVICE void ellint_3_pullback(T1 k, T2 nu, T3 phi, T4 d_out, T1* d_k,
   }
 }
 #endif
+
+// std::get derivatives, for the elements of a pair, a tuple or an array that
+// a structured binding names. Structured bindings are the language, so these
+// live here, not in STLBuiltins.h. The index comes first, as a
+// std::integral_constant, since a call does not deduce it.
+template <::std::size_t I, class T>
+ValueAndPushforward<::std::tuple_element_t<I, T>&,
+                    ::std::tuple_element_t<I, T>&>
+get_pushforward(::std::integral_constant<::std::size_t, I>, T& t,
+                T& dt) noexcept {
+  return {::std::get<I>(t), ::std::get<I>(dt)};
+}
+
+template <::std::size_t I, class T,
+          ::std::enable_if_t<!::std::is_reference<T>::value, int> = 0>
+ValueAndPushforward<::std::tuple_element_t<I, T>&&,
+                    ::std::tuple_element_t<I, T>&&>
+get_pushforward(::std::integral_constant<::std::size_t, I>, T&& t,
+                T&& dt) noexcept {
+  return {::std::get<I>(::std::move(t)), ::std::get<I>(::std::move(dt))};
+}
+
+// The element of the adjoint is read as the element of the value, so its
+// adjoint is accumulated in place, through the reference get_reverse_forw
+// hands back.
+template <::std::size_t I, class T>
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<::std::tuple_element_t<I, T>&,
+                                           ::std::tuple_element_t<I, T>&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, T& t, T& dt);
+
+template <::std::size_t I, class T>
+CLAD_NOOP_DERIVATIVE void
+get_pullback(::std::integral_constant<::std::size_t, I>, T& t, T* dt);
+
+template <::std::size_t I, class T,
+          ::std::enable_if_t<!::std::is_reference<T>::value, int> = 0>
+ValueAndAdjoint<::std::tuple_element_t<I, T>&&, ::std::tuple_element_t<I, T>&&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, T&& t, T&& dt) {
+  return {::std::get<I>(::std::move(t)), ::std::get<I>(::std::move(dt))};
+}
+
+template <::std::size_t I, class T,
+          ::std::enable_if_t<!::std::is_reference<T>::value, int> = 0>
+void get_pullback(::std::integral_constant<::std::size_t, I>, T&& t, T* dt) {}
+
+// An element of a const object is read, and its adjoint written, through the
+// object's adjoint, which is not const.
+template <::std::size_t I, class T>
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<const ::std::tuple_element_t<I, T>&,
+                                           ::std::tuple_element_t<I, T>&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, const T& t, T& dt);
+
+// When the element is read as a value, its adjoint comes back here instead.
+template <::std::size_t I, class T>
+void get_pullback(::std::integral_constant<::std::size_t, I>, const T& t,
+                  ::std::tuple_element_t<I, T> dy, T* dt) {
+  ::std::get<I>(*dt) += dy;
+}
+
+template <::std::size_t I, class T>
+ValueAndAdjoint<const ::std::tuple_element_t<I, T>&&,
+                ::std::tuple_element_t<I, T>&&>
+get_reverse_forw(::std::integral_constant<::std::size_t, I>, const T&& t,
+                 T&& dt) {
+  return {::std::get<I>(::std::move(t)), ::std::get<I>(::std::move(dt))};
+}
+
+template <::std::size_t I, class T>
+void get_pullback(::std::integral_constant<::std::size_t, I>, const T&& t,
+                  ::std::tuple_element_t<I, T> dy, T* dt) {
+  ::std::get<I>(*dt) += dy;
+}
 
 } // namespace std
 

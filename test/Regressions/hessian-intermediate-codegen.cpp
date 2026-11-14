@@ -22,8 +22,8 @@ double fn(double x, double y) { return x * x * y; }
 double caller(double x, double y) { return fn(x, y) + y; }
 
 // CHECK: {{^}}inline clad::ValueAndPushforward<double, double> fn_pushforward(double x, double y, double _d_x, double _d_y) {
-// CHECK: {{^}}void fn_hessian(double x, double y, double *hessianMatrix) {
 // CHECK: {{^}}double caller_darg0(double x, double y) {
+// CHECK: {{^}}void fn_hessian(double x, double y, double *hessianMatrix) {
 
 int main() {
   auto h = clad::hessian(fn);

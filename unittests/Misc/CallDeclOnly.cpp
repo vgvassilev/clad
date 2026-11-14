@@ -137,6 +137,22 @@ TEST(CallDeclOnly, CheckCustomDiff2) {
   EXPECT_FLOAT_EQ(result[3], exp(y));
 }
 
+namespace clad {
+namespace custom_derivatives {
+// Defined in Defs.cpp, along with its gradient, which clad declares here.
+double cube_fn_darg0(double x);
+} // namespace custom_derivatives
+} // namespace clad
+
+double cube_fn(double x) { return x * x * x; }
+
+TEST(CallDeclOnly, CheckCustomDiffGradientDefinedElsewhere) {
+  auto hessian = clad::hessian(cube_fn);
+  double result[1] = {0.0};
+  hessian.execute(2.0, result);
+  EXPECT_DOUBLE_EQ(result[0], 12.0);
+}
+
 // A tangent that is zero only when the code runs takes no step.
 double wrapper5(double x) { return scale(x - x) + x; }
 

@@ -14,4 +14,14 @@
 // expected-error@+1 {{clad cannot differentiate this function: no clone exists for statement kind 'GCCAsmStmt'}}
 double with_asm(double x) { asm("nop"); return x * x; }
 
-int main() { clad::differentiate(with_asm, "x"); }
+// An expression kind without a clone used to get a bare ValueStmt tagged with
+// its class instead, which crashed whatever read it. ArrayTypeTraitExpr is one.
+
+// expected-warning@+2 {{statement kind 'ArrayTypeTraitExpr' is not supported}}
+// expected-error@+1 {{clad cannot differentiate this function: no clone exists for statement kind 'ArrayTypeTraitExpr'}}
+double with_rank(double x) { return x * __array_rank(int[2]); }
+
+int main() {
+  clad::differentiate(with_asm, "x");
+  clad::differentiate(with_rank, "x");
+}

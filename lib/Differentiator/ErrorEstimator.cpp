@@ -359,9 +359,16 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
       // to update `var_size` to the biggest index used if necessary.
       Expr* size = getSizeExpr(VD);
       Expr* idx = m_RMV->Clone(ASE->getIdx());
-      idx =
-          m_RMV->m_Sema.ImpCastExprToType(idx, size->getType(), CK_IntegralCast)
-              .get();
+      // Cast explicitly: std::max takes one type, and the derivative read back
+      // as source has to say which.
+      if (!m_RMV->m_Context.hasSameUnqualifiedType(idx->getType(),
+                                                   size->getType()))
+        idx = m_RMV->m_Sema
+                  .BuildCXXNamedCast(SourceLocation(), tok::kw_static_cast,
+                                     m_RMV->m_Context.getTrivialTypeSourceInfo(
+                                         size->getType().getUnqualifiedType()),
+                                     idx, SourceRange(), SourceRange())
+                  .get();
       llvm::SmallVector<clang::Expr*, 2> args{size, idx};
       Expr* extendedSize = m_RMV->GetFunctionCall("max", "std", args);
       size = m_RMV->Clone(size);

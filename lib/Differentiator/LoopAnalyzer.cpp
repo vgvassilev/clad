@@ -3,6 +3,7 @@
 #include "Analyses.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -16,14 +17,17 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MathExtras.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <set>
 #include <unordered_map>
 
@@ -671,6 +675,65 @@ class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   /// A local the function never writes again, as an affine form of the loop
   /// indices around its declaration, which are still around every use of it.
   llvm::DenseMap<const VarDecl*, AffineIndex> m_LocalForms;
+  /// Per parameter, one past the last element every complete run writes, by
+  /// a statement of the body itself ahead of anything that may leave early:
+  /// the elements below it exist.
+  llvm::DenseMap<unsigned, uint64_t> m_UncondEnd;
+  /// Per parameter, one past the last element any constant extent covers,
+  /// and the parameters some write of which is not constant.
+  llvm::DenseMap<unsigned, uint64_t> m_ConstEnd;
+  llvm::DenseSet<unsigned> m_NonConst;
+
+  /// Raises \p M's entry for \p K to at least \p V.
+  static void raise(llvm::DenseMap<unsigned, uint64_t>& M, unsigned K,
+                    uint64_t V) {
+    auto [It, Inserted] = M.try_emplace(K, V);
+    if (!Inserted)
+      It->second = std::max(It->second, V);
+  }
+
+  static bool mayLeave(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt, GotoStmt, IndirectGotoStmt, LabelStmt, CXXThrowExpr>(S))
+      return true;
+    return llvm::any_of(S->children(), mayLeave);
+  }
+
+  void noteUnconditionalWrites(const Stmt* Body) {
+    const auto* CS = dyn_cast<CompoundStmt>(Body);
+    // Both arms of the same type: LLVM 23 converts body_const_range and
+    // ArrayRef<Stmt*> into each other, which makes a mix ambiguous.
+    for (const Stmt* S :
+         CS ? CS->body() : CompoundStmt::body_const_range(nullptr, nullptr)) {
+      if (mayLeave(S))
+        return;
+      const auto* BO = dyn_cast<BinaryOperator>(S);
+      if (!BO || !BO->isAssignmentOp())
+        continue;
+      const Expr* LHS = BO->getLHS()->IgnoreParenImpCasts();
+      const Expr* Base = nullptr;
+      int64_t At = 0;
+      Expr::EvalResult R;
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(LHS)) {
+        if (!ASE->getIdx()->EvaluateAsInt(R, m_Context) ||
+            R.Val.getInt().isNegative())
+          continue;
+        At = R.Val.getInt().getExtValue();
+        Base = ASE->getBase();
+      } else if (const auto* UO = dyn_cast<UnaryOperator>(LHS);
+                 UO && UO->getOpcode() == UO_Deref) {
+        Base = UO->getSubExpr();
+      } else {
+        continue;
+      }
+      const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
+      const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+      auto It = PVD ? m_ParamIdx.find(PVD) : m_ParamIdx.end();
+      if (It != m_ParamIdx.end())
+        raise(m_UncondEnd, It->second, At + 1);
+    }
+  }
 
 public:
   ExtentVisitor(const FunctionDecl* FD,
@@ -679,6 +742,29 @@ public:
         m_ReadOnly(FD->getBody()) {
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
       m_ParamIdx[FD->getParamDecl(i)] = i;
+    noteUnconditionalWrites(FD->getBody());
+  }
+
+  /// Constant extents that disagree, `p[0]` and `p[1]` say, are covered by
+  /// `[0, n)` where every complete run writes up to `p[n - 1]`: those
+  /// elements exist, and putting back one the call did not write leaves it
+  /// as it was.
+  void coverPrefix() {
+    for (auto E : llvm::enumerate(m_Extents)) {
+      auto i = static_cast<unsigned>(E.index());
+      WrittenExtent& W = E.value();
+      auto End = m_ConstEnd.find(i);
+      auto Uncond = m_UncondEnd.find(i);
+      if (W.K != WrittenExtent::Kind::Unknown ||
+          W.Why != AnalysisMiss::WritesDisagree || m_NonConst.contains(i) ||
+          End == m_ConstEnd.end() || Uncond == m_UncondEnd.end() ||
+          End->second > Uncond->second)
+        continue;
+      W.K = WrittenExtent::Kind::Range;
+      W.Why = AnalysisMiss::None;
+      W.BoundIsParam = false;
+      W.BoundConst = End->second;
+    }
   }
 
   bool TraverseForStmt(ForStmt* FS) {
@@ -1017,6 +1103,12 @@ private:
   /// other, and to Unknown otherwise rather than to a guessed union: a wrong
   /// union would under-record.
   void widen(unsigned Idx, const WrittenExtent& New) {
+    if (New.K == WrittenExtent::Kind::Element)
+      raise(m_ConstEnd, Idx, New.Offset + 1);
+    else if (New.K == WrittenExtent::Kind::Range && !New.BoundIsParam)
+      raise(m_ConstEnd, Idx, New.BoundConst);
+    else
+      m_NonConst.insert(Idx);
     WrittenExtent& Cur = m_Extents[Idx];
     if (Cur.K == WrittenExtent::Kind::None) {
       Cur = New;
@@ -1213,6 +1305,7 @@ computeWrittenExtents(const FunctionDecl* FD,
   }
   ExtentVisitor V(FD, Extents);
   V.TraverseStmt(FD->getBody());
+  V.coverPrefix();
   // Something in the body could write through a parameter without this
   // analysis seeing which one. Report every parameter it could have been as
   // unbounded rather than as untouched, so a caller that gates on isProven()
@@ -1245,6 +1338,85 @@ void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out) {
   const FunctionDecl* Def = R.Function->getDefinition();
   if (Def && Def->hasBody())
     collectCountedLoops(R, Out.Loops);
+}
+
+void findRecomputableLocals(const DiffRequest& R,
+                            llvm::SmallPtrSetImpl<const VarDecl*>& Out) {
+  const FunctionDecl* Fn = R.Function ? R.Function->getDefinition() : nullptr;
+  // The initializer loads the same values as in the forward pass only if the
+  // function stores to nothing but its own locals.
+  if (!Fn || !Fn->hasBody() || R.Mode == DiffMode::reverse_mode_forward_pass ||
+      !R.writesOnlyLocals())
+    return;
+  // The counted loops around the statement being looked at, innermost last.
+  llvm::SmallVector<const LoopFacts*, 4> Loops;
+  // An unwritten parameter, or the index of an enclosing loop that the
+  // reverse pass restores before it enters the body: by the reverse of the
+  // increment, or else from the loop's slots, which need a literal count.
+  auto holds = [&](const VarDecl* Read) {
+    if (!R.writesVariable(Read))
+      return isa<ParmVarDecl>(Read);
+    for (const LoopFacts* F : llvm::reverse(Loops))
+      if (F->IndVar == Read)
+        return F->Step && (R.shouldBeRecorded(F->Step->getSubExpr()) ||
+                           (F->Count >= 0 && F->OwnsIndVar));
+    return false;
+  };
+  // A few operations on such values and on elements they point to are
+  // cheaper to recompute than to store.
+  unsigned Ops = 0;
+  std::function<bool(const Expr*)> ok = [&](const Expr* E) -> bool {
+    E = E->IgnoreParens();
+    if (!isa<CastExpr>(E) && ++Ops > 8)
+      return false;
+    if (isa<IntegerLiteral, FloatingLiteral>(E))
+      return true;
+    if (const auto* CE = dyn_cast<CastExpr>(E)) {
+      if (CE->getCastKind() != CK_LValueToRValue)
+        return ok(CE->getSubExpr());
+      const Expr* Sub = CE->getSubExpr()->IgnoreParens();
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(Sub))
+        return ok(ASE->getBase()) && ok(ASE->getIdx());
+      const auto* DRE = dyn_cast<DeclRefExpr>(Sub);
+      const auto* Read = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      return Read && holds(Read);
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return UO->getOpcode() == UO_Minus && ok(UO->getSubExpr());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      return (BO->isAdditiveOp() || BO->isMultiplicativeOp()) &&
+             ok(BO->getLHS()) && ok(BO->getRHS());
+    return false;
+  };
+  // Every iteration the reverse pass enters ran the declaration: it is
+  // directly in the body of a counted loop, which no statement leaves early.
+  std::function<void(const Stmt*)> walk = [&](const Stmt* S) {
+    if (!S)
+      return;
+    const auto* FS = dyn_cast<ForStmt>(S);
+    const LoopFacts* F = FS ? &R.getLoopFacts(FS) : nullptr;
+    if (!F || !F->IndVar || !F->BoundsAreStable) {
+      for (const Stmt* Child : S->children())
+        walk(Child);
+      return;
+    }
+    Loops.push_back(F);
+    if (const auto* Body = dyn_cast<CompoundStmt>(FS->getBody()))
+      for (const Stmt* B : Body->body())
+        if (const auto* DS = dyn_cast<DeclStmt>(B))
+          for (const Decl* D : DS->decls()) {
+            const auto* VD = dyn_cast<VarDecl>(D);
+            // A local written after its declaration no longer holds the
+            // initial value at the end of the iteration.
+            Ops = 0;
+            if (VD && VD->getInit() && VD->getType()->isArithmeticType() &&
+                !R.writesVariable(VD) && ok(VD->getInit()))
+              Out.insert(VD);
+          }
+    walk(FS->getBody());
+    Loops.pop_back();
+  };
+  walk(Fn->getBody());
 }
 
 } // namespace clad

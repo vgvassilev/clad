@@ -2,6 +2,9 @@
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
 // RUN: ./STLCustomDerivativesWithTBR.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fenable-analysis=activity \
+// RUN:   %s -I%S/../../include -oSTLCustomDerivatives.out
+// RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -293,6 +296,62 @@ double fn26(const std::vector<Pt>& v, double s) {
   return s * v[1].x + v[0].y * s * s;
 }
 
+// The reverse pass re-evaluates v[j], with j restored to its value at each
+// write.
+double fn27(double x) {
+  // With an allocator, as in fn4: libc++'s vector(n, value) has no custom
+  // derivative to match, and clad would differentiate its body.
+  std::vector<double>::allocator_type allocator;
+  std::vector<double> v(3, 1., allocator);
+  int j = 0;
+  v[j] = x * v[j];
+  j = 2;
+  v[j] = x * v[j];
+  v[0] = v[0] * v[2];
+  j = 1;
+  return v[0] + v[j];
+}
+
+// Vec is not a standard container but has a const operator[] that returns a
+// reference, so v[i] is re-evaluated in the reverse pass, as for std::vector.
+// Grow's operator[] may modify the object, like std::map's, so its address
+// is stored. Both use std::vector's derivative of operator[].
+struct Vec {
+  double e[3];
+  double& operator[](int i) { return e[i]; }
+  const double& operator[](int i) const { return e[i]; }
+};
+struct Grow {
+  double e[3];
+  double& operator[](int i) { return e[i]; }
+};
+namespace clad {
+namespace custom_derivatives {
+namespace class_functions {
+template <typename T>
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<double&, double&>
+operator_subscript_reverse_forw(T* v, int i, T* d_v, int d_i) {
+  return {(*v)[i], (*d_v)[i]};
+}
+template <typename T>
+void operator_subscript_pullback(T* v, int i, double d_y, T* d_v, int* d_i) {
+  (*d_v)[i] += d_y;
+}
+} // namespace class_functions
+} // namespace custom_derivatives
+} // namespace clad
+
+double fn28(double x) {
+  Vec v{{1, 1, 1}};
+  Grow g{{1, 1, 1}};
+  int j = 0;
+  v[j] = x * v[j];
+  g[j] = x * g[j];
+  j = 2;
+  v[j] = x * v[j];
+  return v[0] * v[2] + g[0];
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -376,6 +435,12 @@ int main() {
     double ds = 0;
     clad::gradient(fn26).execute(v26, 2, &dv26, &ds);
     printf("{%.2f, %.2f, %.2f}\n", dv26[0].y, dv26[1].x, ds);  // CHECK-EXEC: {4.00, 2.00, 11.00}
+
+    INIT_GRADIENT(fn27);
+    TEST_GRADIENT(fn27, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {6.00}
+
+    INIT_GRADIENT(fn28);
+    TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {7.00}
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -574,12 +639,11 @@ int main() {
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, x, &_d_a, *_d_x);
 // CHECK-NEXT:          std::vector<double> _t1 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, x, &_d_a, *_d_x);
-// CHECK-NEXT:          {{.*}}value_type *_t2 = &a[1];
-// CHECK-NEXT:          {{.*}}value_type _t3 = *_t2;
-// CHECK-NEXT:          *_t2 = x * x;
+// CHECK-NEXT:     {{.*}}value_type _t2 = a[1];
+// CHECK-NEXT:     a[1] = x * x;
 // CHECK-NEXT:          _d_a[1] += 1;
 // CHECK-NEXT:          {
-// CHECK-NEXT:              *_t2 = _t3;
+// CHECK-NEXT:         a[1] = _t2;
 // CHECK-NEXT:              {{.*}}value_type _r_d0 = _d_a[1];
 // CHECK-NEXT:              _d_a[1] = 0.;
 // CHECK-NEXT:              *_d_x += _r_d0 * x;
@@ -625,23 +689,13 @@ int main() {
 // CHECK:     void fn7_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:         std::array<double, 2> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 2> a;
-// CHECK-NEXT:         {{.*}}value_type *_t0 = &a[0];
-// CHECK-NEXT:         {{.*}}value_type _t1 = *_t0;
-// CHECK-NEXT:         *_t0 = 5;
-// CHECK-NEXT:         {{.*}}value_type *_t2 = &a[1];
-// CHECK-NEXT:         {{.*}}value_type _t3 = *_t2;
-// CHECK-NEXT:         *_t2 = y;
+// CHECK-NEXT:     a[0] = 5;
+// CHECK-NEXT:     a[1] = y;
 // CHECK-NEXT:         std::array<double, 3> _d_b = {{.*}};
 // CHECK-NEXT:         std::array<double, 3> _b0;
-// CHECK-NEXT:         {{.*}}value_type *_t4 = &_b0[0];
-// CHECK-NEXT:         {{.*}}value_type _t5 = *_t4;
-// CHECK-NEXT:         *_t4 = x;
-// CHECK-NEXT:         {{.*}}value_type *_t6 = &_b0[1];
-// CHECK-NEXT:         {{.*}}value_type _t7 = *_t6;
-// CHECK-NEXT:         *_t6 = 0;
-// CHECK-NEXT:         {{.*}}value_type *_t8 = &_b0[2];
-// CHECK-NEXT:         {{.*}}value_type _t9 = *_t8;
-// CHECK-NEXT:         *_t8 = x * x;
+// CHECK-NEXT:     _b0[0] = x;
+// CHECK-NEXT:     _b0[1] = 0;
+// CHECK-NEXT:     _b0[2] = x * x;
 // CHECK-NEXT:         std::array<double, 3> _d_b0 = {{.*}};
 // CHECK-NEXT:         const std::array<double, 3> b = _b0;
 // CHECK:              {{.*}}value_type [[T_BACK:_t[0-9]+]] = a.back();
@@ -657,31 +711,26 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK:              {{.*}}constructor_pullback(_b0, &_d_b0, &_d_b);
 // CHECK:                  {
-// CHECK-NEXT:             *_t8 = _t9;
 // CHECK-NEXT:             {{.*}}value_type _r_d4 = _d_b[2];
 // CHECK-NEXT:             _d_b[2] = 0.;
 // CHECK-NEXT:             *_d_x += _r_d4 * x;
 // CHECK-NEXT:             *_d_x += x * _r_d4;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_t6 = _t7;
 // CHECK-NEXT:             {{.*}}value_type _r_d3 = _d_b[1];
 // CHECK-NEXT:             _d_b[1] = 0.;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_t4 = _t5;
 // CHECK-NEXT:             {{.*}}value_type _r_d2 = _d_b[0];
 // CHECK-NEXT:             _d_b[0] = 0.;
 // CHECK-NEXT:             *_d_x += _r_d2;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_t2 = _t3;
 // CHECK-NEXT:             {{.*}}value_type _r_d1 = _d_a[1];
 // CHECK-NEXT:             _d_a[1] = 0.;
 // CHECK-NEXT:             *_d_y += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_t0 = _t1;
 // CHECK-NEXT:             {{.*}}value_type _r_d0 = _d_a[0];
 // CHECK-NEXT:             _d_a[0] = 0.;
 // CHECK-NEXT:         }
@@ -709,12 +758,9 @@ int main() {
 // CHECK:     void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:         std::array<double, 2> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 2> a;
-// CHECK-NEXT:         {{.*}}value_type *_t0 = &a[1];
-// CHECK-NEXT:         {{.*}}value_type _t1 = *_t0;
-// CHECK-NEXT:         *_t0 = 2 * x;
+// CHECK-NEXT:     a[1] = 2 * x;
 // CHECK-NEXT:         _d_a[1] += 1;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_t0 = _t1;
 // CHECK-NEXT:             {{.*}} _r_d0 = _d_a[1];
 // CHECK-NEXT:             _d_a[1] = 0.;
 // CHECK-NEXT:             *_d_x += 2 * _r_d0;
@@ -813,12 +859,11 @@ int main() {
 // CHECK-NEXT:          std::vector<double> _d_a{};
 // CHECK-NEXT:          std::vector<double> _t0 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, 0, &_d_a, 0);
-// CHECK-NEXT:          {{.*}}value_type *_t1 = &a[0];
-// CHECK-NEXT:          {{.*}}value_type _t2 = *_t1;
-// CHECK-NEXT:          *_t1 = x * x;
+// CHECK-NEXT:     {{.*}}value_type _t1 = a[0];
+// CHECK-NEXT:     a[0] = x * x;
 // CHECK-NEXT:          _d_a[0] += 1;
 // CHECK-NEXT:          {
-// CHECK-NEXT:              *_t1 = _t2;
+// CHECK-NEXT:         a[0] = _t1;
 // CHECK-NEXT:              {{.*}}value_type _r_d0 = _d_a[0];
 // CHECK-NEXT:              _d_a[0] = 0{{.*}};
 // CHECK-NEXT:              *_d_x += _r_d0 * x;
@@ -836,7 +881,6 @@ int main() {
 // CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc{};
 // CHECK-NEXT:      std::vector<double> ls({u, v}, alloc);
 // CHECK-NEXT:      std::vector<double> _d_ls({0., 0.}, _d_alloc);
-// CHECK-NEXT:      {{.*}}value_type _t0 = ls[0];
 // CHECK-NEXT:      {
 // CHECK-NEXT:          ls[1] += 1;
 // CHECK-NEXT:          ls[0] += 2 * -1;
@@ -853,33 +897,26 @@ int main() {
 // CHECK-NEXT:      int _d_i = 0;
 // CHECK-NEXT:      int i = 0;
 // CHECK-NEXT:      clad::tape<std::vector<double> > _t1 = {};
-// CHECK-NEXT:      clad::tape<std::vector<double> > _t2 = {};
 // CHECK-NEXT:      std::vector<double> ls = {};
 // CHECK-NEXT:      std::vector<double> _d_ls{};
-// CHECK-NEXT:     {{.*}}value_type *_t3[3];
-// CHECK-NEXT:     {{.*}}value_type _t4[3];
 // CHECK-NEXT:      {{.*}}allocator_type alloc;
 // CHECK-NEXT:      {{.*}}allocator_type _d_alloc{};
 // CHECK-NEXT:      unsigned int _t0;
 // CHECK-NEXT:      for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:          clad::push(_t1, std::move(_d_ls));
-// CHECK-NEXT:          clad::push(_t2, std::move(ls)) , ls = {u, v}, alloc;
+// CHECK-NEXT:         ls = {u, v}, alloc;
 // CHECK-NEXT:          _d_ls = {0., 0.}, _d_alloc;
-// CHECK-NEXT:         _t3[i] = &ls[1];
-// CHECK-NEXT:         _t4[i] = ls[1];
-// CHECK-NEXT:         *_t3[i] += ls[0];
+// CHECK-NEXT:         ls[1] += ls[0];
 // CHECK-NEXT:          u = ls[1];
 // CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_u += 1;
 // CHECK-NEXT:      for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         --i;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              double _r_d1 = *_d_u;
 // CHECK-NEXT:              *_d_u = 0.;
 // CHECK-NEXT:              _d_ls[1] += _r_d1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:             ls[1] = _t4[i];
 // CHECK-NEXT:              {{.*}}value_type _r_d0 = _d_ls[1];
 // CHECK-NEXT:              _d_ls[0] += _r_d0;
 // CHECK-NEXT:          }
@@ -889,7 +926,6 @@ int main() {
 // CHECK-NEXT:              *_d_u += _r0[0];
 // CHECK-NEXT:              *_d_v += _r0[1];
 // CHECK-NEXT:              _d_ls = clad::pop(_t1);
-// CHECK-NEXT:              ls = clad::pop(_t2);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -959,31 +995,24 @@ int main() {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<std::vector<double> > _t1 = {};
-// CHECK-NEXT:     clad::tape<std::vector<double> > _t2 = {};
 // CHECK-NEXT:     std::vector<double> ls = {};
 // CHECK-NEXT:     std::vector<double> _d_ls{};
-// CHECK-NEXT:     {{.*}}value_type *_t3[3];
-// CHECK-NEXT:     {{.*}}value_type _t4[3];
 // CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         clad::push(_t1, std::move(_d_ls));
-// CHECK-NEXT:         clad::push(_t2, std::move(ls)) , ls = {{.*{u, v}.*}};
+// CHECK-NEXT:         ls = {{.*{u, v}.*}};
 // CHECK-NEXT:         _d_ls = {{.*}}{0., 0.}{{.*}};
-// CHECK-NEXT:         _t3[i] = &ls[1];
-// CHECK-NEXT:         _t4[i] = ls[1];
-// CHECK-NEXT:         *_t3[i] += ls[0];
+// CHECK-NEXT:         ls[1] += ls[0];
 // CHECK-NEXT:         u = ls[1];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_u += 1;
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d1 = *_d_u;
 // CHECK-NEXT:             *_d_u = 0.;
 // CHECK-NEXT:             _d_ls[1] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             ls[1] = _t4[i];
 // CHECK-NEXT:             {{.*}}value_type _r_d0 = _d_ls[1];
 // CHECK-NEXT:             _d_ls[0] += _r_d0;
 // CHECK-NEXT:         }
@@ -993,7 +1022,6 @@ int main() {
 // CHECK-NEXT:             *_d_u += _r0[0];
 // CHECK-NEXT:             *_d_v += _r0[1];
 // CHECK-NEXT:             _d_ls = clad::pop(_t1);
-// CHECK-NEXT:             ls = clad::pop(_t2);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -1110,7 +1138,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_x_ptr, _d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(clad::Tag<double>(), x, _d_x_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1139,7 +1167,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, _d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(clad::Tag<double>(), x, _d_s_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1192,3 +1220,56 @@ int main() {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
+
+// CHECK: void fn28_grad(double x, double *_d_x) {
+// CHECK-NEXT:     Vec _d_v = {{[{][{]}}0, 0, 0{{[}][}]}};
+// CHECK-NEXT:     Vec v{{[{][{]}}1, 1, 1{{[}][}]}};
+// CHECK-NEXT:     Grow _d_g = {{[{][{]}}0, 0, 0{{[}][}]}};
+// CHECK-NEXT:     Grow g{{[{][{]}}1, 1, 1{{[}][}]}};
+// CHECK-NEXT:     int _d_j = 0;
+// CHECK-NEXT:     int j = 0;
+// CHECK-NEXT:     double _t0 = v[j];
+// CHECK-NEXT:     double _t1 = v[j];
+// CHECK-NEXT:     v[j] = x * _t1;
+// CHECK-NEXT:     double *_t2 = &g[j];
+// CHECK-NEXT:     double _t3 = *_t2;
+// CHECK-NEXT:     double _t4 = g[j];
+// CHECK-NEXT:     *_t2 = x * _t4;
+// CHECK-NEXT:     int _t5 = j;
+// CHECK-NEXT:     j = 2;
+// CHECK-NEXT:     double _t6 = v[j];
+// CHECK-NEXT:     double _t7 = v[j];
+// CHECK-NEXT:     v[j] = x * _t7;
+// CHECK-NEXT:     double _t9 = v[0];
+// CHECK-NEXT:     double _t8 = v[2];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_v[0] += 1 * _t8;
+// CHECK-NEXT:         _d_v[2] += _t9 * 1;
+// CHECK-NEXT:         _d_g[0] += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         v[j] = _t6;
+// CHECK-NEXT:         double _r_d2 = _d_v[j];
+// CHECK-NEXT:         _d_v[j] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d2 * _t7;
+// CHECK-NEXT:         _d_v[j] += x * _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         j = _t5;
+// CHECK-NEXT:         _d_j = 0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_t2 = _t3;
+// CHECK-NEXT:         double _r_d1 = _d_g[j];
+// CHECK-NEXT:         _d_g[j] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d1 * _t4;
+// CHECK-NEXT:         _d_g[j] += x * _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         v[j] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_v[j];
+// CHECK-NEXT:         _d_v[j] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0 * _t1;
+// CHECK-NEXT:         _d_v[j] += x * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }

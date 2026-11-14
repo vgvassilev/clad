@@ -6,6 +6,7 @@
 #include "clad/Differentiator/Differentiator.h"
 
 double f(double i, double j[2]) { return i * j[0] * j[1]; }
+
 // CHECK: void f_hessian(double i, double j[2], double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
@@ -39,14 +40,6 @@ double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 // CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT: }
 
-double h(double arr[3], double weights[3], double multiplier) {
-  // return square of weighted sum.
-  double weightedSum = arr[0] * weights[0];
-  weightedSum += arr[1] * weights[1];
-  weightedSum += arr[2] * weights[2];
-  weightedSum *= multiplier;
-  return weightedSum * weightedSum;
-}
 // CHECK: void h_hessian_diagonal(double arr[3], double weights[3], double multiplier, double *diagonalHessianVector) {
 // CHECK-NEXT:     *(diagonalHessianVector + {{0U|0UL|0ULL}}) = h_d2arg0_0(arr, weights, multiplier);
 // CHECK-NEXT:     *(diagonalHessianVector + {{1U|1UL|1ULL}}) = h_d2arg0_1(arr, weights, multiplier);
@@ -56,6 +49,15 @@ double h(double arr[3], double weights[3], double multiplier) {
 // CHECK-NEXT:     *(diagonalHessianVector + {{5U|5UL|5ULL}}) = h_d2arg1_2(arr, weights, multiplier);
 // CHECK-NEXT:     *(diagonalHessianVector + {{6U|6UL|6ULL}}) = h_d2arg2(arr, weights, multiplier);
 // CHECK-NEXT: }
+
+double h(double arr[3], double weights[3], double multiplier) {
+  // return square of weighted sum.
+  double weightedSum = arr[0] * weights[0];
+  weightedSum += arr[1] * weights[1];
+  weightedSum += arr[2] * weights[2];
+  weightedSum *= multiplier;
+  return weightedSum * weightedSum;
+}
 
 #define TEST(var, i, j)                                                        \
   result[0] = result[1] = result[2] = result[3] = result[4] = result[5] =      \

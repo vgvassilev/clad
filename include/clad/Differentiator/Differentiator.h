@@ -12,6 +12,9 @@
 #include "BuiltinDerivatives.h"
 #ifdef __CUDACC__
 #include "BuiltinDerivativesCUDA.cuh"
+#include <cuda_runtime_api.h>
+#include <driver_types.h>
+#include <vector_types.h>
 #endif
 #include "CladConfig.h"
 // Declares the Enzyme activity markers and gradient carrier that clad
@@ -31,10 +34,20 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 #include <type_traits>
+#if __cplusplus >= 202002L
+#include <version>
+#endif
+#ifdef __cpp_lib_ranges
+#include <ranges>
+#define CLAD_HAS_CONTIGUOUS_RANGE 1
+#else
+#define CLAD_HAS_CONTIGUOUS_RANGE 0
+#endif
 #include <utility>
 // Keep std::valarray's non-member begin/end overloads visible when is_range is
 // defined below.
@@ -285,6 +298,46 @@ template <class T> std::false_type is_range(...);
   template <class T>
   struct is_range : decltype(zero_init_detail::is_range<T>(0)) {};
 
+  /// Classifies T as a container that keeps its elements in one contiguous
+  /// array, so that clad's analyses treat `v.data()` as the array decayed to
+  /// a pointer. From C++20 on this is the standard's own classification,
+  /// std::ranges::contiguous_range and sized_range: a type of your own is
+  /// classified by giving its iterator
+  /// `using iterator_concept = std::contiguous_iterator_tag;`. Before C++20
+  /// the standard containers known to be contiguous are classified (see
+  /// STLBuiltins.h), and a type of your own by specializing this.
+#if CLAD_HAS_CONTIGUOUS_RANGE
+  template <class T>
+  struct is_contiguous_container
+      : std::integral_constant<bool, std::ranges::contiguous_range<T> &&
+                                         std::ranges::sized_range<T>> {};
+#else
+  template <class T> struct is_contiguous_container : std::false_type {};
+#endif
+
+  namespace contiguous_detail {
+  // Spelled with ::value: the runtime headers also compile as C++14.
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class T>
+  auto models(int)
+      -> std::integral_constant<
+          bool,
+          std::is_pointer<decltype(std::declval<T&>().data())>::value &&
+              std::is_integral<decltype(std::declval<T&>().size())>::value>;
+  // NOLINTEND(modernize-type-traits)
+  template <class T> std::false_type models(...);
+  } // namespace contiguous_detail
+
+  /// Whether T is classified as a contiguous container. This is what clad's
+  /// analyses read. A type classified so must have a data() that returns a
+  /// pointer to its elements and an integral size().
+  template <class T> struct contiguous_container_check {
+    static constexpr bool value = is_contiguous_container<T>::value;
+    static_assert(!value || decltype(contiguous_detail::models<T>(0))::value,
+                  "clad::is_contiguous_container<T> is true, but T has no "
+                  "data() returning a pointer or no integral size()");
+  };
+
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t);
 
 #ifndef __has_builtin
@@ -332,6 +385,22 @@ template <class T> std::false_type is_range(...);
   }
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
+
+  /// memmove(dst, src, n) for a dst and src that hold n bytes of T, as the
+  /// element-wise copy clad can differentiate. Clad calls it in place of a
+  /// memcpy or memmove of floating-point data.
+  template <class T> void* byte_copy(T* dst, const T* src, std::size_t n) {
+    std::size_t N = n / sizeof(T);
+    // Copy away from the overlap, as memmove does. Ranges that overlap are in
+    // one array, which orders them; for any others either direction will do.
+    if (dst < src)
+      for (std::size_t i = 0; i < N; ++i)
+        dst[i] = src[i];
+    else
+      for (std::size_t i = N; i > 0; --i)
+        dst[i - 1] = src[i - 1];
+    return dst;
+  }
 
   /// Construct a zero adjoint with the same relevant structure as \p value.
   ///
@@ -418,15 +487,16 @@ template <class T> std::false_type is_range(...);
 
   /// Default zero_like for any other class that is not an aggregate: copy the
   /// primal, then zero it, as for a copyable range. A class with no default
-  /// constructor gets a zero adjoint this way too. An aggregate is
-  /// value-initialized instead, and a pair is zeroed member by member, so that
-  /// a pair of references never borrows the primal's storage. A class with a
-  /// reference or const member, which cannot be assigned, has no default: its
-  /// bytes must not be zeroed.
+  /// constructor gets a zero adjoint this way too, an aggregate of such
+  /// classes included. Another aggregate is value-initialized instead, and a
+  /// pair is zeroed member by member, so that a pair of references never
+  /// borrows the primal's storage. A class with a reference or const member,
+  /// which cannot be assigned, has no default: its bytes must not be zeroed.
   template <class T,
             std::enable_if_t<std::is_class<T>::value && !is_range<T>::value &&
                                  !zero_like_detail::is_pair<T>::value &&
-                                 !__is_aggregate(T) &&
+                                 (!__is_aggregate(T) ||
+                                  !std::is_default_constructible<T>::value) &&
                                  std::is_copy_constructible<T>::value &&
                                  std::is_copy_assignable<T>::value &&
                                  std::is_trivially_destructible<T>::value,
@@ -507,6 +577,23 @@ template <class T> std::false_type is_range(...);
   }
   // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+  template <class F, class... Args>
+  inline void launch_cuda_kernel(F f, dim3 grid, dim3 block,
+                                 std::size_t shared_mem, cudaStream_t stream,
+                                 Args... args) {
+    // cudaLaunchKernel requires non-const pointers to copy argument values.
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast)
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+    std::array<void*, sizeof...(Args)> argPtrs = {{const_cast<void*>(
+        reinterpret_cast<const volatile void*>(std::addressof(args)))...}};
+    cudaLaunchKernel(reinterpret_cast<const void*>(f), grid, block,
+                     argPtrs.data(), shared_mem, stream);
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+    // NOLINTEND(cppcoreguidelines-pro-type-const-cast)
+  }
+#endif
+
   /// Pad the args supplied with nullptr(s) or zeros to match the the num of
   /// params of the function and then execute the function using the padded args
   /// i.e. we are adding default arguments as we cannot do that with
@@ -533,16 +620,9 @@ template <class T> std::false_type is_range(...);
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
-      constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
-      std::array<void*, totalArgs> argPtrs = {(void*)(&args)...,
-                                              static_cast<Rest>(nullptr)...};
-
-      void* null_param = nullptr;
-      for (size_t i = sizeof...(args); i < totalArgs; ++i)
-        argPtrs[i] = &null_param;
-
-      cudaLaunchKernel((void*)f, grid, block, argPtrs.data(), shared_mem,
-                       stream);
+      launch_cuda_kernel<F, fArgTypes..., Rest...>(
+          f, grid, block, shared_mem, stream, std::forward<Args>(args)...,
+          static_cast<Rest>(nullptr)...);
       return return_type_t<F>();
     } else {
       return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
@@ -560,8 +640,8 @@ template <class T> std::false_type is_range(...);
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
-      void* argPtrs[] = {(void*)&args...};
-      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+      launch_cuda_kernel<F, fArgTypes...>(f, grid, block, shared_mem, stream,
+                                          std::forward<Args>(args)...);
       return return_type_t<F>();
     }
     return f(static_cast<Args>(args)...);

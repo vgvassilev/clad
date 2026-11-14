@@ -62,6 +62,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   DiffParams args{};
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
   auto params = BuildParams(args);
+  PrependTemplateTagParams(params);
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
 
@@ -184,7 +185,9 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   const auto* derivativeFnType =
       cast<FunctionProtoType>(m_Derivative->getType());
 
-  std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
+  // The derivative's type starts with its template tags, which are added to
+  // params last.
+  std::size_t dParamTypesIdx = getNumTemplateTags() + m_DiffReq->getNumParams();
 
   QualType tagType;
   if (const auto* CD = dyn_cast<CXXConversionDecl>(m_DiffReq.Function))
@@ -238,7 +241,11 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     }
     // A lambda that captures the parameter finds its copy here.
     m_DeclReplacements[PVD] = newPVD;
-
+  }
+  // The adjoints come after every parameter is in scope: the adjoint of `x`
+  // must not take the name of a parameter `_d_x`.
+  for (auto* PVD : m_DiffReq->parameters()) {
+    auto* newPVD = cast<ParmVarDecl>(m_DeclReplacements[PVD]);
     auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
       *it = newPVD;
@@ -324,7 +331,8 @@ StmtDiff ReverseModeForwPassVisitor::VisitUnaryOperator(
 ReverseModeForwPassVisitor::DelayedStoreResult
 ReverseModeForwPassVisitor::DelayedGlobalStoreAndRef(Expr* E,
                                                      llvm::StringRef prefix,
-                                                     bool forceStore) {
+                                                     bool forceStore,
+                                                     bool isNeeded) {
   assert(E && "must be provided");
   StmtDiff Ediff = Visit(E);
   return DelayedStoreResult{*this, Ediff,
@@ -366,6 +374,11 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
                                             returnDiff.getExpr_dx()};
   if (!returnArgs[1])
     return {nullptr, nullptr};
+  // An rvalue reference is initialized by an xvalue, the adjoint as the value.
+  if (m_DiffReq->getReturnType()->isRValueReferenceType())
+    for (Expr*& Arg : returnArgs)
+      if (!Arg->isXValue())
+        Arg = utils::BuildStaticCastToRValue(m_Sema, Arg);
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();

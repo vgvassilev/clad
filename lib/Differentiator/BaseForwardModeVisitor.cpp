@@ -181,6 +181,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   llvm::SmallVector<ParmVarDecl*, 16> params;
   SetupDerivativeParameters(params);
+  PrependTemplateTagParams(params);
 
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
@@ -240,16 +241,13 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         R.empty() ? nullptr : dyn_cast<FunctionDecl>(R.front());
     if (!RD->isLambda() && !R.empty() &&
         !m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(FoundFD)) {
-      Sema::NestedNameSpecInfo IdInfo(RD->getIdentifier(), noLoc, noLoc,
-                                      /*ObjectType=*/nullptr);
-      // FIXME: Address nested classes where SS should be set.
+      // Define it at global scope, which encloses the class as the
+      // definition must ([class.mfct]), qualified through the scopes
+      // around the class: its name alone is not found from there.
       CXXScopeSpec SS;
-      m_Sema.BuildCXXNestedNameSpecifier(getCurrentScope(), IdInfo,
-                                         /*EnteringContext=*/true, SS,
-                                         /*ScopeLookupResult=*/nullptr,
-                                         /*ErrorRecoveryLookup=*/false);
+      utils::BuildNNS(m_Sema, RD, SS);
       m_Derivative->setQualifierInfo(SS.getWithLocInContext(m_Context));
-      m_Derivative->setLexicalDeclContext(RD->getParent());
+      m_Derivative->setLexicalDeclContext(m_Context.getTranslationUnitDecl());
     }
   }
 
@@ -694,13 +692,58 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
 StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     const ConditionalOperator* CO) {
   Expr* cond = Clone(CO->getCond());
-  // FIXME: fix potential side-effects from evaluating both sides of
-  // conditional.
+  // Each arm may need statements before its value, e.g. the call to the
+  // pushforward of a callee. Those must run only when their arm is taken:
+  // run unconditionally, a recursive call in the untaken arm never stops.
   ++m_ConditionalOperandDepth;
+  beginBlock();
   StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
+  CompoundStmt* trueStmts = endBlock();
+  beginBlock();
   StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
+  CompoundStmt* falseStmts = endBlock();
   --m_ConditionalOperandDepth;
   matchBranchTangents(ifTrueDiff, ifFalseDiff, CO->getType());
+
+  QualType valueTy = CO->getType();
+  Expr* trueDx = ifTrueDiff.getExpr_dx();
+  Expr* falseDx = ifFalseDiff.getExpr_dx();
+  if ((!trueStmts->body_empty() || !falseStmts->body_empty()) &&
+      CO->isPRValue() && valueTy->isArithmeticType() && trueDx && falseDx &&
+      trueDx->getType()->isArithmeticType() &&
+      falseDx->getType()->isArithmeticType()) {
+    // Lower to `if (cond) { ...; _t0 = a; _t1 = da; } else { ... }`.
+    valueTy = valueTy.getUnqualifiedType();
+    VarDecl* value = BuildVarDecl(valueTy, "_t", getZeroInit(valueTy));
+    VarDecl* tangent = BuildVarDecl(valueTy, "_t", getZeroInit(valueTy));
+    addToCurrentBlock(BuildDeclStmt(value));
+    addToCurrentBlock(BuildDeclStmt(tangent));
+    auto buildArm = [&](CompoundStmt* stmts, Expr* E, Expr* dE) {
+      beginBlock();
+      for (Stmt* S : stmts->body())
+        addToCurrentBlock(S);
+      addToCurrentBlock(BuildOp(BO_Assign, BuildDeclRef(value), E));
+      addToCurrentBlock(BuildOp(BO_Assign, BuildDeclRef(tangent), dE));
+      return endBlock();
+    };
+    Stmt* thenS = buildArm(trueStmts, ifTrueDiff.getExpr(), trueDx);
+    Stmt* elseS = buildArm(falseStmts, ifFalseDiff.getExpr(), falseDx);
+    Expr* ifCond = m_Sema
+                       .ActOnCondition(getCurrentScope(), noLoc, cond,
+                                       Sema::ConditionKind::Boolean)
+                       .get()
+                       .second;
+    addToCurrentBlock(clad_compat::IfStmt_Create(
+        m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
+        /*Var=*/nullptr, ifCond, noLoc, noLoc, thenS, noLoc, elseS));
+    return StmtDiff(BuildDeclRef(value), BuildDeclRef(tangent));
+  }
+  // FIXME: an arm whose statements cannot be lowered as above still runs
+  // them whichever way the condition goes.
+  for (Stmt* S : trueStmts->body())
+    addToCurrentBlock(S);
+  for (Stmt* S : falseStmts->body())
+    addToCurrentBlock(S);
 
   cond = StoreAndRef(cond);
   cond = m_Sema
@@ -718,8 +761,8 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     return StmtDiff(condExpr, nullptr);
   // A branch without a tangent, such as a variable the useful analysis left
   // without one, contributes zero.
-  Expr* trueDx = ifTrueDiff.getExpr_dx();
-  Expr* falseDx = ifFalseDiff.getExpr_dx();
+  trueDx = ifTrueDiff.getExpr_dx();
+  falseDx = ifFalseDiff.getExpr_dx();
   if (!trueDx && !falseDx)
     return StmtDiff(condExpr, nullptr);
   if (!trueDx)
@@ -1175,6 +1218,11 @@ Expr* BaseForwardModeVisitor::KeepTangentNullness(const Expr* ptr,
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+  // A structured binding names part of the variable it decomposes, or the
+  // variable a tuple-like type introduces for it: differentiate what it
+  // stands for, `_bind.a` or `a`.
+  if (const auto* BD = dyn_cast<BindingDecl>(DRE->getDecl()))
+    return Visit(BD->getBinding());
   DeclRefExpr* clonedDRE = nullptr;
   // Check if referenced Decl was "replaced" with another identifier inside
   // the derivative
@@ -1226,6 +1274,12 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
       return StmtDiff(clonedDRE, nullptr);
 
   return StmtDiff(clonedDRE, getZeroInit(clonedDRE->getType()));
+}
+
+StmtDiff BaseForwardModeVisitor::VisitConstantExpr(const ConstantExpr* CE) {
+  // A constant, such as the condition of an `if constexpr`, whose discarded
+  // branch is not in the instantiation: its derivative is 0.
+  return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -1288,12 +1342,32 @@ static bool isZeroTangent(const Expr* dE) {
   return FD && FD->getQualifiedNameAsString() == "clad::zero_vector";
 }
 
+StmtDiff
+BaseForwardModeVisitor::VisitCXXMemberCallExpr(const CXXMemberCallExpr* CE) {
+  StmtDiff Res = VisitCallExpr(CE);
+  // Same for an accessor, a member function of no arguments returning an
+  // integer by value: what it reads is an integer member (see
+  // VisitImplicitCastExpr). One computing an integer from its arguments is
+  // differentiated as such.
+  if (CE->getType()->isIntegralOrEnumerationType() && CE->isPRValue() &&
+      CE->getNumArgs() == 0 && Res.getExpr_dx())
+    Res.updateStmtDx(
+        ConstantFolder::synthesizeLiteral(CE->getType(), m_Context, /*val=*/0));
+  return Res;
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+  // Pseudo and trivial destructors do nothing and there is no need to
+  // differentiate or clone them.
+  if (utils::isNoOpDestructorCall(CE))
+    return {};
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
     diagUnsupportedIndirectCalls(CE);
     return StmtDiff(Clone(CE));
   }
+  if (CallExpr* typed = utils::BuildTypedByteCopy(m_Sema, CE))
+    return Visit(typed);
 
   SourceLocation validLoc{CE->getBeginLoc()};
 
@@ -1332,9 +1406,9 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            .get();
           Expr* vap = StoreAndRef(call, "_t", /*forceDeclCreation=*/true);
           Expr* value =
-              utils::BuildMemberExpr(m_Sema, getCurrentScope(), vap, "value");
-          Expr* pushforward = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                     vap, "pushforward");
+              utils::BuildResultMember(m_Sema, getCurrentScope(), vap, "value");
+          Expr* pushforward = utils::BuildResultMember(
+              m_Sema, getCurrentScope(), vap, "pushforward");
           return StmtDiff(value, pushforward);
         }
       }
@@ -1345,6 +1419,25 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   Expr* CUDAExecConfig = nullptr;
   if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
+
+  // std::move and the one-argument std::forward only cast their argument, and
+  // the tangent of what they return is the same cast of the argument's.
+  if (FD->isInStdNamespace() && FD->getNumParams() == 1 &&
+      FD->getDeclName().isIdentifier() &&
+      (FD->getName() == "move" || FD->getName() == "forward")) {
+    StmtDiff argDiff = Visit(CE->getArg(0));
+    llvm::SmallVector<Expr*, 1> args{argDiff.getExpr()};
+    Expr* call = m_Sema
+                     .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                    validLoc, args, validLoc)
+                     .get();
+    Expr* callDx = argDiff.getExpr_dx();
+    if (CE->isXValue() && callDx->isGLValue()) {
+      llvm::SmallVector<Expr*, 1> dxArgs{callDx};
+      callDx = GetFunctionCall("move", "std", dxArgs);
+    }
+    return StmtDiff(call, callDx);
+  }
 
   // If the function is non_differentiable, return zero derivative.
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
@@ -1569,6 +1662,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           }
         }
       }
+      bool hasNoTangent = !dArg;
       if (!dArg) {
         QualType zeroTy = arg->getType();
         if (zeroTy->isPointerType()) {
@@ -1578,6 +1672,15 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         }
         // A class keeps its structure in its zero tangent: clad::zero_like.
         dArg = BuildZeroAdjoint(CloneNode(argDiff.getExpr()), zeroTy);
+      }
+      // A parameter taken by non-const reference binds its tangent to a
+      // variable: give the zero tangent one of its own.
+      if (hasNoTangent && paramType->isLValueReferenceType() &&
+          !paramType.getNonReferenceType().isConstQualified()) {
+        VarDecl* zero =
+            BuildVarDecl(paramType.getNonReferenceType(), "_t", dArg);
+        addToCurrentBlock(BuildDeclStmt(zero));
+        dArg = BuildDeclRef(zero);
       }
       // The callee null checks the tangent it is handed.
       dArg = KeepTangentNullness(arg, dArg);
@@ -1591,6 +1694,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            CallArgs.end());
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                            diffArgs.end());
+  // The template tags come first, after the object a member's is called on.
+  InsertTemplateTagArgs(FD, pushforwardFnArgs, /*Pos=*/0);
 
   Expr* callDiff = nullptr;
 
@@ -1933,9 +2038,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
              "derivative is considered 0")
             << FD << L;
       }
-      auto zero =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      return StmtDiff(call, zero);
+      return StmtDiff(call, getZeroInit(CE->getType()));
     }
     return {call, callDiff};
   }
@@ -1944,10 +2047,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     return StmtDiff(callDiff, nullptr);
   auto valueAndPushforward =
       StoreAndRef(callDiff, "_t", /*forceDeclCreation=*/true);
-  Expr* returnValue = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                             valueAndPushforward, "value");
+  Expr* returnValue = utils::BuildResultMember(m_Sema, getCurrentScope(),
+                                               valueAndPushforward, "value");
   // Clone the base so `.value` and `.pushforward` own distinct nodes.
-  Expr* pushforward = utils::BuildMemberExpr(
+  Expr* pushforward = utils::BuildResultMember(
       m_Sema, getCurrentScope(), CloneNode(valueAndPushforward), "pushforward");
   return StmtDiff(returnValue, pushforward);
 }
@@ -2303,14 +2406,15 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+  VarDecl* VDClone = BuildVarDecl(VD->getType(), CloneName(VD),
                                   initDiff.getExpr(), VD->isDirectInit());
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
   QualType VDType = VD->getType();
-  // A reference tangent needs an lvalue to bind to; the literal 0 that e.g.
-  // `const double& r = 5.;` derives to is not one.
-  if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
+  // A reference tangent needs an object to bind to; the literal 0 that e.g.
+  // `const double& r = 5.;` derives to is not one, but the std::move of a
+  // tangent that `const double& r = std::move(y);` derives to is.
+  if (VDType->isLValueReferenceType() && initDx && !initDx->isGLValue())
     initDx = nullptr;
   // The tangent outlives the initializer that built it.
   if (init && initDx)
@@ -2330,8 +2434,8 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   }
   VarDecl* VDDerived = nullptr;
   if (m_DiffReq.shouldHaveAdjointForw(VD) && (initDx || !isAlias))
-    VDDerived = BuildVarDecl(VDType, "_d_" + VD->getNameAsString(), initDx,
-                             VD->isDirectInit());
+    VDDerived =
+        BuildVarDecl(VDType, "_d_" + CloneName(VD), initDx, VD->isDirectInit());
 
   if (VDDerived)
     m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
@@ -2339,6 +2443,24 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+  if (const auto* DD = dyn_cast_or_null<DecompositionDecl>(
+          DS->isSingleDecl() ? DS->getSingleDecl() : nullptr)) {
+    if (!CheckStructuredBinding(DD))
+      return {};
+    // The variable it decomposes, then one statement for each variable a
+    // tuple-like type introduces for its bindings.
+    StmtDiff Result = DifferentiateDeclStmt(DS);
+    for (DeclStmt* Holding : BuildHoldingVarStmts(DD)) {
+      addToCurrentBlock(Result.getStmt_dx());
+      addToCurrentBlock(Result.getStmt());
+      Result = DifferentiateDeclStmt(Holding);
+    }
+    return Result;
+  }
+  return DifferentiateDeclStmt(DS);
+}
+
+StmtDiff BaseForwardModeVisitor::DifferentiateDeclStmt(const DeclStmt* DS) {
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;
   // If the type is marked as non_differentiable, skip generating its derivative
@@ -2371,6 +2493,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         const LambdaExpr* LE = utils::getLambdaInit(VD);
         if (LE && diagnoseUnsupportedLambda(LE))
           return {};
+        // The pushforward takes the captures by value, so it would lose what
+        // the body writes through a by-reference one.
+        if (LE && !m_DiffReq.lambdaCaptureWrites(LE).empty()) {
+          diag(DiagnosticsEngine::Error, LE->getCallOperator()->getLocation(),
+               "forward-mode differentiation of a lambda that assigns to a "
+               "by-reference capture is not supported yet");
+          return {};
+        }
         if (LE && LE->capture_size()) {
           // Snapshot each by value capture at creation so a later mutation of
           // the enclosing variable is not observed.
@@ -2498,6 +2628,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       // An alias carries no value and so no derivative, but the statements
       // after it go on naming the type by it.
       decls.push_back(BuildTypedefNameDecl(TND));
+    } else if (isa<UsingDirectiveDecl>(D) || isa<UsingDecl>(D)) {
+      // Keep it, so the derivative read back as source finds the same names.
+      decls.push_back(BuildUsing(D));
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())
@@ -2521,6 +2654,16 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
 StmtDiff
 BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
   StmtDiff subExprDiff = Visit(ICE->getSubExpr());
+  // An integer member's tangent is not a derivative: clad's own integer
+  // tangents are zero, but an integer member of a tangent object holds
+  // whatever keeps the object valid (a slice count, say). Read it as zero.
+  if (ICE->getCastKind() == CK_LValueToRValue &&
+      ICE->getType()->isIntegralOrEnumerationType() &&
+      isa<MemberExpr>(ICE->getSubExpr()->IgnoreParens()) &&
+      subExprDiff.getExpr_dx())
+    return StmtDiff(subExprDiff.getExpr(),
+                    ConstantFolder::synthesizeLiteral(ICE->getType(), m_Context,
+                                                      /*val=*/0));
   // Casts should be handled automatically when the result is used by
   // Sema::ActOn.../Build...
   return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
@@ -3124,13 +3267,32 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
           : BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
   if (pushforwardCall) {
     auto valueAndPushforwardE = StoreAndRef(pushforwardCall);
-    Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                          valueAndPushforwardE, "value");
+    Expr* valueE = utils::BuildResultMember(m_Sema, getCurrentScope(),
+                                            valueAndPushforwardE, "value");
     // Clone the base so `.value` and `.pushforward` own distinct nodes.
-    Expr* pushforwardE =
-        utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                               CloneNode(valueAndPushforwardE), "pushforward");
+    Expr* pushforwardE = utils::BuildResultMember(
+        m_Sema, getCurrentScope(), CloneNode(valueAndPushforwardE),
+        "pushforward");
     return StmtDiff(valueE, pushforwardE);
+  }
+
+  // An integer has no derivative to construct the tangent with. One the
+  // constructor only counts with -- stores in integer members, compares --
+  // takes the integer's value, which keeps what the constructor checks, such
+  // as a count that has to be positive; the tangent of an integer member reads
+  // as 0 whatever it holds. One that may reach a real keeps its tangent, 0.
+  const CXXConstructorDecl* Ctor = CE->getConstructor();
+  const FunctionDecl* Declared = Ctor->getTemplateInstantiationPattern();
+  if (!Declared)
+    Declared = Ctor;
+  for (unsigned I = 0, N = std::min<unsigned>(derivedArgs.size(),
+                                              Declared->getNumParams());
+       I < N; ++I) {
+    QualType T = Declared->getParamDecl(I)->getType();
+    if (clonedArgs[I] && !T->isDependentType() &&
+        T.getNonReferenceType()->isIntegralOrEnumerationType() &&
+        utils::OnlyCountsWith(Ctor, I))
+      derivedArgs[I] = CloneNode(clonedArgs[I]);
   }
 
   // Custom derivative not found. Create simple constructor calls based on the
@@ -3153,6 +3315,11 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
       // ParenList is empty -- default initialisation.
       // Passing empty parenList here will silently cause 'most vexing
       // parse' issue.
+      // The tangent of an aggregate starts at zero, every member of it: its
+      // default member initializers give the value, not the tangent.
+      const CXXRecordDecl* RD = CE->getType()->getAsCXXRecordDecl();
+      if (RD && RD->isAggregate() && !CE->getType()->isArrayType())
+        return StmtDiff(nullptr, getZeroInit(CE->getType()));
       return StmtDiff();
     } else {
       // Rely on the initializer list expressions as they seem to be more
@@ -3228,6 +3395,15 @@ BaseForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
+  llvm::SmallVector<Expr*, 1> placementArgs;
+  llvm::SmallVector<StmtDiff, 1> placementArgDiffs;
+  for (const Expr* arg : CNE->placement_arguments()) {
+    placementArgDiffs.push_back(Visit(arg));
+    placementArgs.push_back(placementArgDiffs.back().getExpr());
+  }
+  llvm::SmallVector<Expr*, 1> derivedPlacementArgs =
+      BuildDerivedPlacementArgs(CNE, placementArgDiffs);
+
   StmtDiff initializerDiff;
   if (CNE->hasInitializer())
     initializerDiff = Visit(CNE->getInitializer());
@@ -3244,12 +3420,14 @@ StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
     // should be used in both the cloned and the derived statements.
     derivedArraySizeE = Clone(clonedArraySizeE);
   }
-  Expr* clonedNewE = utils::BuildCXXNewExpr(
-      m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
-      initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+  Expr* clonedNewE =
+      utils::BuildCXXNewExpr(m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
+                             initializerDiff.getExpr(),
+                             CNE->getAllocatedTypeSourceInfo(), placementArgs);
   Expr* derivedNewE = utils::BuildCXXNewExpr(
       m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
-      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo(),
+      derivedPlacementArgs);
   return {clonedNewE, derivedNewE};
 }
 
@@ -3284,7 +3462,14 @@ StmtDiff BaseForwardModeVisitor::VisitCXXNullPtrLiteralExpr(
 
 StmtDiff BaseForwardModeVisitor::VisitUnaryExprOrTypeTraitExpr(
     const clang::UnaryExprOrTypeTraitExpr* UE) {
-  return {Clone(UE), Clone(UE)};
+  // sizeof and alignof are constants.
+  return {Clone(UE), getZeroInit(UE->getType())};
+}
+
+StmtDiff
+BaseForwardModeVisitor::VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE) {
+  // A property of types, a constant.
+  return {Clone(TTE), getZeroInit(TTE->getType())};
 }
 
 StmtDiff BaseForwardModeVisitor::VisitPseudoObjectExpr(

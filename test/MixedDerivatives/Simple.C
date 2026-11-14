@@ -11,6 +11,12 @@ double h(double t, double c) { return g(c + t); }
 double h_darg0(double t, double c);
 static auto h_darg0_clad_func = clad::differentiate(h, "t");
 
+// CHECK: float f1_darg0(float x, float y) {
+// CHECK-NEXT:    float _d_x = 1;
+// CHECK-NEXT:    float _d_y = 0;
+// CHECK-NEXT:    return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
+// CHECK-NEXT: }
+
 // CHECK: void h_darg0_grad_1(double t, double c, double *_d_c) {
 // CHECK: g_pushforward_pullback(c + t, _d_c0 + _d_t0, _d_t00, &_r0, &_r1);
 
@@ -30,11 +36,8 @@ float f1(float x, float y) {
   return x * x + y * y;
 }
 
-// CHECK: float f1_darg0(float x, float y) {
-// CHECK-NEXT:    float _d_x = 1;
-// CHECK-NEXT:    float _d_y = 0;
-// CHECK-NEXT:    return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
-// CHECK-NEXT: }
+// CHECK: void k_pushforward_pullback(const double *p, const double *_d_p, clad::ValueAndPushforward<double, double> _d_y, double *_d_p0, double *_d_d_p) {
+// CHECK: double *_d_d_q = (_d_p ? _d_d_p + 1 : nullptr);
 
 //CHECK:   float f1_darg0_darg1(float x, float y) {
 //CHECK-NEXT:       float _d_x = 0;
@@ -69,5 +72,3 @@ int main () { // expected-no-diagnostics
 }
 
 // The pullback of k is emitted after everything above.
-// CHECK: void k_pushforward_pullback(const double *p, const double *_d_p, clad::ValueAndPushforward<double, double> _d_y, double *_d_p0, double *_d_d_p) {
-// CHECK: double *_d_d_q = (_cond0 ? _d_d_p + 1 : nullptr);

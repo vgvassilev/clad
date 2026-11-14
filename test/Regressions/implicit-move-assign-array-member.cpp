@@ -1,10 +1,12 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1
+// RUN: %cladclang %s -I%S/../../include -oimplicit-move-assign-array-member.out
+// RUN: ./implicit-move-assign-array-member.out | %filecheck_exec %s
 //
 // Clang's implicit move assignment memcpys an array member from the address of
-// an xvalue, which Sema refuses to rebuild; clad crashed on the null. What is
-// left is the byte-copy diagnostic.
+// an xvalue, which Sema refuses to rebuild; clad crashed on the null. The copy
+// is differentiated element-wise.
 
 #include "clad/Differentiator/Differentiator.h"
+#include <cstdio>
 
 struct V { double m[2]; };
 
@@ -18,9 +20,12 @@ double move_assign(double k) {
   V a{};
   a.m[0] = k;
   V b{};
-  b = twice(a); // expected-error {{cannot differentiate the defaulted move assignment of 'V'}} \
-                // expected-note {{provide custom 'operator_equal_reverse_forw' and 'operator_equal_pullback' for 'V'}}
+  b = twice(a);
   return b.m[0];
 }
 
-int main() { clad::gradient(move_assign); }
+int main() {
+  double dk = 0;
+  clad::gradient(move_assign).execute(3, &dk);
+  printf("%.2f\n", dk); // CHECK-EXEC: 2.00
+}

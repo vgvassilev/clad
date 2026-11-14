@@ -121,11 +121,12 @@ double fn3(double i, double j) {
   return i;
 }
 
+// Only the return reads what the second call writes, so the forward sweep
+// leaves it out.
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _t0 = j;
 // CHECK-NEXT:     update1(i, j);
 // CHECK-NEXT:     double _t1 = j;
-// CHECK-NEXT:     update1(i, j);
 // CHECK-NEXT:     *_d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t1;
@@ -733,7 +734,7 @@ T templated_fn(double x) {
   return x;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> templated_fn_pushforward(double x, double _d_x) {
+// CHECK: clad::ValueAndPushforward<double, double> templated_fn_pushforward(clad::Tag<double>, double x, double _d_x) {
 // CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT: }
 
@@ -744,7 +745,7 @@ double fn19(double x) {
 // CHECK: void fn19_grad(double x, double *_d_x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _r0 += 1 * templated_fn_pushforward(x, 1.).pushforward;
+// CHECK-NEXT:         _r0 += 1 * templated_fn_pushforward(clad::Tag<double>(), x, 1.).pushforward;
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -753,7 +754,12 @@ double weighted_sum(double* x, const double* w) {
   return w[0] * x[0] + w[1] * x[1];
 }
 
-// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x);
+// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
+// CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double fn20(double* x, const double* w) {
   const double* auxW = w + 1;
@@ -764,6 +770,29 @@ double fn20(double* x, const double* w) {
 // CHECK-NEXT:     const double *auxW = w + 1;
 // CHECK-NEXT:     weighted_sum_pullback(x, auxW, 1, _d_x);
 // CHECK-NEXT: }
+
+// So does one that starts either at w or null.
+double fn20_cond(double* x, const double* w, bool b) {
+  const double* q = b ? w : nullptr;
+  return weighted_sum(x, q);
+}
+
+// CHECK: void fn20_cond_grad_0(double *x, const double *w, bool b, double *_d_x) {
+// CHECK-NEXT:     bool _d_b = false;
+// CHECK-NEXT:     const double *q = b ? w : nullptr;
+// CHECK-NEXT:     weighted_sum_pullback(x, q, 1, _d_x);
+// CHECK-NEXT: }
+
+// A local pointer that starts null but is pointed elsewhere later keeps its
+// adjoint.
+double fn20_later(double* x, const double* w) {
+  double* q = nullptr;
+  q = x;
+  return weighted_sum(q, w + 1);
+}
+
+// CHECK: void fn20_later_grad_0(double *x, const double *w, double *_d_x) {
+// CHECK:     weighted_sum_pullback(q, w + 1, 1, _d_q);
 
 double ptrRef(double*& ptr_ref) {
   return *ptr_ref;
@@ -840,9 +869,10 @@ double fn24(double x) {
   return x;
 }
 
+// Only the return reads x after the call, so the forward sweep leaves the
+// call out.
 // CHECK:  void fn24_grad(double x, double *_d_x) {
 // CHECK-NEXT:      double _t0 = x;
-// CHECK-NEXT:      unused_return(x);
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          x = _t0;
@@ -1087,7 +1117,11 @@ inline double flexibleInterp(double const *params, const double *high) {
    return total;
 }
 
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params, double *_d_high) {
+double fn30(double *params, const double *xlArr) {
+   return flexibleInterp(params, xlArr + 2);
+}
+
+// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
 // CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_total = 0.;
@@ -1103,12 +1137,6 @@ inline double flexibleInterp(double const *params, const double *high) {
 // CHECK-NEXT:         _d_params[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
-
-double fn30(double *params, const double *xlArr) {
-   return flexibleInterp(params, xlArr + 2);
-}
-
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params);
 
 // CHECK: void fn30_grad_0(double *params, const double *xlArr, double *_d_params) {
 // CHECK-NEXT:     flexibleInterp_pullback(params, xlArr + 2, 1, _d_params);
@@ -1132,10 +1160,11 @@ double fn31(double *variables) {
    inner_function(&out, true, variables);
    return out;
 }
+// The call writes only out, through &out, and only the return reads out, so
+// the forward sweep leaves the call out.
 // CHECK: void fn31_grad(double *variables, double *_d_variables) {
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0.;
-// CHECK-NEXT:     inner_function(&out, true, variables);
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         bool _r0 = false;
@@ -1240,10 +1269,11 @@ double fn33(double *params) {
   inner_fn(params, &out);
   return out;
 }
+// Only the return reads out after the call, so the forward sweep leaves the
+// call out.
 // CHECK: void fn33_grad(double *params, double *_d_params) {
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0;
-// CHECK-NEXT:     inner_fn(params, &out);
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     inner_fn_pullback(params, &out, _d_params, &_d_out);
 // CHECK-NEXT: }
@@ -1256,30 +1286,74 @@ void destroy(T* p) {
 // CHECK: void destroy_pullback(int *p, int *_d_p) {
 // CHECK-NEXT: }
 
+struct TrivialDtor {
+  double v;
+  TrivialDtor(double x) : v(x) {}
+};
+
 double fn34(double x, double y) {
   int* a = new int(x + y);
   destroy(a);
-  double res = *a;
-  // int has a trivial destructor, so destroy() above only ran a no-op and the
+  TrivialDtor t(x);
+  destroy(&t);
+  double res = *a * t.v;
+  // Both destructors are trivial, so destroy() above only ran no-ops and the
   // storage is still ours to release.
   delete a;
   return res;
 }
 
+// CHECK: void destroy_pullback(TrivialDtor *p, TrivialDtor *_d_p) {
+// CHECK-NEXT: }
+
 // CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     int *_d_a = new int(0.);
 // CHECK-NEXT:     int *a = new int(x + y);
 // CHECK-NEXT:     destroy(a);
+// CHECK-NEXT:     TrivialDtor t(x);
+// CHECK-NEXT:     TrivialDtor _d_t(0.);
+// CHECK-NEXT:     destroy(&t);
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = *a;
+// CHECK-NEXT:     double res = *a * t.v;
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     *_d_a += _d_res;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_a += _d_res * t.v;
+// CHECK-NEXT:         _d_t.v += *a * _d_res;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         TrivialDtor::constructor_pullback(x, &_d_t, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_x += *_d_a;
 // CHECK-NEXT:         *_d_y += *_d_a;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     delete a;
 // CHECK-NEXT:     delete _d_a;
+// CHECK-NEXT: }
+
+// CHECK: void destroy_pushforward(int *p, int *_d_p) {
+// CHECK-NEXT: }
+
+// CHECK: void destroy_pushforward(TrivialDtor *p, TrivialDtor *_d_p) {
+// CHECK-NEXT: }
+
+// CHECK: double fn34_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     int *_d_a = new int(_d_x + _d_y);
+// CHECK-NEXT:     int *a = new int(x + y);
+// CHECK-NEXT:     destroy_pushforward(a, _d_a);
+// CHECK-NEXT:     TrivialDtor _d_t(_d_x);
+// CHECK-NEXT:     TrivialDtor t(x);
+// CHECK-NEXT:     destroy_pushforward(&t, &_d_t);
+// CHECK-NEXT:     double &_t0 = t.v;
+// CHECK-NEXT:     double _d_res = *_d_a * _t0 + *a * _d_t.v;
+// CHECK-NEXT:     double res = *a * _t0;
+// CHECK-NEXT:     delete _d_a;
+// CHECK-NEXT:     delete a;
+// CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
 double fn35(double x, double y) {
@@ -1399,6 +1473,54 @@ double fn37(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// A call that writes its argument, inside a larger expression, runs in place:
+// the next call sees what it wrote, also when nothing reads its value.
+double bump(double& n, double t) {
+  ++n;
+  return n * t;
+}
+double fn38(double x) {
+  double n = 1;
+  double y = bump(n, x) + bump(n, x);
+  return y + bump(n, x) + bump(n, x);
+}
+
+// CHECK: void fn38_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_n = 0.;
+// CHECK-NEXT:     double n = 1;
+// CHECK-NEXT:     double _t0 = n;
+// CHECK-NEXT:     double _t1 = bump(n, x);
+// CHECK-NEXT:     double _t2 = n;
+// CHECK-NEXT:     double _t3 = bump(n, x);
+// CHECK-NEXT:     double _d_y = 0.;
+// CHECK-NEXT:     double y = _t1 + _t3;
+// CHECK-NEXT:     double _t4 = n;
+// CHECK-NEXT:     double _t5 = bump(n, x);
+// CHECK-NEXT:     double _t6 = n;
+// CHECK-NEXT:     double _t7 = bump(n, x);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_y += 1;
+// CHECK-NEXT:         n = _t4;
+// CHECK-NEXT:         double _r2 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, 1, &_d_n, &_r2);
+// CHECK-NEXT:         *_d_x += _r2;
+// CHECK-NEXT:         n = _t6;
+// CHECK-NEXT:         double _r3 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, 1, &_d_n, &_r3);
+// CHECK-NEXT:         *_d_x += _r3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         n = _t0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, _d_y, &_d_n, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         n = _t2;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         bump_pullback(n, x, _d_y, &_d_n, &_r1);
+// CHECK-NEXT:         *_d_x += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1462,6 +1584,16 @@ int main() {
   fn20_grad_0.execute(x1, w1, dx1);
   printf("{%.2f, %.2f}\n", dx1[0], dx1[1]);  // CHECK-EXEC: {2.00, 3.00}
 
+  auto fn20_cond_grad_0 = clad::gradient(fn20_cond, "x");
+  double dx3[] = {0.0, 0.0};
+  fn20_cond_grad_0.execute(x1, w1, true, dx3);
+  printf("{%.2f, %.2f}\n", dx3[0], dx3[1]);  // CHECK-EXEC: {-1.00, 2.00}
+
+  auto fn20_later_grad_0 = clad::gradient(fn20_later, "x");
+  double dx2[] = {0.0, 0.0};
+  fn20_later_grad_0.execute(x1, w1, dx2);
+  printf("{%.2f, %.2f}\n", dx2[0], dx2[1]);  // CHECK-EXEC: {2.00, 3.00}
+
   INIT(fn21);
   TEST1(fn21, 8);  // CHECK-EXEC: {1.00}
 
@@ -1517,7 +1649,9 @@ int main() {
   printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {1.00, 0.00}
 
   INIT(fn34);
-  TEST2(fn34, 2, 1);  // CHECK-EXEC: {1.00, 1.00}
+  TEST2(fn34, 2, 1);  // CHECK-EXEC: {5.00, 2.00}
+  auto d_fn34 = clad::differentiate(fn34, "x");
+  printf("%.2f\n", d_fn34.execute(2, 1)); // CHECK-EXEC: 5.00
 
   INIT(fn35);
   TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}
@@ -1528,6 +1662,11 @@ int main() {
 
   INIT(fn37);
   TEST2(fn37, 3, 2);  // CHECK-EXEC: {12.00, 9.00}
+
+  // 2x + 3x + 4x + 5x
+  double d38 = 0;
+  clad::gradient(fn38).execute(2, &d38);
+  printf("%.2f\n", d38); // CHECK-EXEC: 14.00
 }
 
 double sq_defined_later(double x) {
@@ -1541,27 +1680,3 @@ double mul_defined_later(double x, double y) {
 double fn25_defined_later(double x) {
     return fn25(x);
 }
-
-// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
-// CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
-// CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
-// CHECK-NEXT:     std::size_t i = {{0U|0UL}};
-// CHECK-NEXT:     double _d_total = 0.;
-// CHECK-NEXT:     double total = 1.;
-// CHECK-NEXT:     std::size_t _t0;
-// CHECK-NEXT:     for (i = 0; i < 1; ++i) {
-// CHECK-NEXT:         total += params[i];
-// CHECK-NEXT:     }
-// CHECK-NEXT:     _d_total += _d_y;
-// CHECK-NEXT:     for (_t0 = 1{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         --i;
-// CHECK-NEXT:         double _r_d0 = _d_total;
-// CHECK-NEXT:         _d_params[i] += _r_d0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }

@@ -52,7 +52,7 @@ namespace clad {
     /// an error, since no per-direction derivatives were scheduled to fall
     /// back on.
     std::pair<clang::FunctionDecl*, clang::FunctionDecl*>
-    DeriveVectorProductFunctions(const DiffParams& args);
+    DeriveVectorProductFunctions();
 
     /// Builds `f_hessian` as a sequence of hessian-vector products.
     ///

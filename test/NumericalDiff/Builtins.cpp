@@ -23,7 +23,7 @@ double fpowi(double x) { return __builtin_powi(x, 2); } // expected-warning {{at
 
 // CHECK: double fpowi_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     return 0;
+// CHECK-NEXT:     return 0.;
 
 int main() {
   printf("%.4f\n", clad::differentiate(fexpm1, "x").execute(1)); // CHECK-EXEC: 2.7183

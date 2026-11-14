@@ -78,8 +78,16 @@ read.}]>,
   MarshallingInfoOptionalString<CladOpt<"GeneratedSourceDir">>;
 
 def fgenerate_source_file : Flag<["-"], "fgenerate-source-file">,
-  HelpText<"Produces a file containing the derivatives.">,
+  HelpText<"Writes the derivatives to Derivatives.cpp.">,
   MarshallingInfoFlag<CladOpt<"GenerateSourceFile">>;
+
+def fgenerate_source_file_EQ : Joined<["-"], "fgenerate-source-file=">,
+  MetaVarName<"<file>">,
+  HelpText<"Writes the derivatives to <file>.">,
+  DocBrief<[{Writes every derivative clad generated for the translation unit to
+<file>, once, at its end. A custom derivative, already in the user's source, is
+not written, and nothing is written after an error.}]>,
+  MarshallingInfoOptionalString<CladOpt<"GeneratedSourceFile">>;
 
 //===----------------------------------------------------------------------===//
 // The rest
@@ -128,6 +136,16 @@ def Rclad_analysis_EQ : Joined<["-"], "Rclad-analysis=">,
   DocBrief<[{Reports what the named analysis left in the derivative, as remarks
 pointed at the generated code itself. The analogue of -Rpass-missed, which
 cannot reach an AST-level plugin.}]>;
+
+def Rclad_perf : Flag<["-"], "Rclad-perf">,
+  HelpText<"Reports where a hand-written derivative would do much less work "
+           "than the generated one.">,
+  DocBrief<[{Reports, as remarks on the functions differentiated, where a large
+share of a gradient's estimated work goes to what a hand-written derivative
+would not do: a pullback running its forward work again, or an object that is
+constant except for a few entries treated as wholly varying. Each remark says
+what to write instead.}]>,
+  MarshallingInfoFlag<CladOpt<"RemarkPerf">>;
 
 def fdump_analysis_EQ : Joined<["-"], "fdump-analysis=">,
   MetaVarName<"<name>">,

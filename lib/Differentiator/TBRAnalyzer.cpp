@@ -23,6 +23,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -107,6 +108,22 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
     const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
+    // A write through a local reference writes what it refers to, through
+    // any references in between.
+    if (m_ModifiedParams && !isReq && iterVD && !PVD) {
+      llvm::SmallVector<const VarDecl*, 4> Refs = {iterVD};
+      llvm::SmallPtrSet<const VarDecl*, 4> Seen = {iterVD};
+      while (!Refs.empty()) {
+        VarData* data = getVarDataFromDecl(Refs.pop_back_val());
+        if (!data || data->m_Type != VarData::REF_TYPE)
+          continue;
+        for (const VarDecl* Target : *data->m_Val.m_RefData)
+          if (const auto* TargetPVD = dyn_cast_or_null<ParmVarDecl>(Target))
+            markParamModified(TargetPVD);
+          else if (Target && Seen.insert(Target).second)
+            Refs.push_back(Target);
+      }
+    }
     if (m_ModifiedParams && (!iterVD || PVD)) {
       if (!isReq)
         markParamModified(PVD);
@@ -132,9 +149,30 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 }
 
 void TBRAnalyzer::Analyze(const DiffRequest& request) {
+  const FunctionDecl* FD = request.Function;
+  // A function that calls itself reads, at that call, what it writes and
+  // reads of its parameters while that is still being found: run again
+  // until it grows no more. It only grows, so it settles.
+  while (true) {
+    ParamSet modified;
+    ParamSet used;
+    if (m_ModifiedParams && m_UsedParams) {
+      modified = (*m_ModifiedParams)[FD];
+      used = (*m_UsedParams)[FD];
+    }
+    AnalyzeOnce(request);
+    if (!m_CallsItself || !m_ModifiedParams || !m_UsedParams ||
+        ((*m_ModifiedParams)[FD] == modified && (*m_UsedParams)[FD] == used))
+      return;
+  }
+}
+
+void TBRAnalyzer::AnalyzeOnce(const DiffRequest& request) {
   m_Request = &request;
+  m_CallsItself = false;
+  m_BlockData.clear();
   m_BlockData.resize(request.m_AnalysisDC->getCFG()->size());
-  m_BlockPassCounter.resize(request.m_AnalysisDC->getCFG()->size(), 0);
+  m_BlockPassCounter.assign(request.m_AnalysisDC->getCFG()->size(), 0);
 
   // Set current block ID to the ID of entry the block.
   CFGBlock& entry = request.m_AnalysisDC->getCFG()->getEntry();
@@ -337,6 +375,14 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     bool RHSIsStored =
         !utils::ShouldRecompute(R, m_AnalysisDC->getASTContext());
+    // A factor is read only by the adjoint of the other one, which a factor
+    // that does not vary does not have -- unless what the product sits in
+    // reads its value as well, as a call reads its arguments again for its
+    // pullback.
+    if (!(m_ModeStack.back() & Mode::kNonLinearMode)) {
+      LHSIsStored = LHSIsStored || m_Request->carriesNoDerivative(R);
+      RHSIsStored = RHSIsStored || m_Request->carriesNoDerivative(L);
+    }
     if (nonLinear)
       startNonLinearMode();
 
@@ -471,9 +517,8 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
 }
 
 bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
-  Expr* callee = CE->getCallee();
-  // Pseudo destructors don't contribute to TBR information.
-  if (isa<CXXPseudoDestructorExpr>(callee))
+  // Pseudo and trivial destructors don't contribute to TBR information.
+  if (utils::isNoOpDestructorCall(CE))
     return false;
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
@@ -488,6 +533,24 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
       TraverseStmt(arg);
     resetMode();
     return false;
+  }
+  if (FD->getCanonicalDecl() == m_Function->getCanonicalDecl())
+    m_CallsItself = true;
+  // For a container classified as contiguous, data() refers to all elements,
+  // like an array decayed to a pointer: reads and writes through it are
+  // tracked on the pointer. size() reads no element.
+  const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE);
+  if (MCE && FD->getIdentifier() &&
+      m_Request->ContiguousContainers.count(MCE->getRecordDecl())) {
+    bool Size = FD->getName() == "size";
+    if (Size || FD->getName() == "data") {
+      if (Size)
+        setMode(/*mode=*/0);
+      TraverseStmt(MCE->getImplicitObjectArgument());
+      if (Size)
+        resetMode();
+      return false;
+    }
   }
   // A lambda reads what it captures by reference when it is called, not where
   // it is created: mark those variables used here, as if passed by reference.
@@ -597,6 +660,20 @@ bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
+  // `v[i]` through an element accessor whose derivative accesses the element
+  // directly is an element access, like `a[i]`.
+  const auto* MD = dyn_cast_or_null<CXXMethodDecl>(CE->getDirectCallee());
+  if (MD && m_Request->ElementAccesses.count(CE) &&
+      utils::hasElementAccessor(MD->getParent())) {
+    setMode(/*mode=*/0);
+    TraverseStmt(CE->getArg(0));
+    resetMode();
+    setIsRequired(CE);
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+    TraverseStmt(CE->getArg(1));
+    resetMode();
+    return false;
+  }
   TBRAnalyzer::TraverseCallExpr(CE);
   return false;
 }
@@ -617,7 +694,9 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
     auto* arg = CE->getArg(i);
-    bool passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
+    QualType paramTy = FD->getParamDecl(i)->getType();
+    // A constructor cannot write through a const reference.
+    bool passByRef = utils::isNonConstReferenceType(paramTy);
     setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
     resetMode();
@@ -636,6 +715,11 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
+  // As for a subscript, the base itself is not read, but what it is built of
+  // can be: the reverse sweep needs `i` in `arr[i].x`.
+  setMode(/*mode=*/0);
+  TraverseStmt(ME->getBase());
+  resetMode();
   setIsRequired(ME);
   return false;
 }

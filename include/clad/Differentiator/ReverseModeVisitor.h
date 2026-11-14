@@ -34,6 +34,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -94,6 +95,8 @@ namespace clad {
     llvm::DenseMap<const clang::ReturnStmt*, int> m_ReturnIds;
     llvm::SmallPtrSet<const clang::CompoundStmt*, 4> m_ReturnGuardedBlocks;
     clang::VarDecl* m_ReturnedAt = nullptr;
+    /// The globals the reverse sweep puts back around the calls it replays.
+    llvm::SetVector<const clang::VarDecl*> m_ReplayedGlobals;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// A dfdx seed: eager expression, or a deferred builder materialized on
@@ -120,6 +123,11 @@ namespace clad {
     /// loop. Defined in lib/Differentiator/LoopScope.h.
     struct LoopScope;
     LoopScope* m_CurrentLoop = nullptr;
+    /// Whether the reverse pass computes the initial value of \p VD again
+    /// when it enters an iteration, instead of storing it on a tape. The
+    /// analysis decides (see DiffRequest::isRecomputableInLoop); this switches
+    /// on the slots of the loops whose index the initializer reads.
+    bool canRecomputeInLoop(const clang::VarDecl* VD);
     /// Whether a store in the statement being visited happens once per
     /// iteration of a loop, and so has to go on a tape. False in a loop that
     /// recomputes instead of taping.
@@ -434,10 +442,11 @@ namespace clad {
     /// cloning LHS. The global variable will be assigned with the actual
     /// expression only later, after the expression is visited and rebuilt.
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
-    /// original (uncloned) expression.
+    /// original (uncloned) expression. Where nothing will read the stored
+    /// value (\p isNeeded is false), E is not stored.
     virtual DelayedStoreResult
     DelayedGlobalStoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool forceStore = false);
+                             bool forceStore = false, bool isNeeded = true);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;
@@ -538,9 +547,12 @@ namespace clad {
     StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
     StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
     StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
+    StmtDiff VisitConstantExpr(const clang::ConstantExpr* CE);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
+    /// The declarations of \p DS, which are not a structured binding.
+    StmtDiff DifferentiateDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
@@ -573,6 +585,7 @@ namespace clad {
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
+    StmtDiff VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.
     StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
@@ -1009,6 +1022,13 @@ namespace clad {
     /// registers them in `reverseEntryCases`, advances `groupStart`, and
     /// returns the label chain to prepend before the group's adjoint replay.
     clang::Stmt* CloseReverseSwitchCaseGroup(SwitchStmtInfo& SSData);
+
+    /// Differentiates \p Sub, the statement a case label of the original
+    /// labels, and labels its forward code with \p SC. The label takes the
+    /// first of the statements that code is made of and the rest follow it,
+    /// so a value stored before the statement is stored before it runs.
+    void DifferentiateSwitchCaseBody(clang::SwitchCase* SC,
+                                     const clang::Stmt* Sub);
 
   private:
     // When differentiating ArrayInitLoopExpr, we need to replace

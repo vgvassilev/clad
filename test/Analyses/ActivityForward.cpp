@@ -147,6 +147,21 @@ double through_ref_capture(double x) {
 // CHECK-NEXT:     return _d_out;
 // CHECK-NEXT: }
 
+// The gradient of a derivative clad defines: until clad derives it there is
+// no body to find what varies in, so all of it varies.
+double prod2(double t, const double* c) { return (c[0] + t) * (c[1] + t); }
+double prod2_darg0(double t, const double* c);
+
+// The same for useful analysis, which TBR, run when the loop is
+// differentiated, reads the body through.
+double sumsq2(double t, const double* c) {
+  double s = 0;
+  for (int i = 0; i < 2; i++)
+    s += (c[i] + t) * (c[i] + t);
+  return s;
+}
+double sumsq2_darg0(double t, const double* c);
+
 int main() {
   auto d0 = clad::differentiate(two_calls, "x");
   printf("%.2f\n", d0.execute(3, 4)); // CHECK-EXEC: 6.00
@@ -174,4 +189,16 @@ int main() {
 
   auto d7 = clad::differentiate(through_ref_capture, "x");
   printf("%.2f\n", d7.execute(3)); // CHECK-EXEC: 3.00
+
+  // d/dt = c[0] + c[1] + 2t, whose gradient in c is {1, 1}.
+  clad::differentiate(prod2, "t");
+  double c[2] = {2, 3}, dc[2] = {0, 0};
+  clad::gradient<clad::opts::enable_va>(prod2_darg0, "c").execute(0., c, dc);
+  printf("%.2f %.2f\n", dc[0], dc[1]); // CHECK-EXEC: 1.00 1.00
+
+  // d/dt = 2 (c[0] + t) + 2 (c[1] + t), whose gradient in c is {2, 2}.
+  clad::differentiate(sumsq2, "t");
+  dc[0] = dc[1] = 0;
+  clad::gradient<clad::opts::enable_ua>(sumsq2_darg0, "c").execute(0., c, dc);
+  printf("%.2f %.2f\n", dc[0], dc[1]); // CHECK-EXEC: 2.00 2.00
 }

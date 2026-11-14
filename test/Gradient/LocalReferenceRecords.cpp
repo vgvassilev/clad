@@ -3,6 +3,9 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s \
 // RUN:   -I%S/../../include -oLocalReferenceRecords.out
 // RUN: ./LocalReferenceRecords.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fenable-analysis=activity \
+// RUN:   %s -I%S/../../include -oLocalReferenceRecords.out
+// RUN: ./LocalReferenceRecords.out | %filecheck_exec %s
 
 // A reverse_forw does not record storage its own locals own, since the
 // caller's restore would write into a dead frame. A local reference bound to

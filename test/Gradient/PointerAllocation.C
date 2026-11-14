@@ -3,6 +3,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
+#include <cstring>
 
 double allocThenAssign(double x) {
   double* p = nullptr;
@@ -50,6 +51,17 @@ double swapBuffers(double x) {
   delete[] a;
   delete[] b;
   return r;
+}
+
+// memcpy and memmove of doubles are differentiated as the element-wise copies
+// they stand for, overlapping or not.
+double copyBytes(double x) {
+  double a[3] = {x, x * x, 1};
+  double b[3] = {x, x, x};
+  double r = b[0] * b[1]; // reads b before the copy overwrites it
+  std::memcpy(b, a, sizeof a);
+  std::memmove(b + 1, b, 2 * sizeof(double)); // b = {x, x, x^2}
+  return r + b[0] * b[1] * b[2];
 }
 
 // The buffer belongs to the caller, so the derivative leaves it alone.
@@ -111,6 +123,12 @@ int main() {
   dx = 0;
   clad::gradient(swapBuffers).execute(3, &dx);
   printf("{%.2f}\n", dx); // CHECK-EXEC: {27.00}
+
+  dx = 0;
+  clad::gradient(copyBytes).execute(3, &dx);
+  printf("{%.2f}\n", dx); // CHECK-EXEC: {114.00}
+  auto dCopyBytes = clad::differentiate(copyBytes, "x");
+  printf("{%.2f}\n", dCopyBytes.execute(3)); // CHECK-EXEC: {114.00}
 
   double* param = new double[1]();
   double* dparam = new double[1]();

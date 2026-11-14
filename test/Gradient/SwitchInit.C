@@ -31,28 +31,28 @@ double fn1(double i, double j) {
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 0:
-// CHECK-NEXT:                 res += i * j;
 // CHECK-NEXT:                 _t0 = res;
+// CHECK-NEXT:                 res += i * j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
-// CHECK-NEXT:                 res += i * i;
 // CHECK-NEXT:                 _t1 = res;
+// CHECK-NEXT:                 res += i * i;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                   case 2:
-// CHECK-NEXT:                     res += j * j;
 // CHECK-NEXT:                     _t2 = res;
+// CHECK-NEXT:                     res += j * j;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
-// CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:                 _t3 = res;
+// CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }

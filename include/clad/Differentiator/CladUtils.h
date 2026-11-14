@@ -287,6 +287,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// `(E)`.
     clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
 
+    /// Returns `base` wrapped in a `ParenExpr` if it needs parentheses to be
+    /// printed as the base of a member access, e.g. `(*p).x`; otherwise
+    /// returns `base`.
+    clang::Expr* ParenthesizeMemberBase(clang::Sema& semaRef,
+                                        clang::Expr* base);
+
     /// Returns `IdentifierInfo` that represents the value in the `identifier`
     /// parameter.
     clang::IdentifierInfo* GetIdentifierInfo(clang::Sema& semaRef,
@@ -402,6 +408,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     // static_cast<T&&>(E)
     // ```
     clang::Expr* BuildStaticCastToRValue(clang::Sema& semaRef, clang::Expr* E);
+    /// The member \p Name of \p Base, a clad::ValueAndPushforward or
+    /// clad::ValueAndAdjoint: an xvalue when declared as an rvalue reference,
+    /// as the call that returned it was.
+    clang::Expr* BuildResultMember(clang::Sema& S, clang::Scope* Sc,
+                                   clang::Expr* Base, llvm::StringRef Name);
 
     /// Returns true if expression `E` is PRValue or XValue.
     bool IsRValue(const clang::Expr* E);
@@ -512,6 +523,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isNonDifferentiableType(clang::Sema& S,
                                  const clang::CXXRecordDecl* RD);
 
+    /// Whether a type explicitly opts out of saving its pre-call value when
+    /// passed through a mutable reference. The marker may be on the type or
+    /// its clad::Tag specialization.
+    bool hasNoPrimalTapeAttribute(clang::Sema& S,
+                                  const clang::CXXRecordDecl* RD);
+
     /// Returns true if the type \p CE fundamentally operates on -- the object
     /// of a member call, or the first argument of a free operator (`os << x`)
     /// -- is non-differentiable (Tag-aware, so it honors clad::Tag\<T\>
@@ -557,6 +574,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns type clad::Tag\<T\>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
+
+    /// Whether a derivative of \p Mode is one clad calls from another
+    /// derivative, and so takes the template tags of its function.
+    bool TakesTemplateTags(DiffMode Mode);
+    /// The tags a called derivative of \p FD takes first, one for each
+    /// template argument of FD that a call does not deduce: clad::Tag\<T\>
+    /// for a type, std::integral_constant\<T, V\> for a value, as
+    /// std::in_place_type_t and std::in_place_index_t carry them. The
+    /// derivatives of pick\<0\> and pick\<1\> are not templates; the tags
+    /// tell them apart. An argument that is its parameter's default, such as
+    /// an enable_if parameter, is not part of the call and takes no tag.
+    /// \returns false if an argument has no tag yet: a template template
+    /// argument.
+    bool GetTemplateTagTypes(clang::Sema& S, const clang::FunctionDecl* FD,
+                             llvm::SmallVectorImpl<clang::QualType>& Tags);
 
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
@@ -605,11 +637,28 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Whether a copy of an object of type \p T holds everything a function
     /// can change through a reference to it: \p T reaches no other memory.
     bool reachesNoOtherMemory(const clang::ASTContext& C, clang::QualType T);
+    /// Whether \p RD declares a const operator[] that returns a reference.
+    /// The standard containers follow this convention: such an operator[]
+    /// returns an element and does not modify the container. std::map, whose
+    /// operator[] inserts, has no const operator[].
+    bool hasElementAccessor(const clang::CXXRecordDecl* RD);
+    /// Whether \p RD is classified as a contiguous container: whether
+    /// clad::contiguous_container_check<RD>::value is true. Instantiating it
+    /// checks a type classified so against what clad relies on.
+    bool isClassifiedContiguous(clang::Sema& S, const clang::CXXRecordDecl* RD);
+    /// Whether \p E is `v[i]` on a class with an element accessor, where v
+    /// and i have no side effects. Such an expression refers to the same
+    /// element every time it is evaluated, like an array subscript.
+    bool isPureElementAccess(const clang::Expr* E, const clang::ASTContext& C);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
+
+    /// Whether \p CE destroys an object without running any code: a pseudo
+    /// destructor call on a scalar, or a call to a trivial destructor.
+    bool isNoOpDestructorCall(const clang::CallExpr* CE);
 
     /// Returns true if the reverse-forward propagator for constructor \p CD is
     /// structurally elidable -- clad need not synthesize one because the plain
@@ -625,6 +674,8 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+    /// Whether `T{}` compiles, as Sema decides it.
+    bool isValueInitializable(clang::Sema& S, clang::QualType T);
     /// Returns true if a function returning T must return its adjoint too.
     bool returnsAdjoint(clang::QualType T);
 
@@ -654,9 +705,20 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool IsDifferentiableType(clang::QualType T);
 
+    /// Whether the parameter \p Idx of the constructor \p Ctor does nothing
+    /// but set integer members, compare, and go on to constructors that do no
+    /// more with it. Its value then never reaches a real, and a tangent object
+    /// may be built with it.
+    bool OnlyCountsWith(const clang::CXXConstructorDecl* Ctor, unsigned Idx);
     /// If \p CE is a memcpy or memmove whose destination or source, before
     /// its conversion to `void*`, holds floating-point data, that type.
     clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);
+
+    /// If \p CE is a memcpy or memmove from an array of a real floating type
+    /// to an array of the same type, a call to clad::byte_copy that copies
+    /// the same elements. Null otherwise.
+    clang::CallExpr* BuildTypedByteCopy(clang::Sema& S,
+                                        const clang::CallExpr* CE);
 
     bool hasElidableReverseForwAttribute(const clang::Decl* D);
 

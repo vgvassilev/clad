@@ -15,6 +15,13 @@
 #include <type_traits>
 #include <utility>
 
+/// Maximum bytes of freed tape slabs each thread keeps for reuse. Without
+/// the pool, a derivative called in a loop allocates its tape slabs again on
+/// every call.
+#ifndef CLAD_TAPE_SLAB_POOL_BYTES
+#define CLAD_TAPE_SLAB_POOL_BYTES (64u << 20)
+#endif
+
 #ifndef __CUDA_ARCH__
 #include <cstring>
 #ifndef __CUDACC__
@@ -380,6 +387,76 @@ public:
     CUDA_HOST_DEVICE Slab() : prev(nullptr), next(nullptr) {}
   };
 
+private:
+#ifndef __CUDA_ARCH__
+  /// Free list of the slabs released by tapes of this type on this thread.
+  /// Only slabs in RAM; disk and GPU slabs are managed by their own code.
+  struct SlabPool {
+    Slab* head = nullptr;
+    std::size_t bytes = 0;
+    SlabPool() = default;
+    SlabPool(const SlabPool&) = delete;
+    SlabPool& operator=(const SlabPool&) = delete;
+    SlabPool(SlabPool&&) = delete;
+    SlabPool& operator=(SlabPool&&) = delete;
+    ~SlabPool() {
+      while (head) {
+        Slab* next = head->next;
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        delete head;
+        head = next;
+      }
+      slabPoolGone() = true;
+    }
+  };
+  static SlabPool& slabPool() {
+    static thread_local SlabPool pool;
+    return pool;
+  }
+  /// Set when this thread's pool is destroyed. Tapes destroyed later, such as
+  /// static or thread_local tapes, then delete their slabs directly. A bool
+  /// has no destructor, so it is still readable at that point.
+  static bool& slabPoolGone() {
+    static thread_local bool gone = false;
+    return gone;
+  }
+#endif
+  static constexpr bool kPoolsSlabs = !DiskOffload && !GpuOffload;
+
+  /// Returns a slab from the pool, or allocates a new one.
+  CUDA_HOST_DEVICE static Slab* acquireSlab() {
+#ifndef __CUDA_ARCH__
+    if (kPoolsSlabs && !slabPoolGone()) {
+      SlabPool& pool = slabPool();
+      if (Slab* slab = pool.head) {
+        pool.head = slab->next;
+        pool.bytes -= sizeof(Slab);
+        slab->next = nullptr;
+        return slab;
+      }
+    }
+#endif
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    return new Slab();
+  }
+  /// Puts a slab whose elements were destroyed into the pool, or deletes it
+  /// if the pool is full or already destroyed.
+  CUDA_HOST_DEVICE static void releaseSlab(Slab* slab) {
+#ifndef __CUDA_ARCH__
+    if (kPoolsSlabs && !slabPoolGone() &&
+        slabPool().bytes + sizeof(Slab) <= CLAD_TAPE_SLAB_POOL_BYTES) {
+      SlabPool& pool = slabPool();
+      slab->prev = nullptr;
+      slab->next = pool.head;
+      pool.head = slab;
+      pool.bytes += sizeof(Slab);
+      return;
+    }
+#endif
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    delete slab;
+  }
+
 protected:
   // std::aligned_storage_t<sizeof(T), alignof(T)> m_static_buffer[SBO_SIZE];
   // For now use the implementation below as above implementation is not
@@ -666,7 +743,7 @@ public:
     if (m_size == m_capacity) {
       check_and_evict();
 
-      Slab* new_slab = new Slab();
+      Slab* new_slab = acquireSlab();
       if (DiskOffload || GpuOffload) {
         if (GpuOffload && !new_slab->is_in_ram)
           getDiskInfo().m_ActiveVramSlabs++;
@@ -985,7 +1062,14 @@ private:
     std::size_t count = m_size;
     for (std::size_t i = 0; i < SBO_SIZE && count > 0; ++i, --count)
       destroy_element(&sbo_elements()[i]);
+    if (m_head)
+      release_slabs(count);
+  }
 
+  /// Destroys the elements in the slabs and releases the slabs. Out of line,
+  /// so that destroying a tape without slabs, the common case, still inlines
+  /// into the derivative.
+  CLAD_NOINLINE CUDA_HOST_DEVICE void release_slabs(std::size_t count) {
     Slab* slab = m_head;
     while (slab) {
       T* elems = slab->elements();
@@ -993,8 +1077,7 @@ private:
         destroy_element(elems + i);
       Slab* tmp = slab;
       slab = slab->next;
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      delete tmp;
+      releaseSlab(tmp);
     }
   }
 

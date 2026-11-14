@@ -15,6 +15,14 @@ double nonMemFn(double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+struct ParenthesizedMember { double x; };
+
+double parenthesizedMember(double x) {
+  ParenthesizedMember s{x};
+  ParenthesizedMember* p = &s;
+  return (*p).x * x;
+}
+
 double minimalPointer(double x) {
   double* const p = &x;
   *p = (*p)*(*p);
@@ -292,9 +300,8 @@ double condNewPointer(double x, int n) {
 
 // CHECK: void condNewPointer_grad_0(double x, int n, double *_d_x) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     bool _cond0 = n > 0;
-// CHECK-NEXT:     double *_d_p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
-// CHECK-NEXT:     double *p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *_d_p = n > 0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *p = n > 0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
 // CHECK-NEXT:     p[0] = x * x;
 // CHECK-NEXT:     double _d_r = 0.;
 // CHECK-NEXT:     double r = p[0];
@@ -308,6 +315,72 @@ double condNewPointer(double x, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     delete [] p;
 // CHECK-NEXT:     delete [] _d_p;
+// CHECK-NEXT: }
+
+double placementNewPointer(double x) {
+  double buf[1] = {x};
+  double* p = buf;
+  new (p++) double(buf[0] * x);
+  return buf[0] * x;
+}
+
+// CHECK: void placementNewPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_buf[1] = {0};
+// CHECK-NEXT:     double buf[1] = {x};
+// CHECK-NEXT:     double *_d_p = _d_buf;
+// CHECK-NEXT:     double *p = buf;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     double *_t0 = p++;
+// CHECK-NEXT:     double _t1 = *(double *)_t0;
+// CHECK-NEXT:     new (_t0) double(buf[0] * x);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_buf[0] += 1 * x;
+// CHECK-NEXT:         *_d_x += buf[0] * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:         *(double *)_t0 = _t1;
+// CHECK-NEXT:         double _r_d0 = *(double *)_d_p;
+// CHECK-NEXT:         *(double *)_d_p = 0.;
+// CHECK-NEXT:         _d_buf[0] += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += buf[0] * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += _d_buf[0];
+// CHECK-NEXT: }
+
+// The reverse sweep puts back the null p held before it was assigned, and
+// the delete runs after the sweep: it deletes the value p was deleted with.
+double assignedNewPointer(double x) {
+  double* p = nullptr;
+  p = new double[2]();
+  p[0] = x * x;
+  double r = p[0];
+  delete[] p;
+  return r;
+}
+
+// CHECK: void assignedNewPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double *_d_p = nullptr;
+// CHECK-NEXT:     double *p = nullptr;
+// CHECK-NEXT:     double *_t0 = _d_p;
+// CHECK-NEXT:     _d_p = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
+// CHECK-NEXT:     p = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
+// CHECK-NEXT:     p[0] = x * x;
+// CHECK-NEXT:     double _d_r = 0.;
+// CHECK-NEXT:     double r = p[0];
+// CHECK-NEXT:     double *_t1 = p;
+// CHECK-NEXT:     double *_t2 = _d_p;
+// CHECK-NEXT:     _d_r += 1;
+// CHECK-NEXT:     _d_p[0] += _d_r;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_p[0];
+// CHECK-NEXT:         _d_p[0] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += x * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t0;
+// CHECK-NEXT:     delete [] _t1;
+// CHECK-NEXT:     delete [] _t2;
 // CHECK-NEXT: }
 
 double condPointerToPointer(double x, int c) {
@@ -327,9 +400,8 @@ double condPointerToPointer(double x, int c) {
 // CHECK-NEXT:     double *p = &y;
 // CHECK-NEXT:     double *_d_q = &_d_y;
 // CHECK-NEXT:     double *q = &y;
-// CHECK-NEXT:     bool _cond0 = c;
-// CHECK-NEXT:     double **_d_r = _cond0 ? &_d_p : &_d_q;
-// CHECK-NEXT:     double **r = _cond0 ? &p : &q;
+// CHECK-NEXT:     double **_d_r = c ? &_d_p : &_d_q;
+// CHECK-NEXT:     double **r = c ? &p : &q;
 // CHECK-NEXT:     **r = x * x;
 // CHECK-NEXT:     _d_y += 1;
 // CHECK-NEXT:     {
@@ -359,7 +431,7 @@ double structPointer (double x) {
 // CHECK-NEXT:     double res = t->x;
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     _d_t->x += _d_res;
-// CHECK-NEXT:     *_d_x += *_d_t.x;
+// CHECK-NEXT:     *_d_x += (*_d_t).x;
 // CHECK-NEXT:     delete t;
 // CHECK-NEXT:     delete _d_t;
 // CHECK-NEXT: }
@@ -545,6 +617,15 @@ double pointerAliasing(double x) {
 }
 
 
+// A parameter named like the adjoint of another: the reverse_forw names that
+// adjoint _d_x0, as the pullback does.
+void scaleBy(double* x, double _d_x) { x[0] *= _d_x; }
+double callScale(double a, double k) {
+  double v[1] = {a};
+  scaleBy(v, k);
+  return v[0] * v[0];
+}
+
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
 var.execute(5,res);\
@@ -648,6 +729,16 @@ int main() {
   d_condNewPointer.execute(5, 2, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 10.00
 
+  auto d_placementNewPointer = clad::gradient(placementNewPointer);
+  d_x = 0;
+  d_placementNewPointer.execute(3, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 27.00
+
+  auto d_assignedNewPointer = clad::gradient(assignedNewPointer);
+  d_x = 0;
+  d_assignedNewPointer.execute(5, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 10.00
+
   auto d_condPointerToPointer = clad::gradient(condPointerToPointer, "x");
   d_x = 0;
   d_condPointerToPointer.execute(3, 1, &d_x);
@@ -680,4 +771,28 @@ int main() {
   double d_x_1750 = 0;
   d_ptrAliasing.execute(5.0, &d_x_1750);
   printf("%.2f\n", d_x_1750); // CHECK-EXEC: 3.00
+
+  auto d_parenthesizedMember = clad::gradient(parenthesizedMember);
+  double d_parenthesized_x = 0;
+  d_parenthesizedMember.execute(2, &d_parenthesized_x);
+  printf("%.2f\n", d_parenthesized_x); // CHECK-EXEC: 4.00
+
+  // (a k)^2: {2 a k^2, 2 a^2 k}
+  double d_a = 0, d_k = 0;
+  clad::gradient(callScale).execute(2, 3, &d_a, &d_k);
+  printf("%.2f %.2f\n", d_a, d_k); // CHECK-EXEC: 36.00 24.00
 }
+
+// CHECK: void parenthesizedMember_grad(double x, double *_d_x) {
+// CHECK-NEXT:     ParenthesizedMember _d_s = {0.};
+// CHECK-NEXT:     ParenthesizedMember s{x};
+// CHECK-NEXT:     ParenthesizedMember *_d_p = &_d_s;
+// CHECK-NEXT:     ParenthesizedMember *p = &s;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_p).x += 1 * x;
+// CHECK-NEXT:         *_d_x += (*p).x * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += _d_s.x;
+// CHECK-NEXT: }
+
+// CHECK: void scaleBy_reverse_forw(double *x, double _d_x, double *_d_x0, double _d__d_x, clad::restore_tracker &_tracker0) {

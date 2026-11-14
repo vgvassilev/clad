@@ -287,6 +287,70 @@ double f11(double x, double y) {
   return r + d;
 }
 
+// Implicit captures, by reference and by copy.
+double f12(double x, double y) {
+  auto g = [&](double t) { return x * t; };
+  auto h = [=](double t) { return y * t; };
+  return g(y) + h(x);
+}
+
+// The lambda writes through its by-reference capture, once per call.
+double f13(double x) {
+  double c = 1;
+  auto g = [&c](double t) { c *= t; };
+  g(x);
+  g(x);
+  return c;
+}
+
+// CHECK: void f13_grad(double x, double *_d_x) {
+// CHECK: double _t0 = c;
+// CHECK-NEXT: g(x);
+// CHECK-NEXT: double _t1 = c;
+// CHECK-NEXT: g(x);
+// CHECK: c = _t1;
+// CHECK-NEXT: _d_g(x, &_r1, c, &_d_c);
+// CHECK: c = _t0;
+// CHECK-NEXT: _d_g(x, &_r0, c, &_d_c);
+
+struct Acc { double a; };
+
+double f14(double x) {
+  Acc p{1};
+  auto g = [&p](double t) { p.a = p.a * t + 1; };
+  g(x);
+  g(x);
+  return p.a;
+}
+
+// Each way a lambda can write its capture: an increment, a non-const member
+// function, an assignment operator, and a non-const reference parameter.
+struct Scaled {
+  double a;
+  void scale(double t) { a *= t; }
+};
+void scaleBy(double& v, double t) { v *= t; }
+
+double f15(double x) {
+  double n = 1;
+  auto inc = [&n](double t) {
+    ++n;
+    return n * t;
+  };
+  Scaled s{1};
+  auto member = [&s](double t) { s.scale(t); };
+  Scaled q{1};
+  auto assign = [&q](double t) { q = Scaled{q.a * t}; };
+  double r = 1;
+  auto byRef = [&r](double t) { scaleBy(r, t); };
+  double y = inc(x);
+  y += inc(x);
+  member(x);
+  assign(x);
+  byRef(x);
+  return y + s.a + q.a + r;
+}
+
 int main() {
   auto df1 = clad::gradient(f1);
   double di = 0, dj = 0;
@@ -342,4 +406,24 @@ int main() {
   auto d_f11 = clad::gradient(f11);
   d_f11.execute(2, 3, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 10.00 0.00
+
+  di = 0, dj = 0;
+  auto d_f12 = clad::gradient(f12);
+  d_f12.execute(2, 3, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 6.00 4.00
+
+  di = 0;
+  auto d_f13 = clad::gradient(f13);
+  d_f13.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 4.00
+
+  di = 0;
+  auto d_f14 = clad::gradient(f14);
+  d_f14.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 5.00
+
+  di = 0;
+  auto d_f15 = clad::gradient(f15);
+  d_f15.execute(2, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 8.00
 }

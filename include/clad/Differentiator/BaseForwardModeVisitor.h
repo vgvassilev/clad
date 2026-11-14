@@ -121,14 +121,18 @@ public:
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+  StmtDiff VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
   StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
   StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
+  StmtDiff VisitConstantExpr(const clang::ConstantExpr* CE);
   StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
   StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
   StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
+  /// The declarations of \p DS, which are not a structured binding.
+  StmtDiff DifferentiateDeclStmt(const clang::DeclStmt* DS);
   virtual StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
   StmtDiff VisitForStmt(const clang::ForStmt* FS);
   StmtDiff VisitIfStmt(const clang::IfStmt* If);
@@ -172,6 +176,7 @@ public:
   StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
+  StmtDiff VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE);
   StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
   StmtDiff VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP);

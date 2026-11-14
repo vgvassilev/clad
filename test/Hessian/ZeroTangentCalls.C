@@ -49,23 +49,6 @@ double sumOfCubesNonConst(double x, double y) {
 // CHECK-NEXT:     return 0. + _t0.pushforward;
 // CHECK-NEXT: }
 
-// A free function's hessian is assembled from hessian-vector products, whose
-// direction is a run-time argument, so there is nothing to fold there. The
-// wrapper reseeds its tangents between directions, so they drop the const of
-// the parameters they mirror.
-// CHECK: void sumOfCubes_hessian(const double x, const double y, double *hessianMatrix) {
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
-// CHECK-NEXT:     _d_y.pushforward = 1.;
-// CHECK-NEXT:     double _d_x(0.);
-// CHECK-NEXT:     double _d_y0(0.);
-// CHECK-NEXT:     _d_x = 1.;
-// CHECK-NEXT:     sumOfCubes_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
-// CHECK-NEXT:     _d_x = 0.;
-// CHECK-NEXT:     _d_y0 = 1.;
-// CHECK-NEXT:     sumOfCubes_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
-// CHECK-NEXT:     _d_y0 = 0.;
-// CHECK-NEXT: }
-
 // An instance method's hessian still derives per direction, so the same
 // folding holds one order up, where the hessian rows are differentiated.
 struct SumOfCubes {
@@ -118,6 +101,23 @@ struct SumOfCubesArr {
 // above; it calls cube_pushforward on both parameters, as it serves every
 // direction.
 // CHECK: void sumOfCubes_pushforward_pullback(const double x, const double y, const double _d_x, const double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1) {
+
+// A free function's hessian is assembled from hessian-vector products, whose
+// direction is a run-time argument, so there is nothing to fold there. The
+// wrapper reseeds its tangents between directions, so they drop the const of
+// the parameters they mirror.
+// CHECK: void sumOfCubes_hessian(const double x, const double y, double *hessianMatrix) {
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
+// CHECK-NEXT:     _d_y.pushforward = 1.;
+// CHECK-NEXT:     double _d_x(0.);
+// CHECK-NEXT:     double _d_y0(0.);
+// CHECK-NEXT:     _d_x = 1.;
+// CHECK-NEXT:     sumOfCubes_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     _d_x = 0.;
+// CHECK-NEXT:     _d_y0 = 1.;
+// CHECK-NEXT:     sumOfCubes_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+// CHECK-NEXT:     _d_y0 = 0.;
+// CHECK-NEXT: }
 
 int main() {
   auto dx = clad::differentiate(sumOfCubes, "x");

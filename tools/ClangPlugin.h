@@ -7,6 +7,8 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
+#include "GeneratedSourceFile.h"
+
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
@@ -19,6 +21,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
@@ -31,6 +34,7 @@
 
 #include <cassert>
 #include <deque>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -87,6 +91,10 @@ class CladExternalSource : public clang::ExternalSemaSource {
     /// Built on first use; a run that reports nothing never renders anything.
     /// Reach it through getDerivativePrinter().
     std::unique_ptr<DerivativePrinter> m_DerivativePrinter;
+    /// The misplaced `#pragma clad checkpoint loop`s already reported, so that
+    /// each is reported once however many derivatives of its function are
+    /// asked for.
+    std::set<clang::SourceLocation> m_DiagnosedLoopCheckpoints;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -151,10 +159,13 @@ class CladExternalSource : public clang::ExternalSemaSource {
       /// Whether the to-be-recorded analysis ran, which decides the reason a
       /// remark gives for a value being kept.
       bool AnalysisRan = false;
+      DiffMode Mode = DiffMode::unknown;
     };
 
     /// The derivatives produced here, in the order they were produced.
     llvm::SmallVector<Generated, 8> m_Generated;
+    /// The derivatives -fgenerate-source-file writes out.
+    GeneratedSourceFile m_GeneratedSource;
 
   public:
     CladPlugin(clang::CompilerInstance& CI, Options& DO);
@@ -274,16 +285,13 @@ class CladExternalSource : public clang::ExternalSemaSource {
               m_CI.getPreprocessor().isIncrementalProcessingEnabled()) &&
              "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
-#if CLANG_VERSION_MAJOR < 22
       // If we are in repl mode we might have an error or an undo operation
       // which discards the set of declarations that were collected already.
       // Clad should discard them, too, or it would replay them to the
-      // multiplexer over a broken AST. Clang >= 22 is not affected
-      // (llvm/llvm-project#182044).
+      // multiplexer over a broken AST.
       if (m_CI.getPreprocessor().isIncrementalProcessingEnabled() &&
           m_CI.getDiagnostics().hasErrorOccurred())
         m_MultiplexerProcessedDelayedCallsIdx = m_DelayedCalls.size();
-#endif
     }
     void FinalizeTranslationUnit();
     void SendToMultiplexer();

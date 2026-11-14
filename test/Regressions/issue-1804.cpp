@@ -24,11 +24,6 @@ double f_outer(double *params, double const *obs) {
 // CHECK-NEXT:     double _t0 = (obs[0] - params[1]);
 // CHECK-NEXT:     double _d_arg = (((_d_obs ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t0 * _d_params[2]) / (params[2] * params[2]);
 
-// The hessian wrapper hands the pullback the same null tangent in every
-// direction.
-// CHECK: void f_outer_hessian_0(double *params, const double *obs, double *hessianMatrix) {
-// CHECK: f_outer_pushforward_0_pullback(params, obs, _d_params, nullptr, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
-
 // The same holds for a dereference spelled without a subscript.
 double g_inner(double *params, double const *obs) { return *obs * params[0]; }
 
@@ -63,16 +58,20 @@ double h_outer(double *params, double const *obs) { return h_inner(params, obs);
 // CHECK: double _d_s = (_d_q ? _d_q[0] : 0.) * params[0] + q[0] * _d_params[0];
 // CHECK: _d_s += (_d_p ? _d_p[0] : 0.) * params[0] + p[0] * _d_params[0];
 
-// The null tangent flows through the pullback chain unchanged.
-// CHECK: void f_outer_pushforward_0_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
-// CHECK: f_inner_pushforward_pullback(params, obs, _d_params, _d_obs, _d_t0, _d_params0);
-
 // The pullback takes no adjoint for the tangents -- only for the requested
 // parameters -- so the null tangent has no adjoint that could be written to,
 // and its reads are guarded by the same hoisted condition.
 // CHECK: void f_inner_pushforward_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
-// CHECK: bool _cond0 = _d_obs;
-// CHECK: double _d_arg = (((_cond0 ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t00 * _d_params[2]) / _t0;
+// CHECK: double _d_arg = (((_d_obs ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t00 * _d_params[2]) / _t0;
+
+// The null tangent flows through the pullback chain unchanged.
+// CHECK: void f_outer_pushforward_0_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
+// CHECK: f_inner_pushforward_pullback(params, obs, _d_params, _d_obs, _d_t0, _d_params0);
+
+// The hessian wrapper hands the pullback the same null tangent in every
+// direction.
+// CHECK: void f_outer_hessian_0(double *params, const double *obs, double *hessianMatrix) {
+// CHECK: f_outer_pushforward_0_pullback(params, obs, _d_params, nullptr, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
 
 int main() {
    double params[3] = {0.5, -1, 2};

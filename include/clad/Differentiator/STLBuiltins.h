@@ -50,6 +50,20 @@ struct result<T, decltype(static_cast<void>(
 };
 } // namespace zero_like_detail
 
+#if !CLAD_HAS_CONTIGUOUS_RANGE
+// The standard containers that keep their elements in one contiguous array.
+// From C++20 on, std::ranges::contiguous_range says so. std::vector<bool>
+// packs its elements into bits.
+template <class T, class A>
+struct is_contiguous_container<::std::vector<T, A>>
+    : ::std::integral_constant<bool, !::std::is_same<T, bool>::value> {};
+template <class T, ::std::size_t N>
+struct is_contiguous_container<::std::array<T, N>> : ::std::true_type {};
+template <class C, class Tr, class A>
+struct is_contiguous_container<::std::basic_string<C, Tr, A>>
+    : ::std::true_type {};
+#endif
+
 // zero_init specializations
 
 // std::pair<T1, T2> is almost trivially copyable. Specialize it.
@@ -1036,16 +1050,18 @@ constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
   *dt += dy;
 }
 
-// std::make_shared<T> custom derivatives...
+// std::make_shared<T> custom derivatives. T is not deduced from the call: it
+// comes as a tag.
 template <typename T>
 CLAD_ELIDABLE_REVERSE_FORW
     clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
-    make_shared_reverse_forw(T& x, T& dx) {
+    make_shared_reverse_forw(clad::Tag<T>, T& x, T& dx) {
   return {::std::make_shared<T>(x), ::std::make_shared<T>(dx)};
 }
 
 template <typename T>
-void make_shared_pullback(T& x, ::std::shared_ptr<T> dthis, T* dx) {
+void make_shared_pullback(clad::Tag<T>, T& x, ::std::shared_ptr<T> dthis,
+                          T* dx) {
   *dx += *dthis;
 }
 

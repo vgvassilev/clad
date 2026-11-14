@@ -32,7 +32,8 @@ public:
   clang::Expr* dfdx() override { return nullptr; }
   DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
                                               llvm::StringRef prefix = "_t",
-                                              bool forceStore = false) override;
+                                              bool forceStore = false,
+                                              bool isNeeded = true) override;
   StmtDiff StoreAndRestore(
       clang::Expr* E, llvm::StringRef prefix = "_t", bool moveToTape = false,
       llvm::SmallVectorImpl<clang::Stmt*>* restoreAgain = nullptr) override;

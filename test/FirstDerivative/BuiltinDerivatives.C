@@ -226,7 +226,6 @@ double f11(double x, double y) {
 }
 
 // CHECK: void f11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     {{.*}} _t0 = std::pow(y - std::pow(x, 2), 2);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         int _r1 = 0;
@@ -273,15 +272,6 @@ double f13(double x) {
 //CHECK-NEXT:     double _d_x = 1;
 //CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::custom_f13_pushforward(x, _d_x);
 //CHECK-NEXT:     return _t0.pushforward;
-//CHECK-NEXT: }
-//CHECK-NEXT: double f13_d2arg0(double x) {
-//CHECK-NEXT:     double _d_x = 1;
-//CHECK-NEXT:     double _d__d_x = 0;
-//CHECK-NEXT:     double _d_x0 = 1;
-//CHECK-NEXT:     clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > _t0 = clad::custom_derivatives::custom_f13_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
-//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = _t0.pushforward;
-//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = _t0.value;
-//CHECK-NEXT:     return _d__t0.pushforward;
 //CHECK-NEXT: }
 
 double f14(double x) {
@@ -651,6 +641,25 @@ double f_cyl_bessel_k(double nu, double x) { return std::cyl_bessel_k(nu, x); }
 // CHECK-NEXT:      {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}cyl_bessel_k_pushforward(nu, x, _d_nu, _d_x);
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT: }
+
+//CHECK: double f13_d2arg0(double x) {
+//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     double _d__d_x = 0;
+//CHECK-NEXT:     double _d_x0 = 1;
+//CHECK-NEXT:     clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > _t0 = clad::custom_derivatives::custom_f13_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = _t0.pushforward;
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = _t0.value;
+//CHECK-NEXT:     return _d__t0.pushforward;
+//CHECK-NEXT: }
+// sincos, a GNU extension, writes sin(x) and cos(x) through its pointers.
+#if defined(__GLIBC__)
+double f_sincos(double x) {
+  double s, c;
+  sincos(x, &s, &c);
+  return s * c;
+}
+#endif
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -997,5 +1006,15 @@ int main () { //expected-no-diagnostics
   printf("Result i is = 1.484267\n");
   printf("Result k is = -0.183827\n");
 #endif
+
+#if defined(__GLIBC__)
+  auto d_sincos = clad::differentiate(f_sincos, 0);
+  double dsincos = 0;
+  clad::gradient(f_sincos).execute(0.3, &dsincos);
+  printf("Result sincos is = %.6f %.6f\n", d_sincos.execute(0.3), dsincos);
+#else
+  printf("Result sincos is = 0.825336 0.825336\n");
+#endif
+  // CHECK-EXEC: Result sincos is = 0.825336 0.825336
   return 0;
 }

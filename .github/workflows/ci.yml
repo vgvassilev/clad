@@ -1079,6 +1079,26 @@ jobs:
               });
           }
 
+  # Auto-merge waits only for the checks that are required, and the rows of
+  # the matrix cannot be: their names change with the matrix. #2515 merged
+  # with six rows red. This job is the one check that stands for all of them;
+  # make `Builds pass` required instead of naming rows. A row that was
+  # skipped -- a change to docs only, a dell that did not wake up -- does not
+  # count against it. The post-merge gates are left out: they report after
+  # the merge, through post-merge-report.
+  builds-pass:
+    name: Builds pass
+    if: ${{ always() }}
+    needs: [build, build-selfhost, build-in-tree, build-multiconfig, build-wasm]
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Decide
+      if: ${{ contains(needs.*.result, 'failure')
+          || contains(needs.*.result, 'cancelled') }}
+      run: |
+        echo "::error::a build row failed or was cancelled"
+        exit 1
+
   observes-change:
     name: Tests observe the change
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
