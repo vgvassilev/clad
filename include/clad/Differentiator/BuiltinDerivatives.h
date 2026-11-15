@@ -916,13 +916,15 @@ CUDA_HOST_DEVICE void fminl_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fdim_pushforward(T x, T y, dT d_x,
                                                              dT d_y) {
-  return {::std::fdim(x, y), (x > y) ? d_x : 0};
+  return {::std::fdim(x, y), (x > y) ? (d_x - d_y) : 0};
 }
 
 template <typename T, typename U>
 CUDA_HOST_DEVICE void fdim_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
-  if (x > y)
+  if (x > y) {
     *d_x += d_z;
+    *d_y -= d_z;
+  }
 }
 
 // pushforward for fdimf, fdiml
