@@ -508,6 +508,12 @@ double f_fdim(double x, double y) { return std::fdim(x, y); }
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fdim_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
+// CHECK: double f_fdim_darg1(double x, double y) {
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     double _d_y = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fdim_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
 
 double f_exp2f(double x) { return std::exp2f(x); }
 // CHECK: double f_exp2f_darg0(double x) {
@@ -947,6 +953,9 @@ int main () { //expected-no-diagnostics
 
   auto d_fdim = clad::differentiate(f_fdim, 0);
   printf("Result is = %.6f\n", d_fdim.execute(1, 0.5)); // CHECK-EXEC: Result is = 1.000000
+
+  auto d_fdim_1 = clad::differentiate(f_fdim, 1);
+  printf("Result is = %.6f\n", d_fdim_1.execute(1, 0.5)); // CHECK-EXEC: Result is = -1.000000
 
   auto d_exp2f = clad::differentiate(f_exp2f, 0);
   printf("Result is = %.6f\n", d_exp2f.execute(0.5)); // CHECK-EXEC: Result is = 0.980258
