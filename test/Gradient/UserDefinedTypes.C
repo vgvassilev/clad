@@ -1533,6 +1533,104 @@ double fnConstRefReturn(double x) {
   return r * p.b;
 }
 
+struct NonAssignable {
+  double x;
+  NonAssignable operator=(const NonAssignable&) = delete;
+};
+
+double unusedNonAssignable(double x, double y) {
+  for (int i = 0; i < 2; ++i) {
+    NonAssignable u;
+  }
+  return x;
+}
+// CHECK-LABEL: void unusedNonAssignable_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     NonAssignable _d_u = {0.};
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+// CHECK-NEXT:         NonAssignable u;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double twoDecls(double x) {
+  for (int i = 0; i < 2; ++i) {
+    NonAssignable u, v;
+  }
+  return x;
+}
+// CHECK-LABEL: void twoDecls_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     NonAssignable _d_u = {0.}, _d_v = {0.};
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             NonAssignable u;
+// CHECK-NEXT:             NonAssignable v;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+struct RefMember {
+  const double& r;
+  double v;
+};
+
+namespace clad {
+inline RefMember zero_like(const RefMember& m) { return {m.r, 0.}; }
+} // namespace clad
+
+double unusedRefMember(double x) {
+  for (int i = 0; i < 2; ++i) {
+    RefMember u{x, 0.};
+  }
+  return x;
+}
+// CHECK-LABEL: void unusedRefMember_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     RefMember _d_u = {*_d_x, 0.};
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+// CHECK-NEXT:         RefMember u{x, 0.};
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+struct Assignable {
+  double x;
+};
+
+double unusedAssignable(double x) {
+  for (int i = 0; i < 2; ++i) {
+    Assignable u;
+  }
+  return x;
+}
+// CHECK-LABEL: void unusedAssignable_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     Assignable _d_u = {0.};
+// CHECK-NEXT:     Assignable u = {0.};
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+// CHECK-NEXT:         u = {0.};
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+// CHECK-NEXT:         _d_u = {0.};
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1681,4 +1779,15 @@ int main() {
     double d_fcr = 0;
     clad::gradient(fnConstRefReturn).execute(3, &d_fcr);
     printf("{%.2f}\n", d_fcr);    // CHECK-EXEC: {12.00}
+    INIT_GRADIENT(unusedNonAssignable);
+    TEST_GRADIENT(unusedNonAssignable, /*numOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j); // CHECK-EXEC: {1.00, 0.00}
+
+    INIT_GRADIENT(twoDecls);
+    TEST_GRADIENT(twoDecls, /*numOfDerivativeArgs=*/1, 3, &d_i); // CHECK-EXEC: {1.00}
+
+    INIT_GRADIENT(unusedRefMember);
+    TEST_GRADIENT(unusedRefMember, /*numOfDerivativeArgs=*/1, 3, &d_i); // CHECK-EXEC: {1.00}
+
+    INIT_GRADIENT(unusedAssignable);
+    TEST_GRADIENT(unusedAssignable, /*numOfDerivativeArgs=*/1, 3, &d_i); // CHECK-EXEC: {1.00}
 }
