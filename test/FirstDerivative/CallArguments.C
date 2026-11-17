@@ -74,8 +74,8 @@ float f_const_args_func_4(float x, float y, const Vec v) {
 // CHECK: float f_const_args_func_4_darg0(float x, float y, const Vec v) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: const Vec _d_v = {0.F, 0.F, 0.F};
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
+// CHECK-NEXT: Vec _d_v = {0.F, 0.F, 0.F};
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
 // CHECK-NEXT: }
 
 float f_const_args_func_5(float x, float y, const Vec &v) {
@@ -85,8 +85,8 @@ float f_const_args_func_5(float x, float y, const Vec &v) {
 // CHECK: float f_const_args_func_5_darg0(float x, float y, const Vec &v) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: const Vec _d_v = {0.F, 0.F, 0.F};
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
+// CHECK-NEXT: Vec _d_v = {0.F, 0.F, 0.F};
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
 // CHECK-NEXT: }
 
 float f_const_args_func_6(const float x, const float y, const Vec &v) {
@@ -96,8 +96,8 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 // CHECK: float f_const_args_func_6_darg0(const float x, const float y, const Vec &v) {
 // CHECK-NEXT: const float _d_x = 1;
 // CHECK-NEXT: const float _d_y = 0;
-// CHECK-NEXT: const Vec _d_v = {0.F, 0.F, 0.F};
-// CHECK-NEXT: return x + x;
+// CHECK-NEXT: Vec _d_v = {0.F, 0.F, 0.F};
+// CHECK-NEXT: return x + x - _d_v.x;
 // CHECK-NEXT: }
 
 float f_const_helper(const float x) {
