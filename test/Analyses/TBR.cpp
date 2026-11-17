@@ -370,6 +370,33 @@ double memberSubscript(double a) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double comparisonDecrement(double x) {
+  double t = 3., s = 0.;
+  for (; --t > 0.;)
+    s += t * x;
+  return s;
+}
+
+//CHECK: void comparisonDecrement_grad(double x, double *_d_x) {
+//CHECK-NEXT:     double _d_t = 0., _d_s = 0.;
+//CHECK-NEXT:     double t = 3., s = 0.;
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+//CHECK-NEXT:     for (; --t > 0.;) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         s += t * x;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_s += 1;
+//CHECK-NEXT:     for (;; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             ++t;
+//CHECK-NEXT:             if (!_t0)
+//CHECK-NEXT:                 break;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _d_t += _d_s * x;
+//CHECK-NEXT:         *_d_x += t * _d_s;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -395,4 +422,5 @@ int main() {
   TEST(f7, 2); // CHECK-EXEC: {7.00}
   TEST(f8, 2); // CHECK-EXEC: {5.00}
   TEST(memberSubscript, 2); // CHECK-EXEC: {17.00}
+  TEST(comparisonDecrement, 1.5); // CHECK-EXEC: {3.00}
 }

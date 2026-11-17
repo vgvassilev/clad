@@ -5952,6 +5952,41 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
+    auto needsAdjoint = [](QualType T) {
+      return !T.getNonReferenceType()->isIntegralOrEnumerationType() &&
+             utils::IsDifferentiableType(T);
+    };
+    auto writesAdjoint = [&](auto&& self, const Stmt* S) -> bool {
+      if (!S)
+        return false;
+      if (const auto* BO = dyn_cast<BinaryOperator>(S))
+        if (BO->isAssignmentOp() && needsAdjoint(BO->getLHS()->getType()))
+          return true;
+      if (const auto* UO = dyn_cast<UnaryOperator>(S))
+        if (UO->isIncrementDecrementOp() && needsAdjoint(UO->getType()))
+          return true;
+      return llvm::any_of(S->children(),
+                          [&](const Stmt* C) { return self(self, C); });
+    };
+    const VarDecl* CV = WS->getConditionVariable();
+    if ((CV && needsAdjoint(CV->getType())) ||
+        writesAdjoint(writesAdjoint, CV ? CV->getInit() : WS->getCond())) {
+      Expr* cond = const_cast<Expr*>(WS->getCond());
+      Stmt* body = const_cast<Stmt*>(WS->getBody());
+      if (WS->getConditionVariable()) {
+        Stmt* stop = clad_compat::IfStmt_Create(
+            m_Context, noLoc, false, nullptr, nullptr,
+            BuildOp(UO_LNot, BuildParens(cond)), noLoc, noLoc,
+            new (m_Context) BreakStmt(noLoc), noLoc, nullptr);
+        body = MakeCompoundStmt(
+            {const_cast<DeclStmt*>(WS->getConditionVariableDeclStmt()), stop,
+             body});
+        cond = nullptr;
+      }
+      return VisitForStmt(
+          new (m_Context) ForStmt(m_Context, nullptr, cond, nullptr, nullptr,
+                                  body, WS->getWhileLoc(), noLoc, noLoc));
+    }
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
 
