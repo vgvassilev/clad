@@ -244,6 +244,9 @@ namespace clad {
     /// Pointer to the topmost Scope in the created derivative function.
     clang::Scope* m_DerivativeFnScope;
     bool m_DerivativeInFlight;
+    /// Set while differentiating a write in an argument of a non-differentiable
+    /// call, which has no place for the declarations storing operands needs.
+    bool m_RecomputeOperands = false;
     /// The Derivative function that is being generated.
     clang::FunctionDecl* m_Derivative;
     /// The differentiation request that is being currently processed.
