@@ -1710,6 +1710,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const Stmt* body = FS->getBody();
+    VarDecl* completed = nullptr;
+    if (condDiff.getStmt_dx() && m_DiffReq.hasEarlyReturns()) {
+      llvm::SmallVector<const ReturnStmt*, 4> returns;
+      collectReturns(body, returns);
+      if (!returns.empty()) {
+        completed = BuildGlobalVarDecl(m_Context.BoolTy, "_loopCompleted",
+                                       getZeroInit(m_Context.BoolTy));
+        addToBlock(BuildDeclStmt(completed), m_Globals);
+        m_CurrentBreakFlagExpr = BuildDeclRef(completed);
+      }
+    }
     StmtDiff BodyDiff;
     {
       // Only this loop's own facts apply inside it: an inner loop the analysis
@@ -1783,6 +1794,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr*
         CounterCondition = loopCounter.getCounterConditionResult().get().second;
     Expr* CounterDecrement = loopCounter.getCounterDecrement();
+
+    if (completed) {
+      auto setCompleted = [&](bool value) {
+        return BuildOp(BO_Assign, BuildDeclRef(completed),
+                       ConstantFolder::synthesizeLiteral(m_Context.BoolTy,
+                                                         m_Context, value));
+      };
+      Forward =
+          MakeCompoundStmt({setCompleted(false), Forward, setCompleted(true)});
+      // A return can skip the increment and condition only on the first
+      // reverse iteration of the last invocation of this loop.
+      CounterDecrement =
+          BuildOp(BO_Comma, CounterDecrement, setCompleted(true));
+    }
 
     if (condDiff.getStmt_dx()) {
       /// This part adds the reverse pass of loop condition stmt in the body
