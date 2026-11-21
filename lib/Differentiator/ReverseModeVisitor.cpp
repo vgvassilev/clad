@@ -88,6 +88,49 @@ namespace clad {
 
 using AllocCallInfo = DiffRequest::AllocCallInfo;
 
+/// Whether clad gives an object of type \p T a new value by constructing a
+/// new object in its storage rather than by assignment: \p T is a class, or
+/// an array of one, that cannot be assigned from a value of its own type.
+static bool needsReconstruction(Sema& S, QualType T) {
+  ASTContext& C = S.getASTContext();
+  T = C.getBaseElementType(T.getNonReferenceType()).getUnqualifiedType();
+  const auto* RD = T->getAsCXXRecordDecl();
+  // A closure type cannot be assigned either, but a lambda is not moved.
+  if (!RD || !RD->hasDefinition() || RD->isLambda())
+    return false;
+  TypeSourceInfo* Args[] = {
+      C.getTrivialTypeSourceInfo(C.getLValueReferenceType(T)),
+      C.getTrivialTypeSourceInfo(T)};
+  ExprResult Trait = S.BuildTypeTrait(BTT_IsAssignable, noLoc, Args, noLoc);
+  bool Assignable = true;
+  return Trait.isUsable() &&
+         Trait.get()->EvaluateAsBooleanCondition(Assignable, C) && !Assignable;
+}
+
+/// Whether clad can reconstruct an object of type \p T, which cannot be
+/// assigned: without running a destructor, which the reverse sweep would
+/// run again, and from a stored value of its type.
+static bool canReconstruct(Sema& S, QualType T) {
+  ASTContext& C = S.getASTContext();
+  T = C.getBaseElementType(T.getNonReferenceType()).getUnqualifiedType();
+  if (T.isDestructedType() != QualType::DK_none)
+    return false;
+  TypeSourceInfo* Args[] = {
+      C.getTrivialTypeSourceInfo(T),
+      C.getTrivialTypeSourceInfo(C.getRValueReferenceType(T))};
+  ExprResult Trait = S.BuildTypeTrait(TT_IsConstructible, noLoc, Args, noLoc);
+  bool Constructible = false;
+  return Trait.isUsable() &&
+         Trait.get()->EvaluateAsBooleanCondition(Constructible, C) &&
+         Constructible;
+}
+
+/// Whether clad replaces assignments to an object of type \p T. A type it
+/// can neither assign nor reconstruct keeps the assignment, and the error.
+static bool reconstructs(Sema& S, QualType T) {
+  return needsReconstruction(S, T) && canReconstruct(S, T);
+}
+
 ReverseModeVisitor::LoopScope::LoopScope(ReverseModeVisitor& V)
     : m_V(V), m_Enclosing(V.m_CurrentLoop),
       Tapes(V.m_CurrentLoop && V.m_CurrentLoop->Tapes),
@@ -4771,8 +4814,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (isa<ArrayType>(VDDerivedType))
         assignToZero = GetCladZeroInit(declRef);
       else if (!isNonAggrClass)
-        assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
-                               getZeroInit(VDDerivedType));
+        assignToZero = BuildInitAssignment(declRef, getZeroInit(VDDerivedType));
       else {
         StmtDiff pushPop = StoreAndRestore(
             BuildDeclRef(VDDerived), /*prefix=*/"_t", /*moveToTape=*/true);
@@ -5013,17 +5055,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (diagnoseUnsupportedLambda(LE))
             return {};
 
+    // reverse_mode_forward_pass does not have a reverse pass so declarations
+    // don't have to be moved to the function global scope.
+    bool promoteToFnScope =
+        !getCurrentScope()->isFunctionScope() &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
+
+    bool unmovable = false;
+    if (promoteToFnScope)
+      for (const Decl* D : DS->decls())
+        if (const auto* VD = dyn_cast<VarDecl>(D))
+          if (VD->getInit() && diagnoseUnmovableLocal(VD))
+            unmovable = true;
+    if (unmovable) {
+      // Still map the declarations, so the statements that use them do not
+      // name the variables of the original function.
+      for (const Decl* D : DS->decls())
+        if (const auto* VD = dyn_cast<VarDecl>(D))
+          m_DeclReplacements[VD] =
+              BuildGlobalVarDecl(CloneType(VD->getType()), CloneName(VD));
+      return {};
+    }
+
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
     llvm::SmallVector<Decl*, 4> declsToZeroInit;
     llvm::SmallVector<Decl*, 4> declsFromValue;
     llvm::SmallVector<Stmt*, 4> memsetCalls;
-    // reverse_mode_forward_pass does not have a reverse pass so declarations
-    // don't have to be moved to the function global scope.
-    bool promoteToFnScope =
-        !getCurrentScope()->isFunctionScope() &&
-        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
     // For each variable declaration v, create another declaration _d_v to
     // store derivatives for potential reassignments. E.g.
     // double y = x;
@@ -5060,18 +5119,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             if (!init ||
                 (CE && !CE->getNumArgs() && !CE->isListInitialization()))
               init = getZeroInit(VD->getType());
-            Expr* assignment = nullptr;
-            if (isa<ArrayType>(VD->getType()))
-              assignment =
-                  BuildArrayAssignment(declRef, init, direction::forward);
-            else
-              assignment = BuildOp(BO_Assign, declRef, init);
+            Expr* assignment = BuildInitAssignment(declRef, init);
             if (isInsideLoop() && VD != m_UnsavedLoopIndex) {
               if (m_DiffReq.shouldBeRecorded(DS) && canRecomputeInLoop(VD)) {
                 // Recomputed when the reverse pass enters the iteration,
                 // instead of stored on a tape.
                 m_LoopBlock.back().push_back(
-                    BuildOp(BO_Assign, BuildDeclRef(decl), CloneNode(init)));
+                    BuildInitAssignment(BuildDeclRef(decl), CloneNode(init)));
               } else if (m_DiffReq.shouldBeRecorded(DS)) {
                 auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
                                                /*moveToTape=*/true);
@@ -5218,7 +5272,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             if (isInsideOMPBlock)
               MarkDeclThreadPrivate(vDecl);
             auto* declRef = BuildDeclRef(vDecl);
-            auto* assignment = BuildOp(BO_Assign, declRef, init);
+            Expr* assignment = BuildInitAssignment(declRef, init);
             addToCurrentBlock(assignment, direction::forward);
             SetDeclInit(vDecl, getZeroInit(vDecl->getType()),
                         /*DirectInit=*/true);
@@ -5630,6 +5684,62 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return GetFunctionCall("move", "clad", moveArgs);
   }
 
+  Expr* ReverseModeVisitor::BuildInitAssignment(Expr* dest, Expr* init) {
+    QualType T = dest->getType();
+    if (!reconstructs(m_Sema, T)) {
+      if (isa<ArrayType>(T))
+        return BuildArrayAssignment(dest, init, direction::forward);
+      return BuildOp(BO_Assign, dest, init);
+    }
+    // `::new (static_cast<void*>(clad_addressof(dest))) T init`. The global
+    // placement form never reaches an allocation function of the class.
+    llvm::SmallVector<Expr*, 1> AddrArgs{dest};
+    Expr* Addr = GetFunctionCall("clad_addressof", "", AddrArgs);
+    Addr = m_Sema
+               .BuildCXXNamedCast(
+                   noLoc, tok::kw_static_cast,
+                   m_Context.getTrivialTypeSourceInfo(m_Context.VoidPtrTy),
+                   Addr, SourceRange(), SourceRange())
+               .get();
+    T = T.getUnqualifiedType();
+    SourceRange DirectInitRange;
+    if (!isa<InitListExpr>(init)) {
+      init = m_Sema.ActOnParenListExpr(noLoc, noLoc, init).get();
+      DirectInitRange = utils::GetValidSRange(m_Sema);
+    }
+    return m_Sema
+        .BuildCXXNew(SourceRange(), /*UseGlobal=*/true, noLoc, Addr, noLoc,
+                     SourceRange(), T, m_Context.getTrivialTypeSourceInfo(T),
+                     clad_compat::llvm_Optional<Expr*>(), DirectInitRange, init)
+        .get();
+  }
+
+  bool ReverseModeVisitor::diagnoseUnmovableLocal(const VarDecl* VD) {
+    // A moved variable whose type cannot be assigned gets each new value as a
+    // new object constructed in its storage. Neither sweep may run the
+    // destructor of the object it replaces, and the reverse sweep restores it
+    // from a stored copy.
+    QualType T = VD->getType();
+    if (!needsReconstruction(m_Sema, T) || canReconstruct(m_Sema, T))
+      return false;
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "reverse mode cannot move local variable '%0' of type %1 out of its "
+         "scope: the type cannot be assigned, and it %select{is not trivially "
+         "destructible|cannot be copied or moved}2")
+        << VD->getName() << T << (T.isDestructedType() == QualType::DK_none);
+    return true;
+  }
+
+  Expr* ReverseModeVisitor::BuildRestoreAssignment(Expr* dest, Expr* value) {
+    if (reconstructs(m_Sema, dest->getType())) {
+      llvm::SmallVector<Expr*, 2> Args{dest, value};
+      return GetFunctionCall("reconstruct", "clad", Args);
+    }
+    if (isa<ArrayType>(dest->getType()))
+      return BuildArrayAssignment(dest, value, direction::reverse);
+    return BuildOp(BO_Assign, dest, value);
+  }
+
   Expr* ReverseModeVisitor::GlobalStoreAndRef(clang::Expr* E,
                                               llvm::StringRef prefix,
                                               bool force, bool zeroInit) {
@@ -5695,23 +5805,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (m_DiffReq.hasEarlyReturns())
           SetDeclInit(VD, getZeroInit(Type));
         addToBlock(decl, m_Globals);
-        Store = BuildOp(BO_Assign, Ref, Clone(E));
+        Store = BuildRestoreAssignment(Ref, Clone(E));
       }
     }
 
+    // A class that cannot be assigned, such as one with a const member, is
+    // restored by constructing a new object in its storage.
+    bool restorable = E->isModifiableLvalue(m_Context) == Expr::MLV_Valid ||
+                      (E->isLValue() && !Type.isConstQualified() &&
+                       Type->isRecordType() && reconstructs(m_Sema, Type));
     if (isa<ArrayType>(Type)) {
-      Expr* moveCall = BuildArrayAssignment(Clone(E), Ref, direction::reverse);
+      Expr* moveCall = BuildRestoreAssignment(Clone(E), Ref);
       addToCurrentBlock(moveCall, direction::reverse);
       Restore = Pop;
-    } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid &&
-               restoreAgain) {
+    } else if (restorable && restoreAgain) {
       // Read the record twice and drop it after the second read.
-      Restore = BuildOp(BO_Assign, Clone(E), Ref);
-      restoreAgain->push_back(BuildOp(BO_Assign, Clone(E), Clone(Ref)));
+      Restore = BuildRestoreAssignment(Clone(E), Ref);
+      restoreAgain->push_back(BuildRestoreAssignment(Clone(E), Clone(Ref)));
       // A record kept in an array indexed by the loop has nothing to drop.
       if (isInsideLoop() && isa<CallExpr>(Pop))
         restoreAgain->push_back(Pop);
-    } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
+    } else if (restorable) {
       if (isInsideLoop() && Type->isRecordType() && !moveToTape) {
         // The restore must pair with the push: clad::pop moves the element
         // out of its slot, and a move-assign replaces a record's heap buffer,
@@ -5719,10 +5833,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // by copy from clad::back so E keeps its buffer; move-pushed state
         // must keep the move-assigning pop -- its buffer travels through the
         // tape and back, which keeps that iteration's cached pointers valid.
-        Expr* assign = BuildOp(BO_Assign, Clone(E), Ref);
+        Expr* assign = BuildRestoreAssignment(Clone(E), Ref);
         Restore = MakeCompoundStmt({assign, Pop});
       } else
-        Restore = BuildOp(BO_Assign, Clone(E), Pop);
+        Restore = BuildRestoreAssignment(Clone(E), Pop);
     }
 
     return {Store, Restore};

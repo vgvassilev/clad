@@ -406,6 +406,18 @@ namespace clad {
     /// `std::move(std::begin(from), std::end(from), std::begin(to));`
     clang::Expr* BuildArrayAssignment(clang::Expr* output, clang::Expr* input,
                                       direction d);
+    /// Builds `dest = init` for the initializer \p init of a variable moved
+    /// to function scope. When the type of \p dest cannot be assigned but is
+    /// trivially destructible and can be copied or moved, builds
+    /// `::new (static_cast<void*>(clad_addressof(dest))) T init` instead.
+    clang::Expr* BuildInitAssignment(clang::Expr* dest, clang::Expr* init);
+    /// Builds `dest = value` for a stored value of the same type. For a type
+    /// that BuildInitAssignment reconstructs, builds
+    /// `clad::reconstruct(dest, value)` instead.
+    clang::Expr* BuildRestoreAssignment(clang::Expr* dest, clang::Expr* value);
+    /// Diagnoses a local \p VD moved to function scope whose type can be
+    /// neither assigned nor reconstructed in place. Returns true if it did.
+    bool diagnoseUnmovableLocal(const clang::VarDecl* VD);
     /// Builds derivative increments, e.g. ``E += dfdx()``;
     clang::Expr* BuildDiffIncrement(clang::Expr* E);
 
