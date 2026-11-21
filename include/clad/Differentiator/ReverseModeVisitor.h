@@ -408,8 +408,9 @@ namespace clad {
                                       direction d);
     /// Builds `dest = init` for the initializer \p init of a variable moved
     /// to function scope. When the type of \p dest cannot be assigned but is
-    /// trivially destructible and can be copied or moved, builds
-    /// `::new (static_cast<void*>(clad_addressof(dest))) T init` instead.
+    /// trivially destructible and can be copied or moved, builds the global
+    /// placement new `new (static_cast<void*>(clad_addressof(dest))) T init`
+    /// instead.
     clang::Expr* BuildInitAssignment(clang::Expr* dest, clang::Expr* init);
     /// Builds `dest = value` for a stored value of the same type. For a type
     /// that BuildInitAssignment reconstructs, builds
