@@ -397,6 +397,26 @@ namespace clad {
   template <class T, class R>
   using OutputParamType_t = typename OutputParamType<T, R>::type;
 
+  template <class T>
+  using PullbackAdjoint =
+      typename std::remove_const<typename std::remove_reference<
+          typename std::remove_pointer<T>::type>::type>::type*;
+
+  template <class Args, class Seed> struct PullbackFunction;
+  template <class... Args, class... Seed>
+  struct PullbackFunction<list<Args...>, list<Seed...>> {
+    using type = void (*)(Args..., Seed..., PullbackAdjoint<Args>...);
+  };
+
+  template <class R, class... Args> struct PullbackTraits {
+    using Value = typename std::remove_reference<R>::type;
+    using Seed = typename std::conditional<
+        std::is_void<Value>::value || std::is_pointer<Value>::value ||
+            (std::is_reference<R>::value && !std::is_const<Value>::value),
+        list<>, list<typename std::remove_const<Value>::type>>::type;
+    using type = typename PullbackFunction<list<Args...>, Seed>::type;
+  };
+
   template <class T, class = void> struct GradientDerivedFnTraits {};
 
   // GradientDerivedFnTraits is used to deduce type of the derived functions

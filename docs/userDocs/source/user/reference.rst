@@ -8,7 +8,7 @@ API reference
    function.
 
    Every entry point below -- :cpp:func:`differentiate`, :cpp:func:`gradient`,
-   :cpp:func:`hessian`, :cpp:func:`jacobian` and :cpp:func:`estimate_error` --
+   :cpp:func:`pullback`, :cpp:func:`hessian`, :cpp:func:`jacobian` and :cpp:func:`estimate_error` --
    returns one of these. It is a small wrapper around a pointer to the
    generated derivative, which Clad fills in while compiling the call.
 
@@ -99,6 +99,25 @@ API reference
       :language: cpp
       :start-after: docs-begin-gradient
       :end-before: docs-end-gradient
+
+   .. cpp:function:: template<class Fn> CladFunction pullback(Fn fn)
+
+   Generates the pullback of a free function with respect to all its inputs.
+   Call ``execute`` with the original arguments followed by the output seed
+   and a pointer to each input adjoint. For a value or const-reference result
+   the seed has the result's non-const value type. For void, pointer or mutable
+   reference results, the caller seeds the adjoint of the output memory and
+   omits the separate seed. Scalar input adjoints accumulate contributions.
+   A reverse sweep through a write can consume or change a memory adjoint.
+
+   Pass the function name, or a constant expression for its address. Use a
+   cast to select a specific overload. A runtime function pointer or a lambda
+   converted to a function pointer cannot be differentiated through this API.
+
+   The generated pullback must have the signature above.
+   An input marked non-differentiable, a specialization requiring
+   extra template tags, or a custom pullback requiring forward-pass state
+   changes the signature. Clad diagnoses these cases at the call.
 
    .. cpp:function:: template<class Fn>\
                   CladFunction hessian(Fn fn, const char* args)

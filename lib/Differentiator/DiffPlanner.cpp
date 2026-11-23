@@ -46,6 +46,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
+#include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
@@ -79,6 +80,34 @@ namespace clad {
 /// \param[in] call A clad differentiation function call expression
 /// \param[in] SemaRef Reference to Sema
 static bool findTargetFunction(DiffRequest& DR, CallExpr* call, Sema& SemaRef) {
+  if (DR.Mode == DiffMode::pullback) {
+    Expr* target = call->getArg(0);
+    if (target->isValueDependent())
+      return false;
+    APValue value;
+    if (target->isCXX11ConstantExpr(SemaRef.Context, &value) &&
+        value.isLValue()) {
+      const auto* decl = value.getLValueBase().dyn_cast<const ValueDecl*>();
+      if (const auto* fn = dyn_cast_or_null<FunctionDecl>(decl)) {
+        // The static invoker's AST omits the lambda body.
+        const auto* method = dyn_cast<CXXMethodDecl>(fn);
+        if (method && method->isLambdaStaticInvoker()) {
+          utils::diag(SemaRef, DiagnosticsEngine::Error, target->getExprLoc(),
+                      "clad::pullback cannot differentiate a lambda converted "
+                      "to a function pointer")
+              << target->getSourceRange();
+          return false;
+        }
+        DR.Function = fn->getMostRecentDecl();
+        return true;
+      }
+    }
+    utils::diag(SemaRef, DiagnosticsEngine::Error, target->getExprLoc(),
+                "clad::pullback requires a function address known at compile "
+                "time")
+        << target->getSourceRange();
+    return false;
+  }
   struct Finder : RecursiveASTVisitor<Finder> {
     Sema& m_SemaRef;
     DiffRequest& m_DR;
@@ -273,7 +302,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return;
 
     // Index of "CUDAkernel" parameter:
-    if (call->getNumArgs() > 4) {
+    if (call->getDirectCallee()
+            ->getParamDecl(call->getNumArgs() - 1)
+            ->getName() == "CUDAkernel") {
       auto kernelArgIdx = call->getNumArgs() - 1;
       auto* cudaKernelFlag =
           SemaRef
@@ -303,8 +334,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               .BuildUnaryOp(/*Scope=*/nullptr, noLoc,
                             UnaryOperatorKind::UO_AddrOf, Arg)
               .get();
-    // Take into account if the user selected an overload by a cast expr.
-    if (isa<ExplicitCastExpr>(call->getArg(0))) {
+    if (Mode == DiffMode::pullback) {
+      const auto param = InitializedEntity::InitializeParameter(
+          C, call->getDirectCallee()->getParamDecl(*derivedFnArgIdx));
+      ExprResult converted =
+          SemaRef.PerformCopyInitialization(param, call->getExprLoc(), Arg);
+      if (converted.isInvalid())
+        return;
+      Arg = converted.get();
+    } else if (isa<ExplicitCastExpr>(call->getArg(0))) {
       QualType Ty = GetDerivedFunctionType(call);
       TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(Ty, noLoc);
       Arg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, Arg).get();
@@ -1705,6 +1743,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::hessian;
     else if (Annotation == "J")
       request.Mode = DiffMode::jacobian;
+    else if (Annotation == "P")
+      request.Mode = DiffMode::pullback;
     else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
     else
@@ -1717,7 +1757,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // TBR has nothing to do where there is no reverse sweep. A request that
     // asks for it there is an error below; the command line asking for it
     // everywhere is not, so it is dropped rather than diagnosed.
-    if (request.Mode != DiffMode::reverse && request.Mode != DiffMode::hessian)
+    if (!request.isReverseMode() && request.Mode != DiffMode::hessian)
       request.EnableTBRAnalysis = false;
     request.EmitPortingHints = ReqOpts.EmitPortingHints;
 
@@ -2388,7 +2428,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return false;
     llvm::StringRef Mode = A->getAnnotation();
     return Mode == "D" || Mode == "G" || Mode == "H" || Mode == "J" ||
-           Mode == "E";
+           Mode == "E" || Mode == "P";
   }
 
   /// Finds the first clad entry-point call in a statement.
@@ -2491,7 +2531,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      // A call to clad::differentiate or clad::gradient was not found.
+      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
+        return true;
       if (!findTargetFunction(request, E, m_Sema))
         return true;
 
@@ -2501,9 +2542,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.CallUpdateRequired = true;
       request.CallContext = E;
       request.ImmediateContext = m_EnclosingFD;
-
-      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
-        return true;
 
       // The Jacobian ABI has no return-derivative slot. Reject non-void
       // primals before scheduling or resolving custom derivatives.
@@ -2527,8 +2565,30 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      request.Args = E->getArg(1);
-      request.UpdateDiffParamsInfo(m_Sema);
+      if (request.Mode == DiffMode::pullback) {
+        const FunctionDecl* primal = request.Function;
+        llvm::SmallVector<const ValueDecl*, 8> inputs;
+        for (const ParmVarDecl* param : primal->parameters()) {
+          if (!utils::hasNonDifferentiableAttribute(param)) {
+            inputs.push_back(param);
+            request.DVI.push_back(param);
+          }
+        }
+        QualType type =
+            utils::GetDerivativeType(m_Sema, primal, request.Mode, inputs);
+        QualType expected = GetDerivedFunctionType(E)->getPointeeType();
+        if (!m_Sema.Context.hasSameFunctionTypeIgnoringExceptionSpec(
+                type, expected)) {
+          utils::diag(m_Sema, DiagnosticsEngine::Error, E->getBeginLoc(),
+                      "cannot expose the pullback of %0: its signature %1 does "
+                      "not match the public signature %2")
+              << primal << type << expected;
+          return true;
+        }
+      } else {
+        request.Args = E->getArg(1);
+        request.UpdateDiffParamsInfo(m_Sema);
+      }
 
       // A void-returning function's derivative returns the tangent of the one
       // parameter it writes through. With several such parameters there is no
@@ -2559,8 +2619,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           return true;
         }
       }
-      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
-          request.Args)
+      if (request.isReverseMode() && request.EnableVariedAnalysis)
         seedVariedDirection(request);
 
       if (request.Function->hasAttr<CUDAGlobalAttr>())
@@ -2600,8 +2659,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (MD) {
         // Reverse mode differentiates a lambda's body where it is called. A
         // pushforward, even one a gradient uses, needs one planned for it.
-        if (isLambdaCallOperator(MD) &&
-            m_TopMostReq->Mode == DiffMode::reverse &&
+        if (isLambdaCallOperator(MD) && m_TopMostReq->isReverseMode() &&
             m_ParentReq->Mode != DiffMode::pushforward) {
           request.EnableVariedAnalysis = false;
           return true;
@@ -2632,9 +2690,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // adjoint destination for a pointer or reference return. Defer the final
       // decision for instance calls until custom derivatives are known because
       // their implicit object can carry the adjoint.
-      hasNoMemoryInputForPointerOrRefReturn =
-          !utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
-          m_TopMostReq->Mode == DiffMode::reverse;
+      hasNoMemoryInputForPointerOrRefReturn = !utils::hasMemoryTypeParams(FD) &&
+                                              hasPointerOrRefReturn &&
+                                              m_TopMostReq->isReverseMode();
       // Skip reverse-mode scheduling for integral-return helper calls that
       // cannot accumulate through memory arguments. Keep this narrow to avoid
       // suppressing diagnostics on variadic/non-helper calls.
@@ -2644,21 +2702,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             QualType ParamType = PVD->getType();
             return ParamType->isPointerType() || ParamType->isReferenceType();
           });
-      if (m_TopMostReq->Mode == DiffMode::reverse && !FD->isVariadic() &&
+      if (m_TopMostReq->isReverseMode() && !FD->isVariadic() &&
           HasPointerOrReferenceParam && !utils::hasMemoryTypeParams(FD) &&
           returnType->isIntegralOrEnumerationType())
         nonDiff = true;
 
-      if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse)
+      if (nonDiff && !m_TopMostReq->isReverseMode())
         return true;
 
       request.Function = FD;
       request.CallContext = E;
       // A pushforward has no way to hand an adjoint to a global.
       bool canUsePushforwardInRevMode =
-          m_TopMostReq->Mode == DiffMode::reverse &&
-          !request.EnableErrorEstimation && !touchesGlobal &&
-          utils::canUsePushforwardInRevMode(FD, E);
+          m_TopMostReq->isReverseMode() && !request.EnableErrorEstimation &&
+          !touchesGlobal && utils::canUsePushforwardInRevMode(FD, E);
 
       std::string FDName = FD->getNameAsString();
 #if CLANG_VERSION_MAJOR < 16
@@ -2679,7 +2736,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                m_ParentReq->Mode == DiffMode::pushforward ||
                canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
-      else if (m_TopMostReq->Mode == DiffMode::reverse)
+      else if (m_TopMostReq->isReverseMode())
         request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
@@ -2759,8 +2816,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
 
       // Warn if we find pullbacks.
-      if (canUsePushforwardInRevMode &&
-          m_TopMostReq->Mode == DiffMode::reverse) {
+      if (canUsePushforwardInRevMode) {
         DiffRequest R = request;
         R.BaseFunctionName = utils::ComputeEffectiveFnName(R.Function);
         R.Mode = DiffMode::pullback;
@@ -2824,6 +2880,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     bool hasCustomPullback =
         (!nonDiff || request.Mode != DiffMode::pushforward) &&
         LookupCustomDerivativeDecl(request);
+    if (request.CallUpdateRequired && request.Mode == DiffMode::pullback &&
+        !request.PullbackStateParam.isNull()) {
+      utils::diag(m_Sema, DiagnosticsEngine::Error, E->getBeginLoc(),
+                  "this custom pullback requires state from its forward pass");
+      m_TopMostReq = nullptr;
+      return true;
+    }
     // Share one request between early classification and final scheduling.
     DiffRequest forwPassRequest;
     if (request.Mode == DiffMode::pullback) {
@@ -2920,8 +2983,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         m_UsedSummaries[FD] = usedParams[FD];
         if (modifiedParams[FD].empty())
           shouldUseRestoreTracker = false;
-        Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
-        Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
+        if (DiffRequest* parent = Saved.get()) {
+          parent->addFunctionModifiedParams(FD, modifiedParams[FD]);
+          parent->addFunctionUsedParams(FD, usedParams[FD]);
+        }
       }
 
       if (request.Mode == DiffMode::hessian ||
@@ -3005,7 +3070,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
 
-    if (request.Mode == DiffMode::pullback) {
+    if (request.Mode == DiffMode::pullback && Saved.get()) {
       // TBR can prove that no state needs restoring, so refresh this before
       // scheduling the request.
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
@@ -3018,13 +3083,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
-      if (!nonDiff && Saved.get() && request.PullbackStateParam.isNull() &&
+      if (!nonDiff && request.PullbackStateParam.isNull() &&
           forwPassRequest.PullbackStateParam.isNull() &&
           !utils::allocatesIntoRecordParam(request.Function))
         Saved.get()->ReplayableCalls.insert(E);
       // A custom pullback without a custom reverse_forw does not restore the
       // memory the call wrote.
-      if (!nonDiff && Saved.get() && hasCustomPullback && !hasCustomReverseForw)
+      if (!nonDiff && hasCustomPullback && !hasCustomReverseForw)
         Saved.get()->NonReplayingCalls.insert(E);
     }
 

@@ -270,6 +270,11 @@ Clad produces:
   extra parameter per differentiated parameter. It returns nothing and writes
   through those pointers.
 
+``clad::pullback(f)``
+  ``void f_pullback(double x, double y, double seed, double *dx, double *dy)``.
+  Each input adjoint receives the corresponding partial derivative multiplied
+  by ``seed``.
+
 ``clad::hessian(f)``
   ``void f_hessian(double x, double y, double *hessianMatrix)`` -- the matrix
   flattened in row major order, so :math:`n` independent variables need
