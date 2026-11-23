@@ -2553,6 +2553,25 @@ void constructor_pullback(ValueAndPushforward<T, U> rhs,
                           ValueAndPushforward<T, U>* d_rhs) {
   d_rhs->pushforward += d_this->pushforward;
 }
+
+// The forward pass still sees std::initializer_list; only the pullback gets
+// the clad::array replacement.
+template <typename T>
+clad::ValueAndAdjoint<clad::array<T>, clad::array<T>>
+constructor_reverse_forw(clad::Tag<clad::array<T>>,
+                         ::std::initializer_list<T> init,
+                         ::std::initializer_list<T> d_init) {
+  return {clad::array<T>(init), clad::array<T>(init.size(), 0)};
+}
+
+template <typename T>
+void constructor_pullback(clad::array<T> init, clad::array<T>* d_this,
+                          clad::array<T>* d_init) {
+  for (unsigned i = 0; i < init.size(); ++i) {
+    (*d_init)[i] += (*d_this)[i];
+    (*d_this)[i] = 0;
+  }
+}
 } // namespace class_functions
 } // namespace custom_derivatives
 
