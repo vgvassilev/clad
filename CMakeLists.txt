@@ -290,6 +290,9 @@ install(DIRECTORY include/
   FILES_MATCHING
   PATTERN "*.def"
   PATTERN "*.h"
+  # Differentiator.h includes BuiltinDerivativesCUDA.cuh whenever it is
+  # compiled as CUDA, so an installed clad needs it beside the headers.
+  PATTERN "*.cuh"
   PATTERN ".svn" EXCLUDE
   )
 
