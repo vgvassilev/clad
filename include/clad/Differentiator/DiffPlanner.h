@@ -629,9 +629,16 @@ public:
     return true;
   }
 
+  bool isReverseMode() const {
+    return Mode == DiffMode::reverse || Mode == DiffMode::pullback;
+  }
+
   /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
-    // Note that CallContext is always different and we should ignore it.
+    // Each public call needs a rewrite even when calls share a derivative.
+    if (CallUpdateRequired != other.CallUpdateRequired ||
+        (CallUpdateRequired && CallContext != other.CallContext))
+      return false;
     // CustomDerivative is an Expr* and is not always equal even if
     // the set of overloads is the same.
     // Including AnalysisDC would complicate constructing requests to find the
