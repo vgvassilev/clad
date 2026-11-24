@@ -722,7 +722,9 @@ void InitTimers();
 
     static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
       SourceRange range = request->getSourceRange();
-      assert(range.isValid());
+      // An implicit function has no source range for a user pragma to occur in.
+      if (!range.isValid())
+        return;
       SourceLocation begin = range.getBegin();
       SourceLocation end = range.getEnd();
       clang::SourceManager& SM = C.getSourceManager();
