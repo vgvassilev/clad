@@ -65,6 +65,22 @@ DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
   return *it;
 }
 
+bool DerivedFnCollector::HasDerivativeWithSignature(
+    const DiffRequest& request, clang::QualType derivativeType) const {
+  auto subCollectionIt = m_DerivedFnInfoCollection.find(request.Function);
+  if (subCollectionIt == m_DerivedFnInfoCollection.end())
+    return false;
+
+  const std::string name = request.ComputeDerivativeName();
+  const auto& subCollection = subCollectionIt->second;
+  return std::any_of(subCollection.begin(), subCollection.end(),
+                     [&](const DerivedFnInfo& DFI) {
+                       return DFI.DerivedFn()->getNameAsString() == name &&
+                              request.Function->getASTContext().hasSameType(
+                                  DFI.DerivedFn()->getType(), derivativeType);
+                     });
+}
+
 bool DerivedFnCollector::IsCladDerivative(const clang::FunctionDecl* FD) const {
   return m_DerivativeSet.count(FD);
 }

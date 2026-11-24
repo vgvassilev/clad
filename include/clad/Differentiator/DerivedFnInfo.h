@@ -19,6 +19,9 @@ struct DerivedFnInfo {
   std::vector<size_t> m_CUDAGlobalArgsIndexes;
   bool m_UsesEnzyme = false;
   bool m_DeclarationOnly = false;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  bool m_Enable##Id##Analysis = Default;
+#include "clad/Differentiator/Analyses.def"
   /// Whether the derivative took each fallback. Not part of which request it
   /// satisfies: clad gives one function one derivative name, so a request
   /// differing only in a fallback is a conflict, not another derivative.

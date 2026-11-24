@@ -25,8 +25,8 @@ double usesPicks(double x) { return pick<0>(x) + pick<1>(x); }
 // CHECK: _r1 += 1 * pick_pushforward(std::integral_constant<int, 1>(), x, 1.).pushforward;
 
 // CHECK: double usesPicks_darg0(double x) {
-// CHECK: pick_pushforward(std::integral_constant<int, 0>(), x, _d_x);
-// CHECK: pick_pushforward(std::integral_constant<int, 1>(), x, _d_x);
+// CHECK: pick_pushforward_analysis_2176(std::integral_constant<int, 0>(), x, _d_x);
+// CHECK: pick_pushforward_analysis_2176(std::integral_constant<int, 1>(), x, _d_x);
 
 // Two parameters: reverse mode calls a pullback.
 template <int I> double mix(double x, double y) { return I * x * y; }

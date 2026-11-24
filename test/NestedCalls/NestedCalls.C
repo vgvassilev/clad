@@ -46,7 +46,7 @@ double f(double x, double y) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        _r0 += _d_t * one_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:        _r0 += _d_t * one_pushforward_analysis_2180(x, 1.).pushforward;
 //CHECK-NEXT:        *_d_x += _r0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}

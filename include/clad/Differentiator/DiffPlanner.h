@@ -364,6 +364,7 @@ public:
   /// Name of the base function to be differentiated. Can be different from
   /// function->getNameAsString() when higher-order derivatives are computed.
   std::string BaseFunctionName = {};
+  bool DisambiguateAnalysisName = false;
   /// Current derivative order to be computed.
   unsigned CurrentDerivativeOrder = 1;
   /// Highest requested derivative order.
@@ -628,6 +629,14 @@ public:
 #include "clad/Differentiator/Analyses.def"
     return true;
   }
+  /// Whether \p Other runs the same analyses.
+  bool runsSameAnalyses(const DiffRequest& Other) const {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  if (Enable##Id##Analysis != Other.Enable##Id##Analysis)                      \
+    return false;
+#include "clad/Differentiator/Analyses.def"
+    return true;
+  }
 
   /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
@@ -641,15 +650,8 @@ public:
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            Args == other.Args && Mode == other.Mode &&
-           // Written out rather than expanded from the table, so that the loop
-           // analysis can be left out: a pullback does not inherit it, so
-           // comparing it would make the request that looks a derivative up
-           // differ from the one that generated it, and clad would call a
-           // signature it never wrote. #2145 is the inheritance this waits on.
-           EnableTBRAnalysis == other.EnableTBRAnalysis &&
-           EnableVariedAnalysis == other.EnableVariedAnalysis &&
-           EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
-           takesSameFallbacks(other) && DVI == other.DVI &&
+           runsSameAnalyses(other) && takesSameFallbacks(other) &&
+           DVI == other.DVI &&
            use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
            DefersPlanning == other.DefersPlanning &&
