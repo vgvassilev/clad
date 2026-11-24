@@ -9,11 +9,11 @@ Linux (Ubuntu)
 
 .. code-block:: bash
 
-   sudo apt install clang-11 libclang-11-dev llvm-11-tools llvm-11-dev
+   sudo apt install clang-18 libclang-18-dev llvm-18-tools llvm-18-dev
    sudo -H pip install lit
    git clone https://github.com/vgvassilev/clad.git clad
    mkdir build_dir inst; cd build_dir
-   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
+   cmake ../clad -DClang_DIR=/usr/lib/llvm-18 -DLLVM_DIR=/usr/lib/llvm-18 -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="$(which lit)"
    make && make install
 
 
@@ -40,7 +40,7 @@ To build Clad and its documentation, use the following CMake command:
 
 .. code-block:: bash
 
-   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCLAD_INCLUDE_DOCS=ON -DCLAD_ENABLE_DOXYGEN=ON -DCLAD_ENABLE_SPHINX=ON -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
+   cmake ../clad -DClang_DIR=/usr/lib/llvm-18 -DLLVM_DIR=/usr/lib/llvm-18 -DCLAD_INCLUDE_DOCS=ON -DCLAD_ENABLE_DOXYGEN=ON -DCLAD_ENABLE_SPHINX=ON -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="$(which lit)"
    make sphinx-clad doxygen-clad
 
 The built user documentation can be found in `build/docs/userDocs/build`; 
