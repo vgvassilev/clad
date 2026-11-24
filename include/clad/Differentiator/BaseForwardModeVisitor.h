@@ -119,7 +119,7 @@ public:
 
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
-  StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+  virtual StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
@@ -147,7 +147,7 @@ public:
   virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
   StmtDiff VisitStmt(const clang::Stmt* S);
   StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
-  StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+  virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
   // Decl is not Stmt, so it cannot be visited directly.
   virtual DeclDiff<clang::VarDecl>
   DifferentiateVarDecl(const clang::VarDecl* VD);

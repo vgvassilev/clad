@@ -312,6 +312,76 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
   return StmtDiff(cloned, diffExpr);
 }
 
+/// A clad::matrix stores one tangent row per pointee.
+static bool isPointeeTangents(const Expr* E) {
+  const auto* RD = E ? E->getType()->getAsCXXRecordDecl() : nullptr;
+  return RD && RD->getQualifiedNameAsString() == "clad::matrix";
+}
+
+bool VectorForwardModeVisitor::diagMovedPointer(const Expr* Ptr,
+                                                const Expr* Op) {
+  // Visiting a name only builds its primal and tangent references.
+  const auto* DRE = dyn_cast<DeclRefExpr>(Ptr->IgnoreParenImpCasts());
+  if (!DRE || !DRE->getType()->isPointerType() ||
+      !isPointeeTangents(Visit(DRE).getExpr_dx()))
+    return false;
+  SourceLocation L = Op->getBeginLoc();
+  diag(DiagnosticsEngine::Error, L,
+       "vector mode cannot follow pointer %0 once it is moved or reassigned; "
+       "index it instead")
+      << DRE->getDecl() << Op->getSourceRange();
+  return true;
+}
+
+StmtDiff
+VectorForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
+  if (UnOp->isIncrementDecrementOp() &&
+      diagMovedPointer(UnOp->getSubExpr(), UnOp))
+    return StmtDiff(Clone(UnOp));
+  if (UnOp->getOpcode() != UO_Deref)
+    return BaseForwardModeVisitor::VisitUnaryOperator(UnOp);
+  // Handle *p, *(p + i), and *(i + p) by indexing the tangent matrix.
+  const Expr* Ptr = UnOp->getSubExpr()->IgnoreParenImpCasts();
+  const Expr* Idx = nullptr;
+  bool PtrOnLeft = true;
+  if (const auto* BO = dyn_cast<BinaryOperator>(Ptr)) {
+    if (BO->getOpcode() != BO_Add)
+      return BaseForwardModeVisitor::VisitUnaryOperator(UnOp);
+    PtrOnLeft = BO->getLHS()->getType()->isPointerType();
+    Ptr = (PtrOnLeft ? BO->getLHS() : BO->getRHS())->IgnoreParenImpCasts();
+    Idx = PtrOnLeft ? BO->getRHS() : BO->getLHS();
+    if (Idx->HasSideEffects(m_Context))
+      return BaseForwardModeVisitor::VisitUnaryOperator(UnOp);
+  }
+  if (!isa<DeclRefExpr>(Ptr))
+    return BaseForwardModeVisitor::VisitUnaryOperator(UnOp);
+
+  StmtDiff PtrDiff = Visit(Ptr);
+  if (!isPointeeTangents(PtrDiff.getExpr_dx()))
+    return BaseForwardModeVisitor::VisitUnaryOperator(UnOp);
+  Expr* cloned = PtrDiff.getExpr();
+  Expr* clonedIdx = nullptr;
+  if (Idx) {
+    clonedIdx = Clone(Idx);
+    cloned = BuildParens(PtrOnLeft ? BuildOp(BO_Add, cloned, clonedIdx)
+                                   : BuildOp(BO_Add, clonedIdx, cloned));
+  }
+  cloned = BuildOp(UO_Deref, cloned);
+  // Clone the index node so primal and derivative don't share AST nodes.
+  Expr* dIdx = clonedIdx ? CloneNode(clonedIdx)
+                         : ConstantFolder::synthesizeLiteral(
+                               m_Context.IntTy, m_Context, /*val=*/0);
+  return StmtDiff(cloned, BuildArraySubscript(PtrDiff.getExpr_dx(), dIdx));
+}
+
+StmtDiff
+VectorForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
+  // Reject pointer reassignment and compound updates in vector mode.
+  if (BinOp->isAssignmentOp() && diagMovedPointer(BinOp->getLHS(), BinOp))
+    return StmtDiff(Clone(BinOp));
+  return BaseForwardModeVisitor::VisitBinaryOperator(BinOp);
+}
+
 StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   const Expr* retVal = RS->getRetValue();
   QualType retType = retVal->getType();

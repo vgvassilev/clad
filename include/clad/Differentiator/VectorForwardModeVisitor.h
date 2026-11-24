@@ -97,6 +97,11 @@ public:
   StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
+  StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp) override;
+  StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp) override;
+  /// Emits an error if \p Ptr is a clad::matrix-backed pointer being moved or
+  /// reassigned by \p Op.
+  bool diagMovedPointer(const clang::Expr* Ptr, const clang::Expr* Op);
   void matchBranchTangents(StmtDiff& TrueDiff, StmtDiff& FalseDiff,
                            clang::QualType T) override;
   clang::Expr* castTangent(clang::Expr* Dx,
