@@ -80,6 +80,23 @@ double timesScale(double x) { return scale * x; }
 
 // CHECK: double _d_scale = 0.;
 
+// A variable clad declares with the type of an expression: written inside
+// namespace lib, `value_type` means nothing outside it.
+namespace lib {
+struct Pair {
+  using value_type = double;
+  double a;
+};
+template <class T> typename T::value_type first(const T& p) { return p.a; }
+} // namespace lib
+double viaTypedef(double x) {
+  lib::Pair p{x};
+  return lib::first(p) * x;
+}
+
+// CHECK: void viaTypedef_grad(double x, double *_d_x)
+// CHECK: lib::Pair::value_type _t0 = lib::first(p);
+
 #ifdef ERROR
 double broken(double x) { return undeclared(x); }
 #endif
@@ -88,3 +105,4 @@ auto d_f = clad::differentiate(f, "x");
 auto g_f = clad::gradient(f);
 auto d_userWrote = clad::differentiate(userWrote, "x");
 auto g_timesScale = clad::gradient(timesScale);
+auto g_viaTypedef = clad::gradient(viaTypedef);

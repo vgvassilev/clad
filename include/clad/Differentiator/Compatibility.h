@@ -12,6 +12,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -866,6 +867,47 @@ static inline bool isDirectlyAddressable(const clang::Builtin::Context& BI,
   return BI.isDirectlyAddressable(ID);
 #else
   return BI.isPredefinedLibFunction(ID);
+#endif
+}
+
+// Clang 23's TypeName::getFullyQualifiedType asserts on a type that stands for
+// a class without being one, such as a decltype or a deduced type, which
+// before it qualified as the class: take those apart first.
+static inline clang::QualType getFullyQualifiedType(clang::ASTContext& C,
+                                                    clang::QualType T) {
+#if CLANG_VERSION_MAJOR < 23
+  return clang::TypeName::getFullyQualifiedType(T, C,
+                                                /*WithGlobalNsPrefix=*/false);
+#else
+  clang::Qualifiers Quals = T.getLocalQualifiers();
+  const clang::Type* TP = T.getTypePtr();
+  if (const auto* PT = llvm::dyn_cast<clang::PointerType>(TP))
+    return C.getQualifiedType(
+        C.getPointerType(getFullyQualifiedType(C, PT->getPointeeType())),
+        Quals);
+  if (const auto* RT = llvm::dyn_cast<clang::ReferenceType>(TP)) {
+    clang::QualType P = getFullyQualifiedType(C, RT->getPointeeTypeAsWritten());
+    return C.getQualifiedType(llvm::isa<clang::LValueReferenceType>(RT)
+                                  ? C.getLValueReferenceType(P)
+                                  : C.getRValueReferenceType(P),
+                              Quals);
+  }
+  if (const auto* ST = llvm::dyn_cast<clang::SubstTemplateTypeParmType>(TP))
+    return getFullyQualifiedType(
+        C, C.getQualifiedType(ST->getReplacementType(), Quals));
+  // A deduced type is qualified as what it was deduced as; a decltype stays
+  // as written, the only spelling of an unnamed class.
+  if (const auto* DT = llvm::dyn_cast<clang::DeducedType>(TP))
+    if (DT->isDeduced())
+      return getFullyQualifiedType(
+          C, C.getQualifiedType(DT->getDeducedType(), Quals));
+  if (!llvm::isa<clang::TypedefType, clang::TagType,
+                 clang::TemplateSpecializationType, clang::UsingType,
+                 clang::AttributedType, clang::MemberPointerType>(TP) &&
+      TP->getAsCXXRecordDecl())
+    return T;
+  return clang::TypeName::getFullyQualifiedType(T, C,
+                                                /*WithGlobalNsPrefix=*/false);
 #endif
 }
 

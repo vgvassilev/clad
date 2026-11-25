@@ -877,8 +877,8 @@ int main() {
 // CHECK-NEXT:      }
 
 // CHECK:      void fn13_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:      std::vector<double>::allocator_type alloc;
-// CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc{};
+// CHECK-NEXT:      std::vector<double, std::allocator<double> >::allocator_type alloc;
+// CHECK-NEXT:      std::vector<double, std::allocator<double> >::allocator_type _d_alloc{};
 // CHECK-NEXT:      std::vector<double> ls({u, v}, alloc);
 // CHECK-NEXT:      std::vector<double> _d_ls({0., 0.}, _d_alloc);
 // CHECK-NEXT:      {

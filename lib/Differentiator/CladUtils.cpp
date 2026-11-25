@@ -16,7 +16,6 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMapContext.h"
-#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateName.h"
@@ -243,24 +242,6 @@ namespace clad {
       } else if (addGlobalNS && isa<TranslationUnitDecl>(DC)) {
         CSS.MakeGlobal(C, /*ColonColonLoc=*/noLoc);
       }
-    }
-
-    // Adds a namespace specifier to the given type if the type is not already an elaborated type.
-    clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext &C, clang::QualType QT) {
-      auto typePtr = QT.getTypePtr();
-      if (typePtr->isRecordType() && !clad_compat::isElaboratedType(QT)) {
-        CXXScopeSpec CSS;
-        const clang::CXXRecordDecl* recordDecl = typePtr->getAsCXXRecordDecl();
-        const auto* declContext =
-            static_cast<const clang::DeclContext*>(recordDecl);
-        utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
-        clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
-        if (clad_compat::hasNNSPrefix(NS))
-          return clad_compat::getElaboratedType(
-              C, clad_compat::ElaboratedTypeKeyword_None,
-              clad_compat::getNNSPrefix(NS), QT);
-      }
-      return QT;
     }
 
     const DeclContext* GetCustomDerivativeLookupContext(const Decl* Found) {
@@ -2388,8 +2369,7 @@ namespace clad {
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {
       ASTContext& C = S.getASTContext();
-      QualType retTy =
-          TypeName::getFullyQualifiedType(Ty, C, /*WithGlobalNsPrefix=*/false);
+      QualType retTy = clad_compat::getFullyQualifiedType(C, Ty);
 
       // FIXME: Add a type visitor which can fold stl-specific idioms such as
       // X::value_type, X::size_type.
