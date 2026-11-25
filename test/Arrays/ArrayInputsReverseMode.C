@@ -299,14 +299,14 @@ double func7(double *params) {
 }
 
 //CHECK: void func7_grad(double *params, double *_d_params) {
-//CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
-//CHECK-NEXT:     std::size_t i = {{0U|0UL}};
+//CHECK-NEXT:     {{(std::)?}}size_t _d_i = {{0U|0UL}};
+//CHECK-NEXT:     {{(std::)?}}size_t i = {{0U|0UL}};
 //CHECK-NEXT:     double _t1[1][1];
 //CHECK-NEXT:     double _d_paramsPrime[1] = {0};
 //CHECK-NEXT:     double paramsPrime[1] = {0};
 //CHECK-NEXT:     double _d_out = 0.;
 //CHECK-NEXT:     double out = 0.;
-//CHECK-NEXT:     std::size_t _t0;
+//CHECK-NEXT:     {{(std::)?}}size_t _t0;
 //CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 //CHECK-NEXT:         clad::move(paramsPrime, _t1[i]) , clad::move({params[0]}, paramsPrime);
 //CHECK-NEXT:         out = out + inv_square(paramsPrime);

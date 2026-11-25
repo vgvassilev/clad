@@ -171,8 +171,9 @@ namespace clad {
                                      bool DirectInit,
                                      clang::TypeSourceInfo* TSI,
                                      clang::StorageClass SC) {
-    // add namespace specifier in variable declaration if needed.
-    Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
+    // The type as written where the primal declared it may name things only
+    // that scope sees: a member typedef, a template its namespace opens.
+    Type = utils::makeTypeReadable(m_Sema, Type);
     SourceLocation Loc = GenLoc();
     auto* VD = VarDecl::Create(m_Context, m_Sema.CurContext, Loc, Loc,
                                Identifier, Type, TSI, SC);
