@@ -360,77 +360,6 @@ Expr* BaseForwardModeVisitor::GetOutputParamTangent() {
   return BuildDeclRef(found->second.Decl);
 }
 
-clang::QualType
-BaseForwardModeVisitor::GetLambdaPushforwardType(const LambdaExpr* LE) {
-  FunctionDecl* FD = LE->getCallOperator();
-  llvm::SmallVector<const ValueDecl*, 4> diffParams;
-  for (const auto* param : FD->parameters())
-    diffParams.push_back(param);
-  QualType baseTy =
-      utils::GetDerivativeType(m_Sema, FD, DiffMode::pushforward, diffParams,
-                               /*forCustomDerv=*/false,
-                               /*shouldUseRestoreTracker=*/false);
-  const auto* FPT = baseTy->castAs<FunctionProtoType>();
-  llvm::SmallVector<QualType, 8> paramTypes(FPT->param_types().begin(),
-                                            FPT->param_types().end());
-  for (const LambdaCapture& Capture : LE->captures()) {
-    const auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
-    QualType valTy =
-        utils::getNonConstType(capVD->getType().getNonReferenceType(), m_Sema);
-    paramTypes.push_back(valTy);
-    paramTypes.push_back(utils::GetParameterDerivativeType(
-        m_Sema, DiffMode::pushforward, valTy));
-  }
-  return m_Context.getFunctionType(FPT->getReturnType(), paramTypes,
-                                   FPT->getExtProtoInfo());
-}
-
-#if CLANG_VERSION_MAJOR > 16
-clang::Expr*
-BaseForwardModeVisitor::buildPushforwardLambda(const LambdaExpr* LE) {
-  QualType dFnType = GetLambdaPushforwardType(LE);
-  // auto cannot deduce the return type from a braced init list, so we set it.
-  QualType retTy = dFnType->castAs<FunctionProtoType>()->getReturnType();
-
-  LambdaBuilder LBuilder(*this);
-  LBuilder.start(
-      LE, dFnType,
-      [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
-        SetupDerivativeParameters(params);
-        for (const LambdaCapture& Capture : LE->captures()) {
-          auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
-          QualType valTy = utils::getNonConstType(
-              capVD->getType().getNonReferenceType(), m_Sema);
-          auto* valPVD = utils::BuildParmVarDecl(
-              m_Sema, m_Derivative,
-              CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
-          m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
-                                   /*AddToContext=*/false);
-          params.push_back(valPVD);
-          m_DeclReplacements[capVD] = valPVD;
-          auto* dPVD = utils::BuildParmVarDecl(
-              m_Sema, m_Derivative,
-              CreateUniqueIdentifier("_d_" + capVD->getNameAsString()),
-              utils::GetParameterDerivativeType(m_Sema, DiffMode::pushforward,
-                                                valTy));
-          m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
-                                   /*AddToContext=*/false);
-          params.push_back(dPVD);
-          m_Variables[valPVD] = {dPVD};
-        }
-      },
-      retTy);
-
-  beginBlock();
-  StmtDiff bodyDiff = Visit(LE->getCallOperator()->getBody());
-  for (auto* S : cast<CompoundStmt>(bodyDiff.getStmt())->body())
-    addToCurrentBlock(S);
-  CompoundStmt* body = endBlock();
-
-  return LBuilder.finish(body);
-}
-#endif // CLANG_VERSION_MAJOR
-
 void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
   // For each function parameter variable, store its derivative value.
   for (const ParmVarDecl* param : dFD->parameters()) {
@@ -1756,10 +1685,9 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           CUDAExecConfig);
       if (auto* foundCE = cast_or_null<CallExpr>(callDiff))
         pushforwardFD = foundCE->getDirectCallee();
-      else
-        pushforwardFD = m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
-    } else
-      // Request the derivative
+    }
+    // Otherwise the planner planned it.
+    if (!pushforwardFD)
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
     // A custom pushforward marked CLAD_NOOP_DERIVATIVE says that the call has
     // no tangent; it needs no definition and is not called.

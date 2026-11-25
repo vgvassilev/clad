@@ -380,9 +380,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
              "outputs w.r.t. multiple real inputs");
       }
       shouldCreateOverload = !m_ExternalSource;
-      if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
-        // If the overload is already created, we don't need to create it again.
-        shouldCreateOverload = false;
     }
     QualType dFnType = GetDerivativeType();
 
@@ -2584,81 +2581,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return result;
   }
 
-#if CLANG_VERSION_MAJOR > 16
-  clang::Expr* ReverseModeVisitor::buildDerivedLambda(const LambdaExpr* LE) {
-    LambdaBuilder LBuilder(*this);
-    LBuilder.start(LE, GetLambdaDerivativeType(LE),
-                   [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
-                     BuildParams(params, LE);
-                   });
-
-    Stmts OuterGlobals;
-    std::swap(m_Globals, OuterGlobals);
-
-    beginBlock();
-
-    StmtDiff BodyDiff = Visit(LE->getCallOperator()->getBody());
-    for (auto* S : cast<CompoundStmt>(BodyDiff.getStmt())->body())
-      addToCurrentBlock(S);
-    for (auto* S : cast<CompoundStmt>(BodyDiff.getStmt_dx())->body())
-      addToCurrentBlock(S);
-
-    CompoundStmt* DerivedBody = endBlock();
-
-    if (!m_Globals.empty()) {
-      llvm::SmallVector<Stmt*, 32> NewBodyStmts;
-      NewBodyStmts.append(m_Globals.begin(), m_Globals.end());
-      NewBodyStmts.append(DerivedBody->body().begin(),
-                          DerivedBody->body().end());
-
-      DerivedBody = CompoundStmt::Create(
-          m_Sema.getASTContext(), NewBodyStmts, FPOptionsOverride(),
-          DerivedBody->getLBracLoc(), DerivedBody->getRBracLoc());
-    }
-    m_Globals.clear();
-    std::swap(m_Globals, OuterGlobals);
-
-    return LBuilder.finish(DerivedBody);
-  }
-
-  StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
-    // Snapshot by value captures at creation; the reverse sweep
-    // feeds the snapshot adjoint back into the capture
-    for (const LambdaCapture& Capture : LE->captures()) {
-      if (!Capture.capturesVariable() || Capture.getCaptureKind() != LCK_ByCopy)
-        continue;
-      auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
-      const FieldDecl* field = getCaptureField(LE, capVD);
-      if (m_LambdaCaptureSnapshots.contains(field))
-        continue;
-      VarDecl* encVD = getEnclosingCaptureClone(capVD);
-      QualType ty = utils::getNonConstType(
-          capVD->getType().getNonReferenceType(), m_Sema);
-      VarDecl* snap = BuildVarDecl(ty, "_t", BuildDeclRef(encVD));
-      addToCurrentBlock(BuildDeclStmt(snap), direction::forward);
-      VarDecl* dsnap = BuildVarDecl(ty, "_d_t", getZeroInit(ty));
-      AddToGlobalBlock(BuildDeclStmt(dsnap));
-      m_Variables[snap] = {dsnap};
-      auto it = m_Variables.find(encVD);
-      if (it != m_Variables.end())
-        addToCurrentBlock(BuildOp(BO_AddAssign, buildAdjoint(it->second),
-                                  BuildDeclRef(dsnap)),
-                          direction::reverse);
-      m_LambdaCaptureSnapshots.try_emplace(field, snap);
-    }
-    DiffRequest LambdaReq = m_DiffReq;
-    LambdaReq.Function = LE->getCallOperator();
-    LambdaReq.Functor = LE->getLambdaClass();
-
-    ReverseModeVisitor NestedVisitor(m_Builder, LambdaReq);
-    Expr* lambdaE = NestedVisitor.buildDerivedLambda(LE);
-
-    // Build the primal with a fresh closure so it does not share the operator()
-    // body with the original lambda (or with a second primal clone emitted in
-    // the derivative lambda).
-    return {buildClonedLambda(LE), lambdaE};
-  }
-#endif // CLANG_VERSION_MAJOR
   /// Whether \p FD is declared in clad::custom_derivatives, as a user's
   /// derivative is.
   static bool isInCustomDerivatives(const FunctionDecl* FD) {
@@ -3286,9 +3208,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
         }
 
-        // Derivative was not found, request differentiation
+        // Else the planner planned it.
         if (!pullbackFD)
-          pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
+          pullbackFD = FindDerivedFunction(pullbackRequest);
       }
 
       if (pullbackFD) {

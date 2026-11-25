@@ -49,10 +49,6 @@ public:
     return m_Collector.isTraversalInFlight();
   }
 
-  /// Plan a single lazily-scheduled request (a nested or higher-order
-  /// derivative) that the static walk never reached.
-  void Plan(DiffRequest& R) { m_Collector.PlanNestedRequest(R); }
-
   /// Plans \p R, the next order of a derivative now derived, as the first
   /// order was planned: what it calls first, then itself.
   void PlanNextOrder(DiffRequest& R) { m_Collector.PlanAsTopMost(R); }

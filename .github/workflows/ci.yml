@@ -296,6 +296,19 @@ jobs:
               fi
             fi
           fi
+          # Memory runs out before CPUs do: compiling ReverseModeVisitor.cpp or
+          # CladUtils.cpp takes about 1.6 GiB. A self-hosted machine runs
+          # more than one job, so count what is free when this one starts.
+          # Two builds at -j$(nproc) on the dell had the kernel kill gcc on
+          # 2a2c524c.
+          avail_kb=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+          bymem=$(( avail_kb / (2 * 1024 * 1024) ))
+          if [[ "$bymem" -lt 1 ]]; then
+            bymem=1
+          fi
+          if [[ "$bymem" -lt "$ncpus" ]]; then
+            ncpus="$bymem"
+          fi
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
     - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.flavor && format(' [{0}]', matrix.flavor) || '' }}
@@ -1138,22 +1151,33 @@ jobs:
     needs: rebuild-needed
     if: ${{ !cancelled() && needs.rebuild-needed.outputs.value != 'false' }}
     timeout-minutes: 30
-    name: ubu24-emscr-runtime22
+    name: ubu24-emscr-runtime23
     runs-on: ubuntu-24.04
+    env:
+      EM_VERSION: 6.0.8
+      EM_CACHE_FOLDER: 'emsdk-cache'
     steps:
     - uses: actions/checkout@v7
 
-    - name: Setup emsdk
-      uses: emscripten-core/setup-emsdk@v16
+
+    - name: Setup cache
+      id: cache-system-libraries
+      uses: actions/cache@v6
       with:
-        # The emsdk pin must match the llvm-wasm cell.
-        version: '4.0.9'
+        path: ${{env.EM_CACHE_FOLDER}}
+        key: ${{env.EM_VERSION}}-${{ matrix.os }}
+
+    - uses: emscripten-core/setup-emsdk@v16
+      with:
+        version: ${{env.EM_VERSION}}
+        actions-cache-folder: ${{env.EM_CACHE_FOLDER}}
+        cache-key: ${{env.EM_VERSION}}-${{ matrix.os }}
 
     - name: Setup LLVM/Clang/LLD built for wasm
       uses: compiler-research/ci-workflows/actions/setup-recipe@main
       with:
         recipe: llvm-wasm
-        version: '22'
+        version: 23-emsdk${{env.EM_VERSION}}
         os: ubuntu-24.04
         arch: x86_64
 
@@ -1164,20 +1188,7 @@ jobs:
     # exactly this.
     - name: Build clad-tblgen for the host
       run: |
-        # Any native LLVM with a TableGen library will do, and it need not be
-        # the one clad is built against: the tool renders the same tables
-        # whichever major it was compiled with. Take whatever the image
-        # already carries rather than pinning a version that may not be there.
-        for v in 20 19 18 17 16; do
-          if [ -d "/usr/lib/llvm-$v/lib/cmake/llvm" ]; then
-            NATIVE_LLVM="/usr/lib/llvm-$v"; break
-          fi
-        done
-        if [ -z "$NATIVE_LLVM" ]; then
-          sudo apt-get update
-          sudo apt-get install -y llvm-18-dev
-          NATIVE_LLVM=/usr/lib/llvm-18
-        fi
+        export NATIVE_LLVM_BUILD_DIR="$(pwd)/install/native_build"
         echo "Rendering the tables with $NATIVE_LLVM"
         cmake -S "$GITHUB_WORKSPACE/utils/clad-tblgen" -B tblgen-native \
           -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="$NATIVE_LLVM/lib/cmake/llvm"
