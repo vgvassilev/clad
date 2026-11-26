@@ -486,6 +486,44 @@ double f22(double x) {
 // CHECK: void f22_grad(double x, double *_d_x) {
 // CHECK: eachTwice(2, [&](int i0) {
 
+// Written through an accessor in the lambda, r is stored element by element,
+// as in a loop, not as a whole before each call.
+struct Pair {
+  double v[2];
+  double& operator[](int i) { return v[i]; }
+  double operator[](int i) const { return v[i]; }
+};
+Pair scaled(const Pair& a, double s) {
+  Pair r{};
+  each(2, [&](int i) { r[i] = a[i] * s; });
+  return r;
+}
+double f21(double x) {
+  Pair a{{x, 2}};
+  Pair c = scaled(a, x);
+  return c[0] + c[1];
+}
+
+// CHECK: void scaled_pullback(const Pair &a, double s, Pair _d_y, Pair *_d_a, double *_d_s) {
+// CHECK-NOT: clad::push(_t{{[0-9]+}}, r);
+// CHECK: constructor_pullback(std::move(r), &_d_y, &_d_r);
+
+// With control flow of its own, the body is not taken for a loop's: TBR stays
+// off, and r is stored as a whole before each write.
+Pair scaledIf(const Pair& a, double s) {
+  Pair r{};
+  each(2, [&](int i) { if (i) r[i] = a[i] * s; });
+  return r;
+}
+double f23(double x) {
+  Pair a{{x, 2}};
+  Pair c = scaledIf(a, x);
+  return c[0] + c[1];
+}
+
+// CHECK: void scaledIf_pullback(const Pair &a, double s, Pair _d_y, Pair *_d_a, double *_d_s) {
+// CHECK: clad::push(_t{{[0-9]+}}, r);
+
 int main() {
   auto df1 = clad::gradient(f1);
   double di = 0, dj = 0;
@@ -591,4 +629,14 @@ int main() {
   auto d_f22 = clad::gradient(f22);
   d_f22.execute(2, &di);
   printf("%.2f\n", di);                       // CHECK-EXEC: 6.00
+
+  di = 0;
+  auto d_f21 = clad::gradient(f21);
+  d_f21.execute(3, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 8.00
+
+  di = 0;
+  auto d_f23 = clad::gradient(f23);
+  d_f23.execute(3, &di);
+  printf("%.2f\n", di);                       // CHECK-EXEC: 2.00
 }

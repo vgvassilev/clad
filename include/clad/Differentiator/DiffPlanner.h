@@ -923,6 +923,7 @@ public:
     /// or constructor initializers. If we use Visit they would be processed
     /// under the parent DiffRequest which is not in the lambda scope.
     bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+    bool TraverseCallExpr(clang::CallExpr* E);
     /// Plans the requests a kernel launch contains without descending into
     /// its execution configuration.
     bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);

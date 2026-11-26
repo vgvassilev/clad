@@ -8,6 +8,7 @@
 #include "clang/Analysis/CFG.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
 
 #include "AnalysisBase.h"
 #include "clad/Differentiator/CladUtils.h"
@@ -70,6 +71,10 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// write. A null PVD stands for the object or a target not known.
   void markParamModified(const clang::ParmVarDecl* PVD);
   void setIsRequired(const clang::Expr* E, bool isReq = true);
+  /// Runs \p Traverse as a branch of the current block, which may or may not
+  /// be taken. \returns what the branch changed, kept apart from the block
+  /// for the caller to merge.
+  std::unique_ptr<VarsData> traverseBranch(llvm::function_ref<void()> Traverse);
 
   //// Modes Setters
   /// Sets the mode manually
