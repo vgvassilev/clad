@@ -31,8 +31,8 @@ comment:
   require_changes: no
 
 ignore:
-  - test/*
-  - test/**/*
+  - "test/**"
+  - "unittests/**"
 
 github_checks:
   annotations: true # Deprecated but very useful
