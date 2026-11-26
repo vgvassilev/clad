@@ -870,12 +870,12 @@ static inline bool isDirectlyAddressable(const clang::Builtin::Context& BI,
 #endif
 }
 
-// Clang 23's TypeName::getFullyQualifiedType asserts on a type that stands for
+// Clang 22's TypeName::getFullyQualifiedType asserts on a type that stands for
 // a class without being one, such as a decltype or a deduced type, which
 // before it qualified as the class: take those apart first.
 static inline clang::QualType getFullyQualifiedType(clang::ASTContext& C,
                                                     clang::QualType T) {
-#if CLANG_VERSION_MAJOR < 23
+#if CLANG_VERSION_MAJOR < 22
   return clang::TypeName::getFullyQualifiedType(T, C,
                                                 /*WithGlobalNsPrefix=*/false);
 #else
