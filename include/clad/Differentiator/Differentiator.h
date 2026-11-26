@@ -1068,7 +1068,8 @@ template <class T> std::false_type is_range(...);
   }
 
   /// Generates function which computes jacobian matrix of the given function
-  /// wrt the parameters specified in `args` using reverse mode differentiation.
+  /// wrt the parameters specified in `args` using vectorized forward mode
+  /// differentiation.
   ///
   /// \param[in] f function to differentiate
   /// \param[in] args independent parameters information
