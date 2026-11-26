@@ -460,6 +460,27 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::TraverseCallExpr(CallExpr* E) {
+    const LambdaExpr* LE = m_ParentReq ? utils::GetCallbackLambda(E) : nullptr;
+    if (!LE)
+      return RecursiveASTVisitor<DiffCollector>::TraverseCallExpr(E);
+    // The call is differentiated with the lambda's body, which belongs to the
+    // function that makes it, as the body of a loop does: plan the body under
+    // that function's request. The callee needs no derivative, and the other
+    // arguments hold no floating-point value. Only TBR looks into the body,
+    // which it takes for that of a loop as long as the body has no control
+    // flow of its own; the function does without the other analyses.
+    bool TBR = m_ParentReq->EnableTBRAnalysis;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    m_ParentReq->Enable##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
+    const Stmt* Body = LE->getCallOperator()->getBody();
+    m_ParentReq->EnableTBRAnalysis = TBR && !utils::HasControlFlow(Body);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    auto* Lambda = const_cast<LambdaExpr*>(LE);
+    return RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(Lambda);
+  }
+
   bool DiffCollector::TraverseFunctionDeclOnce(const DiffRequest& request) {
     llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
     // An equal request walked for another call is walked again if more of
@@ -2444,17 +2465,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     FunctionDecl* FD = E->getDirectCallee();
     if (!FD || utils::isNoOpDestructorCall(E))
       return true;
-
-    // The call is differentiated where it stands, with the lambda's body,
-    // which the traversal plans next: the callee needs no derivative. The
-    // analyses do not look into the lambda's body, so the function that makes
-    // the call does without them.
-    if (m_ParentReq && utils::GetCallbackLambda(E)) {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
-    m_ParentReq->Enable##Id##Analysis = false;
-#include "clad/Differentiator/Analyses.def"
-      return true;
-    }
 
     bool nonDiff = false;
     bool hasNoMemoryInputForPointerOrRefReturn = false;

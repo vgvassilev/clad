@@ -699,6 +699,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// The lambda the argument \p Arg passes, if any: as written, or copied
     /// from the temporary before C++17.
     const clang::LambdaExpr* GetLambdaArg(const clang::Expr* Arg);
+    /// Whether \p S branches, loops or jumps, other than through `?:`, `&&`
+    /// and `||`, or calls a lambda that it passes, as a function template is
+    /// passed one (GetCallbackLambda).
+    bool HasControlFlow(const clang::Stmt* S);
     /// Whether \p T holds no floating-point number: an integer or an
     /// enumeration, or an array or a class made only of those.
     bool HoldsNoFloatingPoint(clang::QualType T);

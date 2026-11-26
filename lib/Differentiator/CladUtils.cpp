@@ -18,6 +18,7 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -1916,6 +1917,20 @@ namespace clad {
         if (CCE->getNumArgs() == 1)
           E = CCE->getArg(0)->IgnoreImplicit();
       return dyn_cast<LambdaExpr>(E);
+    }
+
+    bool HasControlFlow(const Stmt* S) {
+      if (isa<IfStmt, ForStmt, WhileStmt, DoStmt, SwitchStmt, CXXForRangeStmt,
+              GotoStmt, IndirectGotoStmt, BreakStmt, ContinueStmt, ReturnStmt,
+              CXXTryStmt>(S))
+        return true;
+      if (const auto* CE = dyn_cast<CallExpr>(S))
+        if (GetCallbackLambda(CE))
+          return true;
+      // A child may be absent, an omitted part of the statement.
+      return llvm::any_of(S->children(), [](const Stmt* Child) {
+        return Child && HasControlFlow(Child);
+      });
     }
 
     QualType GetByteCopiedFloatingType(const CallExpr* CE) {
