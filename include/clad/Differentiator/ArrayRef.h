@@ -81,8 +81,23 @@ public:
   constexpr CUDA_HOST_DEVICE array_ref(T* arr, std::size_t size)
       : m_arr(arr), m_size(size) {}
   /// Constructor for arrays having size equal to 1 or non pointer types to
-  /// store their addresses
-  constexpr CUDA_HOST_DEVICE array_ref(T* a) : m_arr(a), m_size(1) {}
+  /// store their addresses. A template so that a C-style array prefers the
+  /// constructor below, which keeps its size, over decaying to a pointer; it
+  /// leaves copying an array_ref to the copy constructor.
+  // NOLINTBEGIN(modernize-type-traits)
+  template <
+      typename U,
+      std::enable_if_t<std::is_convertible<U, T*>::value &&
+                           !std::is_array<std::remove_reference_t<U>>::value &&
+                           !std::is_same<std::decay_t<U>, array_ref>::value,
+                       int> = 0>
+  // NOLINTNEXTLINE(bugprone-forwarding-reference-overload,cppcoreguidelines-missing-std-forward)
+  constexpr CUDA_HOST_DEVICE array_ref(U&& a) : m_arr(a), m_size(1) {}
+  // NOLINTEND(modernize-type-traits)
+  /// Constructor for C-style arrays, which keeps their size
+  template <std::size_t N>
+  // NOLINTNEXTLINE(*-avoid-c-arrays)
+  constexpr CUDA_HOST_DEVICE array_ref(T (&a)[N]) : m_arr(a), m_size(N) {}
   /// Constructor for clad::array types
   constexpr CUDA_HOST_DEVICE array_ref(array<T>& a)
       : m_arr(a.ptr()), m_size(a.size()) {}
