@@ -867,6 +867,8 @@ template <class T> std::false_type is_range(...);
               grid, block, 0, nullptr, static_cast<Args>(args)...);
         }
 #else
+        static_assert(sizeof...(Args) <= arity_of<F>::value,
+                      "Too many arguments passed to execute()");
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), F>{}, f,
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
@@ -883,6 +885,8 @@ template <class T> std::false_type is_range(...);
                 class... Args>
       CLAD_CONSTEXPR_CXX14 return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) const {
+        static_assert(sizeof...(Args) <= arity_of<decltype(f)>::value,
+                      "Too many arguments passed to execute()");
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f,
@@ -896,6 +900,8 @@ template <class T> std::false_type is_range(...);
       template <class ReturnType, class C, class... Args>
       CLAD_CONSTEXPR_CXX14 return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Args&&... args) const {
+        static_assert(sizeof...(Args) <= arity_of<decltype(f)>::value,
+                      "Too many arguments passed to execute()");
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f, *m_Functor,
