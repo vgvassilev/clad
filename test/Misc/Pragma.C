@@ -15,7 +15,14 @@
 #pragma clad ON
 
 #pragma clad AAA // expected-error {{expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma}}
+#pragma clad 123 // expected-error {{expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma}}
+#pragma clad     // expected-error {{expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma}}
+#pragma clad checkpoint // expected-error {{expected 'loop' after 'checkpoint' in #pragma clad}}
+#pragma clad checkpoint 123 // expected-error {{expected 'loop' after 'checkpoint' in #pragma clad}}
 #pragma clang diagnostic clad // expected-warning {{pragma diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'}}
 
-// FIXME: Enumerate the various scenarios of decls and clad:: calls between
-// on/off/default regions
+// Testing Issue #2320: ON/OFF macros must not affect #pragma clad ON/OFF
+#define ON 1
+#define OFF 2
+#pragma clad ON
+#pragma clad OFF
