@@ -20,6 +20,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include <unordered_map>
 
 namespace clang {
@@ -42,6 +43,11 @@ namespace utils {
     // VisitPseudoObjectExpr.
     llvm::DenseMap<clang::OpaqueValueExpr*, clang::OpaqueValueExpr*>*
         m_OVESubst = nullptr;
+    // Maps each VarDecl cloned within the outermost Clone() call to its
+    // clone so DeclRefExprs inside the cloned subtree reference the cloned
+    // declaration rather than the original (null outside a Clone() call).
+    llvm::DenseMap<const clang::VarDecl*, clang::VarDecl*>* m_DeclSubst =
+        nullptr;
 
     clang::Decl* CloneDecl(clang::Decl* Node);
     clang::VarDecl* CloneDeclOrNull(clang::VarDecl* Node);
@@ -151,7 +157,13 @@ namespace utils {
     if (!S)
       return 0;
 
+    if (m_DeclSubst)
+      return static_cast<StmtTy*>(Visit(const_cast<StmtTy*>(S)));
+
+    llvm::DenseMap<const clang::VarDecl*, clang::VarDecl*> LocalDeclSubst;
+    m_DeclSubst = &LocalDeclSubst;
     clang::Stmt* clonedStmt = Visit(const_cast<StmtTy*>(S));
+    m_DeclSubst = nullptr;
     return static_cast<StmtTy*>(clonedStmt);
   }
 
@@ -163,11 +175,14 @@ namespace utils {
     const clang::FunctionDecl* m_Function; // We don't own.
     const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
         m_DeclReplacements; // We don't own.
+    llvm::SmallPtrSet<const clang::VarDecl*, 8> m_LocalDecls;
+
   public:
     ReferencesUpdater(
         clang::Sema& SemaRef, clang::Scope* S, const clang::FunctionDecl* FD,
         const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
             DeclReplacements);
+    bool VisitVarDecl(clang::VarDecl* VD);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitStmt(clang::Stmt* S);
     /// Used to update the size expression of QT
