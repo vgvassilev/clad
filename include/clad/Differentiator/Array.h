@@ -93,9 +93,10 @@ private:
 public:
   /// Default constructor
   array() = default;
-  /// Constructor to create an array of the specified size
+  /// Constructor to create an array of the specified size, of zeros: every
+  /// element value-initialized, which also holds a vector of objects.
   CUDA_HOST_DEVICE array(std::size_t size)
-      : m_arr(new T[size]{static_cast<T>(0)}), m_size(size) {}
+      : m_arr(new T[size]()), m_size(size) {}
 
   template <typename U>
   CUDA_HOST_DEVICE array(clad::array_ref<U> arr)
@@ -208,7 +209,7 @@ public:
   /// Initializes the clad::array to the given array
   CUDA_HOST_DEVICE array<T>& operator=(T* arr) {
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] = arr ? arr[i] : 0;
+      m_arr[i] = arr ? arr[i] : T();
     return *this;
   }
 
@@ -265,6 +266,33 @@ CUDA_HOST_DEVICE array<T> one_hot_vector(std::size_t n, std::size_t i) {
 // Function to instantiate a zero vector of size n
 template <typename T> CUDA_HOST_DEVICE array<T> zero_vector(std::size_t n) {
   return array<T>(n);
+}
+
+// Vector mode gives an object one tangent per independent variable, each an
+// object of the same type: a clad::array<T> of them.
+
+// The tangents of an aggregate of type T built from the tangents of its
+// members, a vector for each, in the order of its members. Members left out
+// are zero.
+template <typename T, typename... Members>
+CUDA_HOST_DEVICE array<T> aggregate_vector(std::size_t n,
+                                           const array<Members>&... members) {
+  array<T> res(n);
+  for (std::size_t i = 0; i < n; ++i)
+    res[i] = T{members[i]...};
+  return res;
+}
+
+// The tangents of the member m of an object whose tangents are v. They are a
+// copy, const so that a write to them does not compile instead of being lost.
+template <typename T, typename M>
+// NOLINTNEXTLINE(readability-const-return-type)
+CUDA_HOST_DEVICE const array<std::remove_cv_t<M>>
+member_vector(const array<T>& v, M T::*m) {
+  array<std::remove_cv_t<M>> res(v.size());
+  for (std::size_t i = 0; i < v.size(); ++i)
+    res[i] = v[i].*m;
+  return res;
 }
 
 } // namespace clad
