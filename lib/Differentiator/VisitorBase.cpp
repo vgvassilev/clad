@@ -1400,6 +1400,25 @@ namespace clad {
         m_DiffReq.EnableErrorEstimation);
   }
 
+  void VisitorBase::defineDeclaredMemberOutOfLine() {
+    auto* RD = dyn_cast<RecordDecl>(m_Derivative->getDeclContext());
+    if (!RD || RD->isLambda())
+      return;
+    DeclContext::lookup_result R =
+        RD->getPrimaryContext()->lookup(m_Derivative->getDeclName());
+    if (R.empty() || m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(
+                         dyn_cast<FunctionDecl>(R.front())))
+      return;
+    // Define it at global scope, which encloses the class as the definition
+    // must ([class.mfct]), qualified through the scopes around the class: its
+    // name alone is not found from there.
+    // FIXME: Drop the static specifier for the out-of-line definitions.
+    CXXScopeSpec SS;
+    utils::BuildNNS(m_Sema, RD, SS);
+    m_Derivative->setQualifierInfo(SS.getWithLocInContext(m_Context));
+    m_Derivative->setLexicalDeclContext(m_Context.getTranslationUnitDecl());
+  }
+
   unsigned VisitorBase::getNumTemplateTags() {
     if (!utils::TakesTemplateTags(m_DiffReq.Mode))
       return 0;

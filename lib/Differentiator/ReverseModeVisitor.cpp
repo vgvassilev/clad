@@ -457,22 +457,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     endScope(); // Function decl scope
 
-    if (auto* RD = dyn_cast<RecordDecl>(m_Derivative->getDeclContext())) {
-      DeclContext::lookup_result R =
-          RD->getPrimaryContext()->lookup(m_Derivative->getDeclName());
-      FunctionDecl* FoundFD =
-          R.empty() ? nullptr : dyn_cast<FunctionDecl>(R.front());
-      if (!RD->isLambda() && !R.empty() &&
-          !m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(FoundFD)) {
-        // Define it at global scope, which encloses the class as the
-        // definition must ([class.mfct]), qualified through the scopes
-        // around the class: its name alone is not found from there.
-        CXXScopeSpec SS;
-        utils::BuildNNS(m_Sema, RD, SS);
-        m_Derivative->setQualifierInfo(SS.getWithLocInContext(m_Context));
-        m_Derivative->setLexicalDeclContext(m_Context.getTranslationUnitDecl());
-      }
-    }
+    defineDeclaredMemberOutOfLine();
 
     if (!shouldCreateOverload)
       return DerivativeAndOverload{result.fd, /*overload=*/nullptr};
