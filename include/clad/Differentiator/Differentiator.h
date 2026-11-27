@@ -843,9 +843,8 @@ template <class T> std::false_type is_range(...);
         // `static_cast` is required here for perfect forwarding.
 #if defined(__CUDACC__)
         if constexpr (sizeof...(Args) >= 2) {
-          auto secondArg =
-              std::get<1>(std::forward_as_tuple(std::forward<Args>(args)...));
-          if constexpr (std::is_same<std::decay_t<decltype(secondArg)>,
+          using SecondArg = std::tuple_element_t<1, std::tuple<Args...>>;
+          if constexpr (std::is_same<std::decay_t<SecondArg>,
                                      cudaStream_t>::value) {
             return [&](auto shared_mem, cudaStream_t stream, auto&&... args_) {
               return execute_with_default_args<EnablePadding>(
@@ -1026,6 +1025,18 @@ template <class T> std::false_type is_range(...);
            const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
         derivedFn /* will be replaced by gradient*/, code, f);
+  }
+
+  /// Generates a free function's pullback with respect to all its inputs.
+  template <class R, class... Args>
+  constexpr CladFunction<
+      typename PullbackTraits<R, Args...>::type> __attribute__((annotate("P")))
+  CUDA_HOST_DEVICE
+  pullback(R (*f)(Args...),
+           typename PullbackTraits<R, Args...>::type derivedFn = nullptr,
+           const char* code = "", bool CUDAkernel = false) {
+    return CladFunction<typename PullbackTraits<R, Args...>::type>(
+        derivedFn, code, nullptr, CUDAkernel);
   }
 
   /// Generates function which computes hessian matrix of the given function wrt

@@ -57,6 +57,13 @@ __global__ void scaled(float* out, float x, int flag) {
   *out = x * x * (flag ? 2 : 1);
 }
 
+struct Factor {
+  explicit Factor(float v) : value(v) {}
+  Factor(const Factor&) = delete;
+  float value;
+};
+float weighted(float x, const Factor& factor) { return x * factor.value; }
+
 int main() {
   float *out, *seed, *dx;
   Derived* input;
@@ -144,6 +151,20 @@ int main() {
   CUDA_CHECK(cudaDeviceSynchronize());
   std::printf("gradient: %g\n", *dx); // CHECK-EXEC: gradient: 4
   failures += *dx != 4;
+
+  Factor factor(5), d_factor(0);
+  float d_x = 1;
+  clad::pullback(weighted).execute(3.f, factor, 2.f, &d_x, &d_factor);
+  failures += d_x != 11 || d_factor.value != 6;
+
+  *seed = 2;
+  *dx = 0;
+  *optional = 0;
+  clad::pullback(scaled).execute_kernel(dim3(1), dim3(1), out, 2.f, 0,
+                                       seed, dx, optional);
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  failures += *dx != 8 || *seed != 0;
 
   CUDA_CHECK(cudaFree(optional));
   CUDA_CHECK(cudaFree(input));

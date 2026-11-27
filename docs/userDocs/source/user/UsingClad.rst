@@ -19,10 +19,11 @@ Clad differentiation functions takes a function as an input and returns a
 derived function. Generated derived function can be called by calling the 
 `.execute` method on the corresponding `clad::CladFunction` object.
 
-Clad consists of five primary automatic differentiation functions:
+Clad consists of six primary automatic differentiation functions:
 
 - ``clad::differentiate`` -- Primary forward mode automatic differentiation
 - ``clad::gradient`` -- Primary reverse mode automatic differentiation
+- ``clad::pullback`` -- Reverse mode with a caller-supplied cotangent
 - ``clad::hessian``
 - ``clad::jacobian``
 - ``clad::estimate_error``
@@ -191,6 +192,19 @@ request.
 Visit the API reference of :cpp:func:`gradient` for more details, and
 :doc:`Core concepts <CoreConcepts>` for what Clad generates and why it needs to
 store values along the way.
+
+Computing a pullback
+~~~~~~~~~~~~~~~~~~~~
+
+Use :cpp:func:`pullback` to propagate an output cotangent through a free
+function. For a scalar output, a seed of two doubles each derivative
+contribution. Supply an adjoint buffer for each input in declaration order.
+For a class passed by reference, this lets you construct its adjoint yourself.
+
+.. literalinclude:: ../../../../test/Documentation/UsingClad/Pullback.cpp
+   :language: cpp
+   :start-after: docs-begin-pullback
+   :end-before: docs-end-pullback
 
 Hessian Computation
 ----------------------
