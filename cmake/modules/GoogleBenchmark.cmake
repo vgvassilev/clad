@@ -6,7 +6,7 @@ set(EXTRA_CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX:PATH=${GBENCHMARK_PREFIX} -DBENCHMA
 clad_externalProject_add(
   googlebenchmark
   GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG v1.9.4
+  GIT_TAG v1.10.0
   UPDATE_COMMAND ""
   EXTRA_CMAKE_ARGS "${EXTRA_CMAKE_ARGS}"
   BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release -- -j6
