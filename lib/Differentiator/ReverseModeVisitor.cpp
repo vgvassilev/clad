@@ -1374,17 +1374,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
+    beginBlock(direction::reverse);
+    LoopCounter loopCounter(*this);
+    ScopeRAII rangeScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                    Scope::BreakScope | Scope::ContinueScope);
+
+    const Stmt* Init = FRS->getInit();
+    StmtDiff VisitInit =
+        Init ? DifferentiateSingleStmt(Init) : StmtDiff{};
+    addToCurrentBlock(VisitInit.getStmt());
+
     const auto* RangeDecl = cast<VarDecl>(FRS->getRangeStmt()->getSingleDecl());
     const auto* BeginDecl = cast<VarDecl>(FRS->getBeginStmt()->getSingleDecl());
     DeclDiff<VarDecl> VisitRange =
         DifferentiateVarDecl(RangeDecl, /*keepLocal=*/true);
     DeclDiff<VarDecl> VisitBegin =
         DifferentiateVarDecl(BeginDecl, /*keepLocal=*/true);
-
-    beginBlock(direction::reverse);
-    LoopCounter loopCounter(*this);
-    ScopeRAII rangeScope(*this, Scope::DeclScope | Scope::ControlScope |
-                                    Scope::BreakScope | Scope::ContinueScope);
 
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
@@ -1528,6 +1533,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 /*CondVar=*/nullptr, counterDecrement, Reverse,
                 FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
     // The reverse block runs bottom-up: the restore follows the loop.
+    addToCurrentBlock(VisitInit.getStmt_dx(), direction::reverse);
     addToCurrentBlock(restoreEnd, direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
