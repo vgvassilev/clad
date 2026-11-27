@@ -124,9 +124,9 @@ runs:
 
   # Must run even if the baseline pass failed: leaving the tree reverted
   # would make every later step test the baseline and report it as this
-  # change.
+  # change. A cancelled run has no later steps, so it need not rebuild.
   - name: Restore the change and rebuild
-    if: ${{ always() && inputs.mode == 'check' && env.observes_check == '1' }}
+    if: ${{ !cancelled() && inputs.mode == 'check' && env.observes_check == '1' }}
     shell: bash
     run: |
       cd "$GITHUB_WORKSPACE"

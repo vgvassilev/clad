@@ -565,7 +565,7 @@ jobs:
 
         cmake --build . -- -j${{ env.ncpus }}
     - name: Check the touched tests against the baseline
-      if: ${{ always() && runner.os != 'windows' && env.observes_check == '1' }}
+      if: ${{ !cancelled() && runner.os != 'windows' && env.observes_check == '1' }}
       uses: ./.github/actions/observes-change
       with:
         mode: check
@@ -968,7 +968,7 @@ jobs:
     # A miss is silent: the row still passes, only slowly. Say what happened
     # so a configure that stops matching the producer is visible.
     - name: Report what the cache did
-      if: always()
+      if: ${{ !cancelled() }}
       run: ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
 
   # clad standalone against an LLVM build tree with a multi-config generator,
@@ -1101,6 +1101,8 @@ jobs:
   # the merge, through post-merge-report.
   builds-pass:
     name: Builds pass
+    # always(), not !cancelled(): a required check that is skipped counts as
+    # passed, so a cancelled run must still report here, and fail.
     if: ${{ always() }}
     needs: [build, build-selfhost, build-in-tree, build-multiconfig, build-wasm]
     runs-on: ubuntu-24.04
@@ -1140,7 +1142,7 @@ jobs:
     # is never the only one to fail across many changes is a candidate for
     # merging, which is a claim about defects caught rather than lines run.
     - name: Upload the summary record
-      if: ${{ always() }}
+      if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v7
       with:
         name: observes-change-summary
