@@ -1017,9 +1017,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     DiffRequest pass{};
     pass.Function = FirstDerivative;
     pass.BaseFunctionName = FirstDerivative->getNameAsString();
-    pass.EnableTBRAnalysis = EnableTBRAnalysis;
-    pass.EnableLoopAnalysis = EnableLoopAnalysis;
-    pass.inheritFallbacksFrom(*this);
+    pass.inheritAnalysesFrom(*this);
     // The user's checkpointing pragmas address the reverse pass.
     pass.m_CladLoopCheckpoints = m_CladLoopCheckpoints;
     // A custom derivative defined in another translation unit has its own
@@ -1036,7 +1034,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // hessian was requested for, in parameter order: those are the rows the
     // wrapper fills in.
     pass.Mode = DiffMode::pullback;
-    pass.EnableVariedAnalysis = EnableVariedAnalysis;
     std::string subsetSuffix;
     for (unsigned i = 0, e = Function->getNumParams(); i != e; ++i) {
       const ParmVarDecl* PVD = Function->getParamDecl(i);
@@ -1537,13 +1534,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   std::string DiffRequest::ComputeDerivativeName() const {
+    auto withAnalysisSuffix = [this](std::string name) {
+      if (!DisambiguateAnalysisName)
+        return name;
+
+      unsigned analysisMask = 0;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  if (Enable##Id##Analysis)                                                    \
+    analysisMask |= 1U << FirstBit;
+#include "clad/Differentiator/Analyses.def"
+
+      return name + "_analysis_" + std::to_string(analysisMask);
+    };
+
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
         Mode != DiffMode::vector_forward_mode) {
       std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
       for (auto index : CUDAGlobalArgsIndexes)
         name += "_" + std::to_string(index);
 
-      return name;
+      return withAnalysisSuffix(name);
     }
 
     if (DVI.empty())
@@ -1584,23 +1594,23 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     if (Mode == DiffMode::vector_forward_mode) {
       if (DVI.size() != Function->getNumParams())
-        return BaseFunctionName + "_dvec" + argInfo;
-      return BaseFunctionName + "_dvec";
+        return withAnalysisSuffix(BaseFunctionName + "_dvec" + argInfo);
+      return withAnalysisSuffix(BaseFunctionName + "_dvec");
     }
 
     if (Mode == DiffMode::reverse) {
       if (DVI.size() != Function->getNumParams())
-        return BaseFunctionName + "_grad" + argInfo;
+        return withAnalysisSuffix(BaseFunctionName + "_grad" + argInfo);
       if (use_enzyme)
-        return BaseFunctionName + "_grad" + "_enzyme";
-      return BaseFunctionName + "_grad";
+        return withAnalysisSuffix(BaseFunctionName + "_grad" + "_enzyme");
+      return withAnalysisSuffix(BaseFunctionName + "_grad");
     }
 
     std::string s;
     if (CurrentDerivativeOrder > 1)
       s = std::to_string(CurrentDerivativeOrder);
 
-    return BaseFunctionName + "_d" + s + "arg" + argInfo;
+    return withAnalysisSuffix(BaseFunctionName + "_d" + s + "arg" + argInfo);
   }
 
   bool DiffRequest::restoresCallWrites(const CallExpr* CE) const {

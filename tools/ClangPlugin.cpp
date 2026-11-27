@@ -722,7 +722,9 @@ void InitTimers();
 
     static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
       SourceRange range = request->getSourceRange();
-      assert(range.isValid());
+      // An implicit function has no source range for a user pragma to occur in.
+      if (!range.isValid())
+        return;
       SourceLocation begin = range.getBegin();
       SourceLocation end = range.getEnd();
       clang::SourceManager& SM = C.getSourceManager();
@@ -828,6 +830,16 @@ void InitTimers();
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
           alreadyDerived = true;
         } else {
+          llvm::SmallVector<const ValueDecl*, 4> diffParams;
+          for (const DiffInputVarInfo& info : request.DVI)
+            diffParams.push_back(info.param);
+          QualType derivativeType = utils::GetDerivativeType(
+              S, request.Function, request.Mode, diffParams,
+              /*forCustomDerv=*/false, request.UseRestoreTracker,
+              request.EnableErrorEstimation);
+          if (getScheduler().getDerivedFns().HasDerivativeWithSignature(
+                  request, derivativeType))
+            request.DisambiguateAnalysisName = true;
           auto deriveResult = m_DerivativeBuilder->Derive(request);
           DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;

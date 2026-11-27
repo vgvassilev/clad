@@ -2710,6 +2710,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
     calleeFnForwPassReq.BaseFunctionName =
         clad::utils::ComputeEffectiveFnName(FD);
+    calleeFnForwPassReq.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
     FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
     bool elideReverseForw =
         (calleeFnForwPassFD &&
@@ -6863,6 +6864,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     forwPassReq.Function = CD;
     forwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
     forwPassReq.BaseFunctionName = "constructor";
+    forwPassReq.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
     FunctionDecl* constrForw = FindDerivedFunction(forwPassReq);
     bool elideReverseForw =
         constrForw && utils::hasElidableReverseForwAttribute(constrForw);
@@ -6926,10 +6928,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackRequest.Mode = DiffMode::pullback;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
-        pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-        pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-        pullbackRequest.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
-        pullbackRequest.inheritFallbacksFrom(m_DiffReq);
+        pullbackRequest.inheritAnalysesFrom(m_DiffReq);
         for (size_t i = 0, e = CD->getNumParams(); i < e; ++i)
           if (adjointArgs[i])
             pullbackRequest.DVI.push_back(CD->getParamDecl(i));

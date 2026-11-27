@@ -68,14 +68,14 @@ struct SumOfCubesArr {
 // CHECK: double operator_call_darg0_0(const double *p) const {
 // CHECK-NEXT:     const SumOfCubesArr _d_this_obj;
 // CHECK-NEXT:     const SumOfCubesArr *_d_this = &_d_this_obj;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(p[0], 1.);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward_analysis_2180(p[0], 1.);
 // CHECK-NEXT:     return _t0.pushforward + 0.;
 // CHECK-NEXT: }
 
 // CHECK: double operator_call_darg0_1(const double *p) const {
 // CHECK-NEXT:     const SumOfCubesArr _d_this_obj;
 // CHECK-NEXT:     const SumOfCubesArr *_d_this = &_d_this_obj;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(p[1], 1.);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward_analysis_2180(p[1], 1.);
 // CHECK-NEXT:     return 0. + _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -85,8 +85,8 @@ struct SumOfCubesArr {
 // CHECK-NEXT:     double _d_d_y = 0.;
 // CHECK-NEXT:     const double _d_y0 = 0;
 // CHECK:          clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = cube_pushforward(x, _d_x0);
-// CHECK-NOT:      cube_pushforward(y
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = cube_pushforward_analysis_2180(x, _d_x0);
+// CHECK-NOT:      cube_pushforward_analysis_2180(y
 
 // CHECK: void operator_call_darg1_grad(const double x, const double y, SumOfCubes *_d_this, double *_d_x, double *_d_y) const {
 // CHECK-NEXT:     double _d_d_x = 0.;
@@ -94,8 +94,8 @@ struct SumOfCubesArr {
 // CHECK-NEXT:     double _d_d_y = 0.;
 // CHECK-NEXT:     const double _d_y0 = 1;
 // CHECK:          clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = cube_pushforward(y, _d_y0);
-// CHECK-NOT:      cube_pushforward(x
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = cube_pushforward_analysis_2180(y, _d_y0);
+// CHECK-NOT:      cube_pushforward_analysis_2180(x
 
 // The pullback of the free function's pushforward bounds the CHECK-NOT
 // above; it calls cube_pushforward on both parameters, as it serves every

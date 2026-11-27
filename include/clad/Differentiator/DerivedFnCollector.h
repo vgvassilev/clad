@@ -43,6 +43,10 @@ public:
   /// given differentiation request.
   DerivedFnInfo Find(const DiffRequest& request) const;
 
+  /// Returns true if a derivative already uses the requested name and type.
+  bool HasDerivativeWithSignature(const DiffRequest& request,
+                                  clang::QualType derivativeType) const;
+
   /// Returns true if the function is a Clad-generated derivative.
   bool IsCladDerivative(const clang::FunctionDecl* FD) const;
 
