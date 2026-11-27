@@ -112,6 +112,7 @@ namespace utils {
     DECLARE_CLONE_FN(ShuffleVectorExpr)
     DECLARE_CLONE_FN(ExprWithCleanups)
     DECLARE_CLONE_FN(CXXOperatorCallExpr)
+    DECLARE_CLONE_FN(CXXRewrittenBinaryOperator)
     DECLARE_CLONE_FN(CXXMemberCallExpr)
     DECLARE_CLONE_FN(CXXStaticCastExpr)
     DECLARE_CLONE_FN(CXXDynamicCastExpr)
