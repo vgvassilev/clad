@@ -317,25 +317,29 @@ template <class T> std::false_type is_range(...);
 
   namespace contiguous_detail {
   // Spelled with ::value: the runtime headers also compile as C++14.
+  // A type without the member has nothing to check.
   // NOLINTBEGIN(modernize-type-traits)
   template <class T>
-  auto models(int)
-      -> std::integral_constant<
-          bool,
-          std::is_pointer<decltype(std::declval<T&>().data())>::value &&
-              std::is_integral<decltype(std::declval<T&>().size())>::value>;
+  auto data_ok(int) -> std::is_pointer<decltype(std::declval<T&>().data())>;
+  template <class T> std::true_type data_ok(...);
+  template <class T>
+  auto size_ok(int) -> std::is_integral<decltype(std::declval<T&>().size())>;
+  template <class T> std::true_type size_ok(...);
   // NOLINTEND(modernize-type-traits)
-  template <class T> std::false_type models(...);
   } // namespace contiguous_detail
 
   /// Whether T is classified as a contiguous container. This is what clad's
-  /// analyses read. A type classified so must have a data() that returns a
-  /// pointer to its elements and an integral size().
+  /// analyses read. They treat data() as the elements and size() as reading
+  /// none, so in a type classified so, a data() must return a pointer to its
+  /// elements and a size() must be integral. A type may have neither: a
+  /// std::ranges::contiguous_range needs only begin() and end().
   template <class T> struct contiguous_container_check {
     static constexpr bool value = is_contiguous_container<T>::value;
-    static_assert(!value || decltype(contiguous_detail::models<T>(0))::value,
-                  "clad::is_contiguous_container<T> is true, but T has no "
-                  "data() returning a pointer or no integral size()");
+    static_assert(!value ||
+                      (decltype(contiguous_detail::data_ok<T>(0))::value &&
+                       decltype(contiguous_detail::size_ok<T>(0))::value),
+                  "clad::is_contiguous_container<T> is true, but T has a "
+                  "data() not returning a pointer or a size() not integral");
   };
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t);

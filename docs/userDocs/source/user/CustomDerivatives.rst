@@ -403,9 +403,10 @@ by specializing the trait:
    template <> struct is_contiguous_container<Buffer> : std::true_type {};
    }
 
-A classified type must have a ``data()`` that returns a pointer to its elements
-and an integral ``size()``. Clad checks this with a ``static_assert`` when it
-uses the classification.
+In a classified type, a ``data()`` must return a pointer to its elements and a
+``size()`` must be integral. Clad checks this with a ``static_assert`` when it
+uses the classification. A type may have neither, as a range whose ``begin()``
+and ``end()`` return pointers.
 
 Member functions custom derivatives
 =====================================
