@@ -153,6 +153,57 @@ double viaScale(double x) { return scaleBy(x, 2) + scaleOnly(x, 2); }
 // CHECK: clad::custom_derivatives::scaleBy_pullback<double, double>(x, 2,
 // CHECK: clad::custom_derivatives::scaleOnly_pullback<double>(x, 2,
 
+// A type of an unnamed namespace is named through the namespace around it.
+namespace geo {
+namespace {
+using Real = double;
+} // namespace
+inline double area(double x) {
+  Real s = x;
+  return s * s;
+}
+} // namespace geo
+double viaUnnamed(double x) { return geo::area(x); }
+
+// CHECK: geo::Real s = x;
+
+// The type of a variable is written as the derivative's scope sees it: an
+// enumeration argument substituted from a template's parameter.
+namespace lib {
+enum class Order { C, F };
+template <class T, Order O> struct Box {
+  T v;
+};
+template <class T, Order O> Box<T, O> twice(const Box<T, O>& b) {
+  return {2 * b.v};
+}
+} // namespace lib
+double viaSubstituted(double x) {
+  lib::Box<double, lib::Order::F> b{x};
+  auto r = lib::twice(b);
+  return r.v * x;
+}
+
+// CHECK: lib::Box<double, lib::Order::F> r = lib::twice(b);
+
+// So is an alias `auto` was deduced as, in its own namespace rather than
+// that of the type it names.
+namespace lib {
+namespace other {
+struct Single {
+  double v;
+};
+} // namespace other
+using Plain = other::Single;
+inline Plain make(double x) { return {x * x}; }
+} // namespace lib
+double viaDeduced(double x) {
+  auto const p = lib::make(x);
+  return p.v;
+}
+
+// CHECK: const lib::Plain p = lib::make(x);
+
 #ifdef ERROR
 double broken(double x) { return undeclared(x); }
 #endif
@@ -166,3 +217,6 @@ auto d_twoArgs = clad::differentiate<clad::opts::vector_mode>(twoArgs, "x,y");
 auto g_viaMax = clad::gradient(viaMax);
 auto d_viaMax = clad::differentiate(viaMax, "x");
 auto g_viaScale = clad::gradient(viaScale);
+auto g_viaUnnamed = clad::gradient(viaUnnamed);
+auto g_viaSubstituted = clad::gradient(viaSubstituted);
+auto g_viaDeduced = clad::gradient(viaDeduced);

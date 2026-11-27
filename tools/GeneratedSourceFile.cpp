@@ -51,6 +51,8 @@ void GeneratedSourceFile::write(CompilerInstance& CI, llvm::StringRef Path) {
   LangOpts.CPlusPlus = true;
   PrintingPolicy Policy(LangOpts);
   Policy.Bool = true;
+  // `ns::(anonymous namespace)::T` is no name; `ns::T` finds T.
+  Policy.SuppressUnwrittenScope = true;
   for (const Entry& E : m_Entries) {
     const Decl* Top = outermostNamespace(E.D);
     Top->print(Out, Policy);

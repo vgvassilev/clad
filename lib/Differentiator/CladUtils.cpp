@@ -2517,6 +2517,24 @@ namespace clad {
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {
       ASTContext& C = S.getASTContext();
+      // A non-type template argument of enumeration type substituted from a
+      // template's parameter is the expression clang built for it, a cast to
+      // the enumeration's unqualified name: `Mat<double, 2, (Order)1>`, which
+      // reads as nothing outside the enumeration's namespace. The canonical
+      // type names its enumerator, `Mat<double, 2, lib::Order::F>`.
+      class SubstitutedEnumArg
+          : public RecursiveASTVisitor<SubstitutedEnumArg> {
+      public:
+        bool Found = false;
+        bool
+        VisitSubstNonTypeTemplateParmExpr(SubstNonTypeTemplateParmExpr* E) {
+          Found = E->getType()->isEnumeralType();
+          return !Found;
+        }
+      } Finder;
+      Finder.TraverseType(Ty);
+      if (Finder.Found)
+        Ty = Ty.getCanonicalType();
       QualType retTy = clad_compat::getFullyQualifiedType(C, Ty);
 
       // FIXME: Add a type visitor which can fold stl-specific idioms such as
