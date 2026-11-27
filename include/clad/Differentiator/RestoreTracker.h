@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -183,8 +184,12 @@ public:
         return;
 
     if (m_cnt >= Max_Records || m_off + sizeof(T) > Max_Bytes) {
-      // Clad restore_tracker GPU capacity exceeded. Try again with larger value
-      return;
+      // A value that is not stored is not restored either, and whatever is
+      // differentiated after it sees the overwritten one. Nothing would
+      // show that the derivative is wrong, so stop here.
+      printf("clad: restore_tracker is full; compile with a larger "
+             "Max_Records or Max_Bytes\n");
+      trap(1);
     }
 
     m_meta[m_cnt] = {(char*)&val, sizeof(T), m_off};
