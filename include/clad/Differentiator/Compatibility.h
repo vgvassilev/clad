@@ -870,15 +870,14 @@ static inline bool isDirectlyAddressable(const clang::Builtin::Context& BI,
 #endif
 }
 
-// Clang 22's TypeName::getFullyQualifiedType asserts on a type that stands for
-// a class without being one, such as a decltype or a deduced type, which
-// before it qualified as the class: take those apart first.
+// Resolve pointers, references, substituted template parameters, and deduced
+// types before calling clang::TypeName::getFullyQualifiedType. On Clang < 22,
+// calling it directly on a deduced AutoType adds an outer qualifier on top of
+// the already-qualified deduced type (producing e.g. `ns::ns::T`). On
+// Clang >= 22, it asserts on types that stand for a class without being one
+// (such as decltype or deduced types).
 static inline clang::QualType getFullyQualifiedType(clang::ASTContext& C,
                                                     clang::QualType T) {
-#if CLANG_VERSION_MAJOR < 22
-  return clang::TypeName::getFullyQualifiedType(T, C,
-                                                /*WithGlobalNsPrefix=*/false);
-#else
   clang::Qualifiers Quals = T.getLocalQualifiers();
   const clang::Type* TP = T.getTypePtr();
   if (const auto* PT = llvm::dyn_cast<clang::PointerType>(TP))
@@ -895,20 +894,21 @@ static inline clang::QualType getFullyQualifiedType(clang::ASTContext& C,
   if (const auto* ST = llvm::dyn_cast<clang::SubstTemplateTypeParmType>(TP))
     return getFullyQualifiedType(
         C, C.getQualifiedType(ST->getReplacementType(), Quals));
-  // A deduced type is qualified as what it was deduced as; a decltype stays
-  // as written, the only spelling of an unnamed class.
+  // A deduced type is qualified as what it was deduced as.
   if (const auto* DT = llvm::dyn_cast<clang::DeducedType>(TP))
     if (DT->isDeduced())
       return getFullyQualifiedType(
           C, C.getQualifiedType(DT->getDeducedType(), Quals));
+#if CLANG_VERSION_MAJOR >= 22
+  // A decltype stays as written, the only spelling of an unnamed class.
   if (!llvm::isa<clang::TypedefType, clang::TagType,
                  clang::TemplateSpecializationType, clang::UsingType,
                  clang::AttributedType, clang::MemberPointerType>(TP) &&
       TP->getAsCXXRecordDecl())
     return T;
+#endif
   return clang::TypeName::getFullyQualifiedType(T, C,
                                                 /*WithGlobalNsPrefix=*/false);
-#endif
 }
 
 } // namespace clad_compat
