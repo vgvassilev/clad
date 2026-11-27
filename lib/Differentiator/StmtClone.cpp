@@ -838,7 +838,11 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // Skip the synthetic capture scope (e.g. OpenMP)
   while (isa<CapturedDecl>(Ctx))
     Ctx = Ctx->getParent();
-  if (!Ctx->Encloses(m_Function))
+  // A declaration of a lambda in the function, such as one of its parameters,
+  // is only updated when it was replaced, as when its body is differentiated
+  // in place.
+  bool InLambda = !Ctx->Encloses(m_Function) && m_Function->Encloses(Ctx);
+  if (!Ctx->Encloses(m_Function) && !InLambda)
     return true;
 
   // Replace the declaration if it is present in `m_DeclReplacements`.
@@ -853,6 +857,8 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
         DRE->setType(NonRefQT);
     }
   }
+  if (InLambda)
+    return true;
 
   DeclarationNameInfo DNI = DRE->getNameInfo();
 

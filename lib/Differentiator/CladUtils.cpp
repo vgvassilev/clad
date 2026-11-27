@@ -18,6 +18,7 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -1872,6 +1873,64 @@ namespace clad {
 
     bool OnlyCountsWith(const CXXConstructorDecl* Ctor, unsigned Idx) {
       return OnlyCountsWith(Ctor, Idx, /*Depth=*/0);
+    }
+
+    bool HoldsNoFloatingPoint(QualType T) {
+      T = T.getNonReferenceType().getCanonicalType();
+      while (const ArrayType* AT = T->getAsArrayTypeUnsafe())
+        T = AT->getElementType().getCanonicalType();
+      if (T->isIntegralOrEnumerationType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      if (!RD || !RD->hasDefinition() || RD->isLambda())
+        return false;
+      for (const CXXBaseSpecifier& B : RD->bases())
+        if (!HoldsNoFloatingPoint(B.getType()))
+          return false;
+      return llvm::all_of(RD->fields(), [](const FieldDecl* F) {
+        return HoldsNoFloatingPoint(F->getType());
+      });
+    }
+
+    const LambdaExpr* GetCallbackLambda(const CallExpr* CE) {
+      const FunctionDecl* FD = CE->getDirectCallee();
+      if (!FD || isa<CXXMethodDecl>(FD) || !FD->getPrimaryTemplate() ||
+          !FD->getReturnType()->isVoidType())
+        return nullptr;
+      const LambdaExpr* Found = nullptr;
+      for (const Expr* Arg : CE->arguments()) {
+        if (const LambdaExpr* LE = GetLambdaArg(Arg)) {
+          if (Found)
+            return nullptr;
+          Found = LE;
+        } else if (!HoldsNoFloatingPoint(Arg->getType())) {
+          return nullptr;
+        }
+      }
+      return Found;
+    }
+
+    const LambdaExpr* GetLambdaArg(const Expr* Arg) {
+      const Expr* E = Arg->IgnoreImplicit();
+      // A closure taken by value is copied from the temporary before C++17.
+      if (const auto* CCE = dyn_cast<CXXConstructExpr>(E))
+        if (CCE->getNumArgs() == 1)
+          E = CCE->getArg(0)->IgnoreImplicit();
+      return dyn_cast<LambdaExpr>(E);
+    }
+
+    bool HasControlFlow(const Stmt* S) {
+      if (isa<IfStmt, ForStmt, WhileStmt, DoStmt, SwitchStmt, CXXForRangeStmt,
+              GotoStmt, IndirectGotoStmt, BreakStmt, ContinueStmt, ReturnStmt,
+              CXXTryStmt>(S))
+        return true;
+      if (const auto* CE = dyn_cast<CallExpr>(S))
+        if (GetCallbackLambda(CE))
+          return true;
+      // A child may be absent, an omitted part of the statement.
+      return llvm::any_of(S->children(), [](const Stmt* Child) {
+        return Child && HasControlFlow(Child);
+      });
     }
 
     QualType GetByteCopiedFloatingType(const CallExpr* CE) {

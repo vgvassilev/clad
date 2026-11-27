@@ -554,6 +554,14 @@ namespace clad {
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
+    /// A call that passes the lambda \p LE to a function template, which can
+    /// only change differentiable values through it (utils::GetCallbackLambda).
+    /// The forward sweep calls the function with a closure that runs the
+    /// forward sweep of the lambda's body and records each call's arguments;
+    /// the reverse sweep runs the reverse of the body once per recorded call,
+    /// last first, as for a loop.
+    StmtDiff DifferentiateCallbackCall(const clang::CallExpr* CE,
+                                       const clang::LambdaExpr* LE);
     /// The declarations of \p DS, which are not a structured binding.
     StmtDiff DifferentiateDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);

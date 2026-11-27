@@ -23,6 +23,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -339,18 +340,23 @@ bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
   TraverseStmt(CO->getCond());
   resetMode();
 
-  auto elseBranch = std::move(m_BlockData[m_CurBlockID]);
-
-  m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
-  m_BlockData[m_CurBlockID]->m_Prev = elseBranch.get();
-  TraverseStmt(CO->getTrueExpr());
-
-  auto thenBranch = std::move(m_BlockData[m_CurBlockID]);
-  m_BlockData[m_CurBlockID] = std::move(elseBranch);
+  std::unique_ptr<VarsData> thenBranch =
+      traverseBranch([&] { TraverseStmt(CO->getTrueExpr()); });
   TraverseStmt(CO->getFalseExpr());
 
   merge(m_BlockData[m_CurBlockID].get(), thenBranch.get());
   return false;
+}
+
+std::unique_ptr<VarsData>
+TBRAnalyzer::traverseBranch(llvm::function_ref<void()> Traverse) {
+  std::unique_ptr<VarsData> Outer = std::move(m_BlockData[m_CurBlockID]);
+  m_BlockData[m_CurBlockID] = std::make_unique<VarsData>();
+  m_BlockData[m_CurBlockID]->m_Prev = Outer.get();
+  Traverse();
+  std::unique_ptr<VarsData> Branch = std::move(m_BlockData[m_CurBlockID]);
+  m_BlockData[m_CurBlockID] = std::move(Outer);
+  return Branch;
 }
 
 bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
@@ -551,6 +557,24 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
         resetMode();
       return false;
     }
+  }
+  // A function template passed a lambda, and otherwise nothing that holds a
+  // floating-point number, runs the lambda's body some number of times, as a
+  // loop runs its body (utils::GetCallbackLambda). The planner leaves TBR on
+  // only for a body without control flow.
+  if (const LambdaExpr* LE = utils::GetCallbackLambda(CE)) {
+    const CXXMethodDecl* CallOp = LE->getCallOperator();
+    std::unique_ptr<VarsData> Ran = traverseBranch([&] {
+      for (const ParmVarDecl* PVD : CallOp->parameters())
+        addVar(PVD, /*forceInit=*/true);
+      // Twice, as for a loop: one call may read what the one before it left.
+      // NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast)
+      TraverseStmt(const_cast<Stmt*>(CallOp->getBody()));
+      TraverseStmt(const_cast<Stmt*>(CallOp->getBody()));
+      // NOLINTEND(cppcoreguidelines-pro-type-const-cast)
+    });
+    merge(m_BlockData[m_CurBlockID].get(), Ran.get());
+    return false;
   }
   // A lambda reads what it captures by reference when it is called, not where
   // it is created: mark those variables used here, as if passed by reference.
