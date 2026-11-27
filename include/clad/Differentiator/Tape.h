@@ -436,8 +436,23 @@ private:
       }
     }
 #endif
+#ifdef __CUDA_ARCH__
+    // On the device, operator new is malloc underneath and returns null once
+    // the device heap (cudaLimitMallocHeapSize, 8 MB by default) is used up.
+    // A new-expression assumes it cannot and constructs the slab through the
+    // null, and what surfaces is an illegal memory access that says nothing
+    // about its cause. Ask malloc, so there is a result to check.
+    void* raw = malloc(sizeof(Slab));
+    if (!raw) {
+      printf("clad: the tape ran out of device heap; raise "
+             "cudaLimitMallocHeapSize\n");
+      trap(1);
+    }
+    return ::new (raw) Slab();
+#else
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     return new Slab();
+#endif
   }
   /// Puts a slab whose elements were destroyed into the pool, or deletes it
   /// if the pool is full or already destroyed.
