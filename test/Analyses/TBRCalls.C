@@ -248,6 +248,25 @@ double t16(const double* x) {
   return r;
 }
 
+// From C++20 on, a range with pointer iterators is classified as contiguous
+// though it has no data() or size(). begin() is a call TBR knows nothing
+// about, as data() in t16.
+struct Span {
+  double e[2];
+  double* begin() { return e; }
+  double* end() { return e + 2; }
+};
+
+double t18(const double* x) {
+  Span k;
+  double r = 0;
+  for (int s = 0; s < 2; s++) {
+    fillfrom(2, x, k.begin());
+    r += k.e[0] + 2 * k.e[1];
+  }
+  return r;
+}
+
 // Nothing is read nonlinearly, so no pre-call state may be stored.
 double t7(const double* x) {
   double buf[2];
@@ -303,6 +322,10 @@ double t7(const double* x) {
 
 // CHECK: void t16_grad(const double *x, double *_d_x) {
 // CHECK: clad::record_range(_rec0, k.data(), 2UL);
+// CHECK-NEXT: fillfrom(2, x, {{.*}});
+
+// CHECK: void t18_grad(const double *x, double *_d_x) {
+// CHECK: clad::record_range(_rec0, k.begin(), 2UL);
 // CHECK-NEXT: fillfrom(2, x, {{.*}});
 
 // A write through a local reference is a write to what it refers to: the
@@ -367,6 +390,7 @@ int main() {
   TEST(t14); // CHECK-EXEC: t14: dx={2.00, 5.00}
   TEST(t15); // CHECK-EXEC: t15: dx={2.00, 4.00}
   TEST(t16); // CHECK-EXEC: t16: dx={2.00, 4.00}
+  TEST(t18); // CHECK-EXEC: t18: dx={2.00, 4.00}
   // f = x1^4 => df/dx1 = 4 x1^3
   TEST(t17); // CHECK-EXEC: t17: dx={0.00, 32.00}
 }
