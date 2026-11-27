@@ -1151,6 +1151,9 @@ namespace clad {
     /// Builds the QualType of the derivative to be generated.
     ///
     clang::QualType GetDerivativeType();
+    /// Defines the derivative at global scope when its class declares it, as
+    /// the definition of that member.
+    void defineDeclaredMemberOutOfLine();
     /// The number of template tags the derivative takes first; see
     /// utils::GetTemplateTagTypes.
     unsigned getNumTemplateTags();
