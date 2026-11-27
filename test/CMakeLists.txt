@@ -31,7 +31,13 @@ if(CUDAToolkit_FOUND)
   get_filename_component(CUDA_ROOT "${CUDAToolkit_BIN_DIR}" DIRECTORY ABSOLUTE)
   get_filename_component(CUDA_LIBDIR "${CUDA_cudart_static_LIBRARY}" DIRECTORY)
 
-  set(LIBOMPTARGET_DEP_CUDA_ARCH "sm_60")
+  # Clang hands ptxas a single architecture and links only that image, and
+  # an image built for sm_60 is not one an sm_80 device loads: every launch
+  # fails with cudaErrorNoKernelImageForDevice. nvptx-arch, asked below,
+  # knows the device; where it is not installed this names it.
+  set(CLAD_CUDA_TEST_ARCH "sm_60" CACHE STRING
+    "GPU architecture the CUDA tests are compiled for, unless nvptx-arch reports one")
+  set(LIBOMPTARGET_DEP_CUDA_ARCH "${CLAD_CUDA_TEST_ARCH}")
 
   if(TARGET nvptx-arch)
     get_property(LIBOMPTARGET_NVPTX_ARCH TARGET nvptx-arch PROPERTY LOCATION)
