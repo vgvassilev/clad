@@ -711,20 +711,27 @@ StmtDiff
 BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
   ScopeRAII rangeScope(*this, Scope::DeclScope | Scope::ControlScope |
                                   Scope::BreakScope | Scope::ContinueScope);
-  // Visiting for range-based ststement produces __range1, __begin1 and __end1
-  // variables, so for(auto i: a){
+  // Visiting a range-based for statement visits its optional init-statement,
+  // then produces __range1, __begin1 and __end1 variables, so
+  // for(auto n = 3; auto i: a){
   //      ...
   //}
   //
   // is equivalent to
   //
-  // auto&& __range1 = a
+  // auto n = 3;
+  // auto&& __range1 = a;
   // auto __begin1 = __range1;
   // auto __end1 = __range1 + OUL
   // for(;__begin != __end1; ++__begin){
   //  auto i = *__begin1;
   //        ...
   //}
+  const Stmt* Init = FRS->getInit();
+  StmtDiff VisitInit = Init ? Visit(Init) : StmtDiff{};
+  addToCurrentBlock(VisitInit.getStmt_dx());
+  addToCurrentBlock(VisitInit.getStmt());
+
   const Stmt* RangeDecl = FRS->getRangeStmt();
   const Stmt* BeginDecl = FRS->getBeginStmt();
   const Stmt* EndDecl = FRS->getEndStmt();
