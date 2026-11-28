@@ -4427,8 +4427,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     } else if (opCode == BO_Comma) {
       auto* zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+      bool IsStandalone = BinOp == m_StandaloneExpr;
+      auto RightStart = IsStandalone ? getCurrentBlock().size() : 0;
+      llvm::SaveAndRestore<const Expr*> SaveStandalone(
+          m_StandaloneExpr, IsStandalone ? R->IgnoreParens() : nullptr);
       Rdiff = Visit(R, dfdx());
+      auto RightEnd = IsStandalone ? getCurrentBlock().size() : 0;
+      m_StandaloneExpr = IsStandalone ? L->IgnoreParens() : nullptr;
       Ldiff = Visit(L, zero);
+      if (RightStart != RightEnd) {
+        // Finish the left operand before the right operand's forward stores.
+        if (Expr* Left = Ldiff.getExpr()) {
+          Left = m_Sema.IgnoredValueConversions(Left).get();
+          // Keep discarded side effects through the unused-result filter.
+          if (Left && !addToCurrentBlock(Left) &&
+              Left->HasSideEffects(m_Context))
+            addToCurrentBlock(utils::BuildParenExpr(
+                m_Sema, BuildCStyleCast(m_Context.getTrivialTypeSourceInfo(
+                                            m_Context.VoidTy),
+                                        BuildParens(Left))));
+        }
+        auto& Forward = getCurrentBlock();
+        std::rotate(Forward.begin() + RightStart, Forward.begin() + RightEnd,
+                    Forward.end());
+        return Rdiff;
+      }
       valueForRevPass = Rdiff.getRevSweepAsExpr();
       ResultRef = Rdiff.getExpr_dx();
     } else if (opCode == BO_LAnd) {
@@ -4835,7 +4858,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   // Error estimation framework to callback style. Some more research
   // need to be done to
   StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
-                                                       Expr* dfdS) {
+                                                       Expr* dfdS,
+                                                       bool isCondition) {
+    const auto* E = dyn_cast<Expr>(utils::SkipLikelihoodHints(S));
+    llvm::SaveAndRestore<const Expr*> SaveStandalone(
+        m_StandaloneExpr, E && !isCondition ? E->IgnoreParens() : nullptr);
     GeneratedCode::StatementScope Statement(m_Builder.getGeneratedCode(), S);
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
@@ -6021,7 +6048,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToCurrentBlock(condVarDiff.getStmt_dx(), direction::reverse);
     }
 
-    StmtDiff condDiff = DifferentiateSingleStmt(SS->getCond());
+    StmtDiff condDiff =
+        DifferentiateSingleStmt(SS->getCond(), nullptr, /*isCondition=*/true);
     addToCurrentBlock(condDiff.getStmt(), direction::forward);
     addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
     // condDiff.getExpr() may share nodes with the forward statement added

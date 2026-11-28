@@ -303,6 +303,9 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(
 }
 
 StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
+  const auto* E = dyn_cast<Expr>(utils::SkipLikelihoodHints(S));
+  llvm::SaveAndRestore<const Expr*> SaveStandalone(
+      m_StandaloneExpr, E ? E->IgnoreParens() : nullptr);
   StmtDiff SDiff = Visit(S);
   return {SDiff.getStmt()};
 }

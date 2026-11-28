@@ -97,6 +97,9 @@ namespace clad {
     clang::VarDecl* m_ReturnedAt = nullptr;
     /// The globals the reverse sweep puts back around the calls it replays.
     llvm::SetVector<const clang::VarDecl*> m_ReplayedGlobals;
+    /// An expression whose value is discarded and that is evaluated as a
+    /// whole statement, so a comma in it may emit its left operand first.
+    const clang::Expr* m_StandaloneExpr = nullptr;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// A dfdx seed: eager expression, or a deferred builder materialized on
@@ -699,7 +702,8 @@ namespace clad {
     ///
     /// \returns The orignal (cloned) and differentiated forms of S
     StmtDiff DifferentiateSingleStmt(const clang::Stmt* S,
-                                     clang::Expr* dfdS = nullptr);
+                                     clang::Expr* dfdS = nullptr,
+                                     bool isCondition = false);
     /// A helper method used to keep substatements created by Visit(E, expr) in
     /// separate forward/reverse blocks instead of putting them into current
     /// blocks. First result is a StmtDiff of forward/reverse blocks with
