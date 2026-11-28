@@ -101,6 +101,39 @@ forward_sweep(F&& f) {
   f();
 }
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
+/// Gives \p to the value \p from by constructing a new object in its storage.
+/// Clad stores and restores a value this way when its type cannot be
+/// assigned. The type is trivially destructible, so the new object ends the
+/// lifetime of the old one without a destructor call.
+template <class T, class U> CUDA_HOST_DEVICE void reconstruct(T& to, U&& from) {
+  static_assert(std::is_trivially_destructible<T>::value,
+                "clad reconstructs only trivially destructible objects");
+  ::new (static_cast<void*>(clad_addressof(to))) T(std::forward<U>(from));
+}
+
+/// Gives each element of \p to the value of the element of \p from with its
+/// index, as clad::reconstruct does.
+template <class T, std::size_t N, class U>
+CUDA_HOST_DEVICE void reconstruct(T (&to)[N], U&& from) {
+  for (std::size_t i = 0; i < N; ++i)
+    reconstruct(to[i], from[i]);
+}
+
+namespace detail {
+template <class T, std::size_t N, class U>
+CUDA_HOST_DEVICE void copy_array(const U& from, T (&to)[N],
+                                 std::true_type /*assignable*/) {
+  std::copy(std::begin(from), std::end(from), std::begin(to));
+}
+template <class T, std::size_t N, class U>
+CUDA_HOST_DEVICE void copy_array(const U& from, T (&to)[N],
+                                 std::false_type /*assignable*/) {
+  reconstruct(to, from);
+}
+} // namespace detail
+// NOLINTEND(cppcoreguidelines-avoid-c-arrays)
+
 /// Add value to the end of the tape, return the same value.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
           bool DiskOffload = false, bool GpuOffload, typename... ArgsT>
@@ -120,7 +153,7 @@ push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithread=*/false, DiskOffload,
           GpuOffload>& to,
      const U& val) {
   to.emplace_back();
-  std::copy(std::begin(val), std::end(val), std::begin(to.back()));
+  detail::copy_array(val, to.back(), std::is_copy_assignable<T>());
 }
 
   /// Remove the last value from the tape, return it.
@@ -175,7 +208,7 @@ void push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true,
           const U& val) {
   std::lock_guard<std::mutex> lock(to.mutex());
   to.emplace_back();
-  std::copy(std::begin(val), std::end(val), std::begin(to.back()));
+  detail::copy_array(val, to.back(), std::is_copy_assignable<T>());
 }
 
   /// Remove the last value from the tape, return it.
