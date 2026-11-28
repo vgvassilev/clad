@@ -48,3 +48,18 @@ else()
   add_llvm_executable(clad-tblgen TableGen.cpp)
 endif()
 set_target_properties(clad-tblgen PROPERTIES FOLDER "Clad tools")
+
+if(EMSCRIPTEN)
+  set(CLAD_SOURCE_DIR "${PROJECT_SOURCE_DIR}/lib/Differentiator")
+
+  configure_file(
+      pre.js
+      "${CMAKE_CURRENT_BINARY_DIR}/pre.js"
+      @ONLY
+  )
+
+  target_link_options(clad-tblgen PRIVATE
+    "-sFORCE_FILESYSTEM=1"
+    "--pre-js" "${CMAKE_CURRENT_BINARY_DIR}/pre.js"
+  )
+endif()

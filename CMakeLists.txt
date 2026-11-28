@@ -354,16 +354,21 @@ include(AddClad)
 # render with, which is a configure error rather than a header that silently
 # goes stale.
 if (CLAD_TBLGEN)
-  set(CLAD_TBLGEN_EXE ${CLAD_TBLGEN})
+  if(EMSCRIPTEN)
+    set(CLAD_TBLGEN_EXE $ENV{EMSDK_NODE} ${CLAD_TBLGEN})
+  else()
+    set(CLAD_TBLGEN_EXE ${CLAD_TBLGEN})
+  endif()
   set(CLAD_TBLGEN_EXE_FOR_LIT ${CLAD_TBLGEN})
   add_custom_target(clad-tblgen-ready)
-elseif (CMAKE_CROSSCOMPILING)
-  message(FATAL_ERROR
-    "Cross-compiling clad needs a clad-tblgen built for the host: configure "
-    "utils/clad-tblgen against a native LLVM and pass -DCLAD_TBLGEN=<path>.")
 else()
+  list(GET CLANG_INCLUDE_DIRS 0 CLANG_INCLUDE_DIR)
   add_subdirectory(utils/clad-tblgen)
-  set(CLAD_TBLGEN_EXE $<TARGET_FILE:clad-tblgen>)
+  if(EMSCRIPTEN)
+    set(CLAD_TBLGEN_EXE $ENV{EMSDK_NODE} $<TARGET_FILE:clad-tblgen>)
+  else()
+    set(CLAD_TBLGEN_EXE $<TARGET_FILE:clad-tblgen>)
+  endif()
   # lit's site config is written at configure time, so it cannot carry a
   # generator expression; name where the tool lands. An in-tree build follows
   # LLVM's runtime directory, a standalone one the value set further up.
@@ -403,26 +408,49 @@ list(TRANSFORM CLAD_TBLGEN_INCLUDES PREPEND -I)
 # depends on it (cmake #15858, which llvm's own TableGen.cmake names for the
 # same reason). Without it a changed generator leaves every table as it was, and
 # clad compiles against output its renderer no longer produces.
-add_custom_command(
-  OUTPUT ${CLAD_GEN_INCL}/Options.def
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-options ${CLAD_TBLGEN_INCLUDES}
-          ${CLAD_OPTIONS_TD} -o ${CLAD_GEN_INCL}/Options.def
-  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD}
-  COMMENT "Rendering what Options.td describes"
-  VERBATIM)
+if(EMSCRIPTEN)
+  add_custom_command(
+    OUTPUT ${CLAD_GEN_INCL}/Options.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-options -I/include/llvm/;-I/include/clang/
+            /lib/Differentiator/Options.td >> ${CLAD_GEN_INCL}/Options.def
+    DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD}
+    COMMENT "Rendering what Options.td describes"
+    VERBATIM)
 
-add_custom_command(
-  OUTPUT ${CLAD_GEN_INCL}/Analyses.def ${CLAD_GEN_LIB}/AnalysisDescs.def
-         ${CLAD_GEN_LIB}/Diagnostics.def
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses ${CLAD_ANALYSES_TD}
-          -o ${CLAD_GEN_INCL}/Analyses.def
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-analysis-descs ${CLAD_ANALYSES_TD}
-          -o ${CLAD_GEN_LIB}/AnalysisDescs.def
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics ${CLAD_ANALYSES_TD}
-          -o ${CLAD_GEN_LIB}/Diagnostics.def
-  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_ANALYSES_TD}
-  COMMENT "Rendering what Analyses.td describes"
-  VERBATIM)
+  add_custom_command(
+    OUTPUT ${CLAD_GEN_INCL}/Analyses.def ${CLAD_GEN_LIB}/AnalysisDescs.def
+           ${CLAD_GEN_LIB}/Diagnostics.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses /lib/Differentiator/Analyses.td
+            >> ${CLAD_GEN_INCL}/Analyses.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-analysis-descs /lib/Differentiator/Analyses.td
+            >> ${CLAD_GEN_LIB}/AnalysisDescs.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics /lib/Differentiator/Analyses.td
+            >> ${CLAD_GEN_LIB}/Diagnostics.def
+    DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_ANALYSES_TD}
+    COMMENT "Rendering what Analyses.td describes"
+    VERBATIM)
+else()
+  add_custom_command(
+    OUTPUT ${CLAD_GEN_INCL}/Options.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-options ${CLAD_TBLGEN_INCLUDES}
+            ${CLAD_OPTIONS_TD} -o ${CLAD_GEN_INCL}/Options.def
+    DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD}
+    COMMENT "Rendering what Options.td describes"
+    VERBATIM)
+
+  add_custom_command(
+    OUTPUT ${CLAD_GEN_INCL}/Analyses.def ${CLAD_GEN_LIB}/AnalysisDescs.def
+           ${CLAD_GEN_LIB}/Diagnostics.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses ${CLAD_ANALYSES_TD}
+            -o ${CLAD_GEN_INCL}/Analyses.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-analysis-descs ${CLAD_ANALYSES_TD}
+            -o ${CLAD_GEN_LIB}/AnalysisDescs.def
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics ${CLAD_ANALYSES_TD}
+            -o ${CLAD_GEN_LIB}/Diagnostics.def
+    DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_ANALYSES_TD}
+    COMMENT "Rendering what Analyses.td describes"
+    VERBATIM)
+endif()
 
 add_custom_target(clad-tables DEPENDS
   ${CLAD_GEN_INCL}/Options.def ${CLAD_GEN_INCL}/Analyses.def
@@ -430,18 +458,31 @@ add_custom_target(clad-tables DEPENDS
 
 # The pages readthedocs builds; not committed either, and rendered only where
 # the documentation is.
-add_custom_target(clad-table-docs
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-options-docs ${CLAD_TBLGEN_INCLUDES}
-          ${CLAD_OPTIONS_TD}
-          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Options.rst
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses-docs ${CLAD_ANALYSES_TD}
-          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
-  COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics-docs ${CLAD_ANALYSES_TD}
+if(EMSCRIPTEN)
+  add_custom_target(clad-table-docs
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-options-docs -I/include/llvm/;-I/include/clang/
+            /lib/Differentiator/Options.td
+            >> ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Options.rst
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses-docs /lib/Differentiator/Analyses.td
+            >> ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics-docs /lib/Differentiator/Analyses.td
           -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Diagnostics.rst
-  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
-  COMMENT "Rendering the pages the tables describe"
-  VERBATIM)
-
+    DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
+    COMMENT "Rendering the pages the tables describe"
+    VERBATIM)
+else()
+  add_custom_target(clad-table-docs
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-options-docs ${CLAD_TBLGEN_INCLUDES}
+            ${CLAD_OPTIONS_TD}
+            -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Options.rst
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses-docs ${CLAD_ANALYSES_TD}
+            -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
+    COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics-docs ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Diagnostics.rst
+    DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
+    COMMENT "Rendering the pages the tables describe"
+    VERBATIM)
+endif()
 add_subdirectory(lib)
 add_subdirectory(tools)
 
