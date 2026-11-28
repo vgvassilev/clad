@@ -39,6 +39,111 @@ double f1(double x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double forEarly(double x) {
+  double a[] = {x, x * x, 2 * x, 0};
+  double s = 0, t = 0;
+  int i = 0;
+  for (; (t = a[i]);) {
+    s += t * x;
+    ++i;
+    if (i == 2)
+      return s;
+  }
+  return s;
+}
+
+// CHECK: void forEarly_grad(double x, double *_d_x) {
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     bool _loopCompleted0 = false;
+// CHECK-NEXT:     clad::tape<bool> _cond0 = {};
+// CHECK-NEXT:     double _d_a[4] = {0};
+// CHECK-NEXT:     double a[4] = {x, x * x, 2 * x, 0};
+// CHECK-NEXT:     double _d_s = 0., _d_t = 0.;
+// CHECK-NEXT:     double s = 0, t = 0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     clad::forward_sweep([&] {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _loopCompleted0 = false;
+// CHECK-NEXT:             for (;;) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     clad::push(_t1, t);
+// CHECK-NEXT:                     if (!(t = a[i]))
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 _t0++;
+// CHECK-NEXT:                 s += t * x;
+// CHECK-NEXT:                 ++i;
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     clad::push(_cond0, i == 2);
+// CHECK-NEXT:                     if (clad::back(_cond0))
+// CHECK-NEXT:                         return;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _loopCompleted0 = true;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _d_s += 1;
+// CHECK-NEXT:     });
+// CHECK-NEXT:     for (unsigned {{int|long|long long}} _numRevIterations0 = _t0; ; _t0-- , _loopCompleted0 = true) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0 || _loopCompleted0) {
+// CHECK-NEXT:                 t = clad::pop(_t1);
+// CHECK-NEXT:                 double _r_d0 = _d_t;
+// CHECK-NEXT:                 _d_t = 0.;
+// CHECK-NEXT:                 _d_a[i] += _r_d0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (clad::back(_cond0))
+// CHECK-NEXT:                 _d_s += 1;
+// CHECK-NEXT:             clad::pop(_cond0);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_t += _d_s * x;
+// CHECK-NEXT:             *_d_x += t * _d_s;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_a[0];
+// CHECK-NEXT:         *_d_x += _d_a[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_a[1];
+// CHECK-NEXT:         *_d_x += 2 * _d_a[2];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double forEarlyWithCounterCondition(double x) {
+  double s = 0;
+  int i = 0;
+  for (; i++ < 3;) {
+    s += x * i;
+    if (i == 1)
+      return s;
+  }
+  return s;
+}
+
+double forEarlyWithIncrement(double x) {
+  double a[] = {x, x * x, 2 * x, 0};
+  double s = 0, t = 0;
+  for (int i = 0; (t = a[i]); ++i) {
+    s += t * x;
+    if (i == 1)
+      return s;
+  }
+  return s;
+}
+
+double forFirstConditionFalse(double x) {
+  double t = 0;
+  for (; (t = x);)
+    return t;
+  return t;
+}
+
 double f2(double x) {
   double t = 1;
   for (int i = 0; i < 3; i++)
@@ -3172,6 +3277,11 @@ double fn56(const double* x) {
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
+  TEST(forEarly, 0); // CHECK-EXEC: {0.00}
+  TEST(forEarly, 1.5); // CHECK-EXEC: {9.75}
+  TEST(forEarlyWithCounterCondition, 1.5); // CHECK-EXEC: {1.00}
+  TEST(forEarlyWithIncrement, 1.5); // CHECK-EXEC: {9.75}
+  TEST(forFirstConditionFalse, 0); // CHECK-EXEC: {1.00}
   TEST(f2, 3); // CHECK-EXEC: {59049.00}
   TEST(f3, 3); // CHECK-EXEC: {6.00}
   TEST(f4, 3); // CHECK-EXEC: {27.00}
