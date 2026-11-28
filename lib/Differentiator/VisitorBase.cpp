@@ -560,7 +560,8 @@ namespace clad {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
       // in storing it as there is no evaluation going on.
-      if (!utils::UsefulToStore(E))
+      if (!utils::UsefulToStore(E) ||
+          (m_RecomputeOperands && !E->HasSideEffects(m_Context)))
         return E;
     }
     // Create variable declaration.

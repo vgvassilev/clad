@@ -21,6 +21,7 @@
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -1358,9 +1359,65 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
     warnIfNumDiffDerivative(CE);
     // Calling the function without computing derivatives
+    struct ArgumentWrites : ConstEvaluatedExprVisitor<ArgumentWrites> {
+      llvm::SmallVector<const Expr*, 4> Writes;
+      explicit ArgumentWrites(ASTContext& C) : ConstEvaluatedExprVisitor(C) {}
+      // An integer has no derivative to update.
+      bool hasTangent(const Expr* E) {
+        return !E->getType()->isIntegralOrEnumerationType();
+      }
+      void VisitBinaryOperator(const BinaryOperator* E) {
+        if (E->isAssignmentOp() && hasTangent(E) &&
+            utils::ShouldRecompute(E->getLHS(), Context) &&
+            utils::ShouldRecompute(E->getRHS(), Context))
+          Writes.push_back(E);
+        VisitStmt(E);
+      }
+      void VisitUnaryOperator(const UnaryOperator* E) {
+        if (E->isIncrementDecrementOp() && hasTangent(E) &&
+            utils::ShouldRecompute(E->getSubExpr(), Context))
+          Writes.push_back(E);
+        VisitStmt(E);
+      }
+      void VisitStmtExpr(const StmtExpr*) {}
+      // Replacing the common operand would leave the opaque value's source
+      // pointing at the old one.
+      void VisitBinaryConditionalOperator(const BinaryConditionalOperator* E) {
+        Visit(E->getFalseExpr());
+      }
+    };
     llvm::SmallVector<Expr*, 4> ClonedArgs;
-    for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
-      ClonedArgs.push_back(Clone(CE->getArg(i)));
+    for (const Expr* Arg : CE->arguments()) {
+      Expr* ClonedArg = Clone(Arg);
+      ArgumentWrites Finder(m_Context);
+      Finder.Visit(Arg);
+      // Pair the original and cloned child slots so updates stay at the write,
+      // including inside short-circuit operands and comma expressions.
+      auto addTangents = [&](auto&& Self, const Stmt* Original,
+                             Stmt* Cloned) -> Stmt* {
+        if (llvm::is_contained(Finder.Writes, Original)) {
+          ScopeRAII WriteScope(*this, Scope::DeclScope);
+          llvm::SaveAndRestore<decltype(m_idCtr)> SavedIds(m_idCtr);
+          llvm::SaveAndRestore<bool> Recompute(m_RecomputeOperands, true);
+          beginBlock();
+          StmtDiff WriteDiff = Visit(Original);
+          CompoundStmt* Prelude = endBlock();
+          Expr* Tangent = WriteDiff.getExpr_dx();
+          if (Prelude->body_empty() && Tangent &&
+              Tangent->HasSideEffects(m_Context))
+            return BuildParens(BuildOp(BO_Comma, BuildParens(Tangent),
+                                       BuildParens(cast<Expr>(Cloned))));
+          return Cloned;
+        }
+        for (auto [Child, ClonedChild] :
+             llvm::zip(Original->children(), Cloned->children()))
+          if (Child)
+            ClonedChild = Self(Self, Child, ClonedChild);
+        return Cloned;
+      };
+      ClonedArgs.push_back(
+          cast<Expr>(addTangents(addTangents, Arg, ClonedArg)));
+    }
 
     Expr* Call =
         m_Sema

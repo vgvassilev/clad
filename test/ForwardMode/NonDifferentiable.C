@@ -86,6 +86,61 @@ double fn_non_diff_new(double i, double j) {
   return i * j;
 }
 
+double assignedArguments(double u, double v) {
+  double r = 0, s = 0;
+  fn_non_diff(r = u * v, s = u + v);
+  return r + s;
+}
+
+non_differentiable double opaqueArgument(double x) { return x; }
+
+double conditionalArguments(double u, bool enabled) {
+  double r = u;
+  opaqueArgument(enabled && (r = u * 3));
+  return r;
+}
+
+double compoundArguments(double u) {
+  double r = u;
+  opaqueArgument(r *= u);
+  return r;
+}
+
+double incrementedArguments(double u) {
+  double values[] = {u, u * u};
+  double* p = values;
+  int i = 0;
+  opaqueArgument(i++);
+  opaqueArgument(*p++);
+  return *p + i * u;
+}
+
+double cubedArgument(double u) {
+  double r = 0;
+  opaqueArgument(r = u * u * u);
+  return r;
+}
+
+double integerArgument(double u) {
+  int i = 0;
+  opaqueArgument(i = u);
+  return i * u;
+}
+
+double writesInHelper(double u) {
+  double r = 0;
+  opaqueArgument(r = u * u);
+  return r;
+}
+
+double callsHelper(double u) { return writesInHelper(u) * 2; }
+
+double elvisArgument(double u, double z) {
+  double r = 0;
+  opaqueArgument(z ?: (r = u * u));
+  return r;
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -131,6 +186,37 @@ int main() {
   TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00
 
   TEST_FUNC(fn_non_diff_new, 3, 5) // CHECK-EXEC: 5.00
+
+  auto assigned = clad::differentiate(assignedArguments, "u");
+  printf("%.2f\n", assigned.execute(2, 3)); // CHECK-EXEC: 4.00
+  auto conditional = clad::differentiate(conditionalArguments, "u");
+  printf("%.2f\n", conditional.execute(2, false)); // CHECK-EXEC: 1.00
+  printf("%.2f\n", conditional.execute(2, true)); // CHECK-EXEC: 3.00
+  auto compound = clad::differentiate(compoundArguments, "u");
+  printf("%.2f\n", compound.execute(2)); // CHECK-EXEC: 4.00
+  auto incremented = clad::differentiate(incrementedArguments, "u");
+  printf("%.2f\n", incremented.execute(2)); // CHECK-EXEC: 5.00
+  auto assignedVector =
+      clad::differentiate<clad::opts::vector_mode>(assignedArguments);
+  double du = 0, dv = 0;
+  assignedVector.execute(2, 3, &du, &dv);
+  printf("%.2f %.2f\n", du, dv); // CHECK-EXEC: 4.00 3.00
+  auto conditionalVector =
+      clad::differentiate<clad::opts::vector_mode>(conditionalArguments, "u");
+  du = 0;
+  conditionalVector.execute(2, false, &du);
+  printf("%.2f\n", du); // CHECK-EXEC: 1.00
+  du = 0;
+  conditionalVector.execute(2, true, &du);
+  printf("%.2f\n", du); // CHECK-EXEC: 3.00
+  auto cubed = clad::differentiate(cubedArgument, "u");
+  printf("%.2f\n", cubed.execute(2)); // CHECK-EXEC: 12.00
+  auto integer = clad::differentiate(integerArgument, "u");
+  printf("%.2f\n", integer.execute(2.5)); // CHECK-EXEC: 2.00
+  auto helper = clad::differentiate(callsHelper, "u");
+  printf("%.2f\n", helper.execute(3)); // CHECK-EXEC: 12.00
+  auto elvis = clad::differentiate(elvisArgument, "u");
+  printf("%.2f\n", elvis.execute(3, 0)); // CHECK-EXEC: 6.00
 
   // CHECK: double mem_fn_1_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
@@ -243,5 +329,111 @@ int main() {
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     release(new (std::nothrow) int(1));
   // CHECK-NEXT:     return _d_i * j + i * _d_j;
+  // CHECK-NEXT: }
+
+  // CHECK: double assignedArguments_darg0(double u, double v) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     double _d_v = 0;
+  // CHECK-NEXT:     double _d_r = 0, _d_s = 0;
+  // CHECK-NEXT:     double r = 0, s = 0;
+  // CHECK-NEXT:     fn_non_diff(((_d_r = _d_u * v + u * _d_v) , (r = u * v)), ((_d_s = _d_u + _d_v) , (s = u + v)));
+  // CHECK-NEXT:     return _d_r + _d_s;
+  // CHECK-NEXT: }
+
+  // CHECK: double conditionalArguments_darg0(double u, bool enabled) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     bool _d_enabled = 0;
+  // CHECK-NEXT:     double _d_r = _d_u;
+  // CHECK-NEXT:     double r = u;
+  // CHECK-NEXT:     opaqueArgument(enabled && (((_d_r = _d_u * 3) , (r = u * 3))));
+  // CHECK-NEXT:     return _d_r;
+  // CHECK-NEXT: }
+
+  // CHECK: double compoundArguments_darg0(double u) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     double _d_r = _d_u;
+  // CHECK-NEXT:     double r = u;
+  // CHECK-NEXT:     opaqueArgument(((_d_r = _d_r * u + r * _d_u) , (r *= u)));
+  // CHECK-NEXT:     return _d_r;
+  // CHECK-NEXT: }
+
+  // CHECK: double incrementedArguments_darg0(double u) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     double _d_values[2] = {_d_u, _d_u * u + u * _d_u};
+  // CHECK-NEXT:     double values[2] = {u, u * u};
+  // CHECK-NEXT:     double *_d_p = _d_values;
+  // CHECK-NEXT:     double *p = values;
+  // CHECK-NEXT:     int _d_i = 0;
+  // CHECK-NEXT:     int i = 0;
+  // CHECK-NEXT:     opaqueArgument(i++);
+  // CHECK-NEXT:     opaqueArgument(*(_d_p++ , p++));
+  // CHECK-NEXT:     return *_d_p + _d_i * u + i * _d_u;
+  // CHECK-NEXT: }
+
+  // CHECK: void assignedArguments_dvec(double u, double v, double *_d_u, double *_d_v) {
+  // CHECK-NEXT:     unsigned long indepVarCount = 2UL;
+  // CHECK-NEXT:     clad::array<double> _d_vector_u = clad::one_hot_vector(indepVarCount, 0UL);
+  // CHECK-NEXT:     clad::array<double> _d_vector_v = clad::one_hot_vector(indepVarCount, 1UL);
+  // CHECK-NEXT:     clad::array<double> _d_vector_r(clad::zero_vector(indepVarCount)), _d_vector_s(clad::zero_vector(indepVarCount));
+  // CHECK-NEXT:     double r = 0, s = 0;
+  // CHECK-NEXT:     fn_non_diff(((_d_vector_r = _d_vector_u * v + u * _d_vector_v) , (r = u * v)), ((_d_vector_s = _d_vector_u + _d_vector_v) , (s = u + v)));
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         clad::array<double> _d_vector_return(_d_vector_r + _d_vector_s);
+  // CHECK-NEXT:         *_d_u = _d_vector_return[0UL];
+  // CHECK-NEXT:         *_d_v = _d_vector_return[1UL];
+  // CHECK-NEXT:         return;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+  // CHECK: void conditionalArguments_dvec_0(double u, bool enabled, double *_d_u) {
+  // CHECK-NEXT:     unsigned long indepVarCount = 1UL;
+  // CHECK-NEXT:     clad::array<double> _d_vector_u = clad::one_hot_vector(indepVarCount, 0UL);
+  // CHECK-NEXT:     clad::array<bool> _d_vector_enabled = clad::zero_vector(indepVarCount);
+  // CHECK-NEXT:     clad::array<double> _d_vector_r(_d_vector_u);
+  // CHECK-NEXT:     double r = u;
+  // CHECK-NEXT:     opaqueArgument(enabled && (((_d_vector_r = _d_vector_u * 3 + u * (clad::zero_vector(indepVarCount))) , (r = u * 3))));
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         clad::array<double> _d_vector_return(_d_vector_r);
+  // CHECK-NEXT:         *_d_u = _d_vector_return[0UL];
+  // CHECK-NEXT:         return;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+  // CHECK: double cubedArgument_darg0(double u) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     double _d_r = 0;
+  // CHECK-NEXT:     double r = 0;
+  // CHECK-NEXT:     opaqueArgument(((_d_r = (_d_u * u + u * _d_u) * u + (u * u) * _d_u) , (r = u * u * u)));
+  // CHECK-NEXT:     return _d_r;
+  // CHECK-NEXT: }
+
+  // CHECK: double integerArgument_darg0(double u) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     int _d_i = 0;
+  // CHECK-NEXT:     int i = 0;
+  // CHECK-NEXT:     opaqueArgument(i = u);
+  // CHECK-NEXT:     return _d_i * u + i * _d_u;
+  // CHECK-NEXT: }
+
+  // CHECK: clad::ValueAndPushforward<double, double> writesInHelper_pushforward(double u, double _d_u) {
+  // CHECK-NEXT:     double _d_r = 0;
+  // CHECK-NEXT:     double r = 0;
+  // CHECK-NEXT:     opaqueArgument(((_d_r = _d_u * u + u * _d_u) , (r = u * u)));
+  // CHECK-NEXT:     return {r, _d_r};
+  // CHECK-NEXT: }
+
+  // CHECK: double callsHelper_darg0(double u) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = writesInHelper_pushforward(u, _d_u);
+  // CHECK-NEXT:     return _t0.pushforward * 2;
+  // CHECK-NEXT: }
+
+  // CHECK: double elvisArgument_darg0(double u, double z) {
+  // CHECK-NEXT:     double _d_u = 1;
+  // CHECK-NEXT:     double _d_z = 0;
+  // CHECK-NEXT:     double _d_r = 0;
+  // CHECK-NEXT:     double r = 0;
+  // CHECK-NEXT:     opaqueArgument(z ?: (((_d_r = _d_u * u + u * _d_u) , (r = u * u))));
+  // CHECK-NEXT:     return _d_r;
   // CHECK-NEXT: }
 }
