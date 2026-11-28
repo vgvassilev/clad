@@ -1253,19 +1253,19 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
-// CHECK-NEXT:         _d_ref = &_d_arr[i];
 // CHECK-NEXT:         clad::push(_t1, _d_ref);
+// CHECK-NEXT:         _d_ref = &_d_arr[i];
 // CHECK-NEXT:         ref = &arr[i];
 // CHECK-NEXT:         res += *ref;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
-// CHECK-NEXT:         _d_ref = clad::pop(_t1);
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
 // CHECK-NEXT:             *_d_ref += _r_d0;
 // CHECK-NEXT:         }
+// CHECK-NEXT:         _d_ref = clad::pop(_t1);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -3169,6 +3169,155 @@ double fn56(const double* x) {
 //CHECK:         i--;
 //CHECK-NEXT:         a = -x[i];
 
+double fn57(double x) {
+  double a[4] = {x, x * x, 2 * x, 3 * x};
+  double s = 0;
+  for (int i = 0; i < 3; ++i) {
+    double* q = a + i;
+    q++;
+    s += *q * x;
+  }
+  return s;
+}
+
+double fn58(double x) {
+  double a[5] = {x, x * x, 2 * x, 3 * x, x * x * x};
+  double s = 0;
+  for (int i = 0; i < 4; ++i) {
+    double* q = a + i;
+    s += *q;
+    if (i == 1)
+      continue;
+    q++;
+    s += *q * x;
+  }
+  return s;
+}
+
+double fn61(double x) {
+  double a[4] = {x, x * x, 2 * x, 3 * x};
+  double s = 0;
+  for (int i = 0; i < 3; ++i) {
+    double* q = a + i;
+    double*& r = q;
+    ++r;
+    s += *r * x;
+  }
+  return s;
+}
+
+double fn62(double x) {
+  double a[4] = {x, x * x, 2 * x, 3 * x};
+  double s = 0;
+  for (int i = 0; i < 3; ++i)
+    if (i != 1) {
+      double* q = a + i;
+      q++;
+      s += *q * x;
+    }
+  return s;
+}
+
+// CHECK: void fn57_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     double *_t1[3];
+// CHECK-NEXT:     double *_t2[3];
+// CHECK-NEXT:     double *_d_q = nullptr;
+// CHECK-NEXT:     double *q = nullptr;
+// CHECK-NEXT:     double _d_a[4] = {0};
+// CHECK-NEXT:     double a[4] = {x, x * x, 2 * x, 3 * x};
+// CHECK-NEXT:     double _d_s = 0.;
+// CHECK-NEXT:     double s = 0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 3; ++i) {
+// CHECK-NEXT:         _t1[i] = _d_q;
+// CHECK-NEXT:         _d_q = _d_a + i;
+// CHECK-NEXT:         _t2[i] = q , q = a + i;
+// CHECK-NEXT:         _d_q++;
+// CHECK-NEXT:         q++;
+// CHECK-NEXT:         s += *q * x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_s += 1;
+// CHECK-NEXT:     for (_t0 = 3U; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d0 = _d_s;
+// CHECK-NEXT:             *_d_q += _r_d0 * x;
+// CHECK-NEXT:             *_d_x += *q * _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             q--;
+// CHECK-NEXT:             _d_q--;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_q = _t1[i];
+// CHECK-NEXT:             q = _t2[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_a[0];
+// CHECK-NEXT:         *_d_x += _d_a[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_a[1];
+// CHECK-NEXT:         *_d_x += 2 * _d_a[2];
+// CHECK-NEXT:         *_d_x += 3 * _d_a[3];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void fn62_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     bool _cond0[3];
+// CHECK-NEXT:     double *_t1[3];
+// CHECK-NEXT:     double *_t2[3];
+// CHECK-NEXT:     double *_d_q = nullptr;
+// CHECK-NEXT:     double *q = nullptr;
+// CHECK-NEXT:     double _d_a[4] = {0};
+// CHECK-NEXT:     double a[4] = {x, x * x, 2 * x, 3 * x};
+// CHECK-NEXT:     double _d_s = 0.;
+// CHECK-NEXT:     double s = 0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 3; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _cond0[i] = i != 1;
+// CHECK-NEXT:             if (_cond0[i]) {
+// CHECK-NEXT:                 _t1[i] = _d_q;
+// CHECK-NEXT:                 _d_q = _d_a + i;
+// CHECK-NEXT:                 _t2[i] = q , q = a + i;
+// CHECK-NEXT:                 _d_q++;
+// CHECK-NEXT:                 q++;
+// CHECK-NEXT:                 s += *q * x;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_s += 1;
+// CHECK-NEXT:     for (_t0 = 3U; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         if (_cond0[i]) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 double _r_d0 = _d_s;
+// CHECK-NEXT:                 *_d_q += _r_d0 * x;
+// CHECK-NEXT:                 *_d_x += *q * _r_d0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 q--;
+// CHECK-NEXT:                 _d_q--;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 _d_q = _t1[i];
+// CHECK-NEXT:                 q = _t2[i];
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_a[0];
+// CHECK-NEXT:         *_d_x += _d_a[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_a[1];
+// CHECK-NEXT:         *_d_x += 2 * _d_a[2];
+// CHECK-NEXT:         *_d_x += 3 * _d_a[3];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3314,4 +3463,9 @@ int main() {
   double x56[3] = {0.5, 1.5, 1.2}, d56[3] = {0};
   clad::gradient(fn56).execute(x56, d56);
   printf("{%.2f, %.2f, %.2f}\n", d56[0], d56[1], d56[2]); // CHECK-EXEC: {0.01, -279.10, -139.48}
+
+  TEST(fn57, 3); // CHECK-EXEC: {57.00}
+  TEST(fn58, 3); // CHECK-EXEC: {165.00}
+  TEST(fn61, 3); // CHECK-EXEC: {57.00}
+  TEST(fn62, 3); // CHECK-EXEC: {45.00}
 }
