@@ -27,6 +27,9 @@
 // RUN:   -Xclang -fgenerate-source-file=%t.missing/out.cpp 2>&1 \
 // RUN:   | FileCheck --check-prefix=NOWRITE %s
 // NOWRITE: warning: could not write the derivatives to '{{.*}}missing{{.}}out.cpp'
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -DUNWRITABLE \
+// RUN:   -Xclang -plugin-arg-clad -Xclang -fgenerate-source-file=%t.unwritable.cpp \
+// RUN:   2>&1 | FileCheck --check-prefix=UNWRITABLE %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
@@ -263,6 +266,81 @@ double viaDeduced(double x) {
 
 // CHECK: const lib::Plain p = lib::make(x);
 
+// A free derivative reads a private member through an explicit instantiation
+// of clad::member_access, where access checking does not apply. The writer
+// says so, and how to read it directly.
+namespace geo {
+class Hidden {
+  double m_k = 2;
+
+public:
+  double scaled(double x) const { return m_k * x; }
+};
+} // namespace geo
+double readsPrivate(const geo::Hidden& h, double x) { return h.scaled(x); }
+
+// CHECK: template struct clad::member_access<clad::member_key<geo::Hidden, double, 0>, &geo::Hidden::m_k>;
+// CHECK: void scaled_pullback(const geo::Hidden *self, double x, double _d_y, geo::Hidden *_d_this, double *_d_x)
+// CHECK: clad::member<geo::Hidden, double, 0>(*_d_this) += _d_y * x;
+// UNWRITABLE-DAG: warning: the derivative 'scaled_pullback' reads 'm_k', which is private in 'geo::Hidden', through an explicit instantiation of clad::member_access
+// UNWRITABLE-DAG: note: to read it directly, declare the derivative in 'Hidden': void scaled_pullback(double x, double _d_y, geo::Hidden *_d_this, double *_d_x) const;
+
+// A member's type spelled with a typedef of its class, which can be as private
+// as the member, is spelled as what it stands for.
+namespace geo {
+class Tuned {
+  using Real = double;
+  Real m_k = 2;
+
+public:
+  double scaled(double x) const { return m_k * x; }
+};
+} // namespace geo
+double readsTuned(const geo::Tuned& t, double x) { return t.scaled(x); }
+
+// CHECK: template struct clad::member_access<clad::member_key<geo::Tuned, double, 0>, &geo::Tuned::m_k>;
+
+#ifdef UNWRITABLE
+// A constructor's derivative builds the object and takes no `self`: it reads
+// the private member it sets, with nowhere to declare it instead. A typedef
+// outside the class names the member's type as it stands.
+using Value = double;
+class Holder {
+  Value m_v;
+
+public:
+  Holder(double v) : m_v(v * v) {}
+  double get() const { return m_v; }
+};
+double viaHolder(double x) {
+  Holder h(x);
+  return h.get();
+}
+auto g_viaHolder = clad::gradient(viaHolder);
+// UNWRITABLE-DAG: warning: the derivative 'constructor_pullback' reads 'm_v', which is private in 'Holder', through an explicit instantiation of clad::member_access
+
+// What the source cannot say is reported: a member clad adds to a class,
+// which only the class can declare, and a private member function a free
+// derivative calls, which clad::member_access does not open.
+class Helped {
+  double twice(double x) const { return 2 * x; }
+
+public:
+  double apply(double x) const { return twice(x) * x; }
+};
+double viaHelper(const Helped& h, double x) { return h.apply(x); }
+auto g_viaHelper = clad::gradient(viaHelper, "x");
+// UNWRITABLE-DAG: warning: the derivative 'apply_pullback' reads 'twice', which is not public in 'Helped'; read back as source it does not compile
+struct Plain {
+  double f(double x) { return x * x; }
+};
+auto d_member = clad::differentiate(&Plain::f, 0);
+auto sq = [](double x) { return x * x; };
+auto d_lambda = clad::differentiate(sq, 0);
+// UNWRITABLE-DAG: warning: the derivative 'operator_call_darg0' is a member clad adds to a lambda's closure type; read back as source it does not compile
+// UNWRITABLE-DAG: warning: the derivative 'f_darg0' is a member clad adds to 'Plain'; read back as source it does not compile: declare it in the class
+#endif
+
 #ifdef ERROR
 double broken(double x) { return undeclared(x); }
 #endif
@@ -282,3 +360,5 @@ auto g_viaCustomCtor = clad::gradient(viaCustomCtor);
 auto g_viaUnnamed = clad::gradient(viaUnnamed);
 auto g_viaSubstituted = clad::gradient(viaSubstituted);
 auto g_viaDeduced = clad::gradient(viaDeduced);
+auto g_readsPrivate = clad::gradient(readsPrivate, "x");
+auto g_readsTuned = clad::gradient(readsTuned, "x");
