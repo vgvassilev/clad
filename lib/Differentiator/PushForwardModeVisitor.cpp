@@ -10,6 +10,7 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 
 #include "llvm/Support/SaveAndRestore.h"
@@ -35,6 +36,13 @@ StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Expr* retVal = retValDiff.getExpr();
+  // `return g(x);` in a function returning void returns what g's derivative
+  // does: nothing, so there is no value or tangent to pair. Only for a call:
+  // what another void expression changes may be in its tangent alone.
+  if (RS->getRetValue()->getType()->isVoidType() &&
+      isa<CallExpr>(RS->getRetValue()->IgnoreParens()) &&
+      !retValDiff.getExpr_dx())
+    return StmtDiff(BuildReturnStmt(retVal));
   Expr* retVal_dx = retValDiff.getExpr_dx();
   QualType RetTy = m_DiffReq->getReturnType();
   // A non-const reference return needs a tangent to refer to; a value without

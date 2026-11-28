@@ -56,8 +56,11 @@ DerivativeAndOverload VectorPushForwardModeVisitor::Derive() {
 StmtDiff
 VectorPushForwardModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
-  if (!RS->getRetValue())
-    return nullptr;
+  if (!RS->getRetValue()) {
+    if (RS == m_DiffReq.getTailReturn())
+      return nullptr;
+    return StmtDiff(BuildReturnStmt(nullptr));
+  }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Expr* retVal = retValDiff.getExpr();
