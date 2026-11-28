@@ -743,9 +743,16 @@ BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
   const VarDecl* VD = FRS->getLoopVariable();
   DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
   // Differentiate body and add both Item and it's derivative.
-  Stmt* body = Clone(FRS->getBody());
-  Stmt* bodyResult = Visit(body).getStmt();
-  Visit(body).getStmt();
+  const Stmt* body = FRS->getBody();
+  Stmt* bodyResult = nullptr;
+  {
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
+    beginBlock();
+    StmtDiff bodyVisited = Visit(body);
+    for (Stmt* S : bodyVisited.getBothStmts())
+      addToCurrentBlock(S);
+    bodyResult = utils::unwrapIfSingleStmt(endBlock());
+  }
   Stmt* bodyWithItem = utils::PrependAndCreateCompoundStmt(
       m_Sema.getASTContext(), bodyResult, BuildDeclStmt(VDDiff.getDecl()));
   bodyResult = utils::PrependAndCreateCompoundStmt(

@@ -680,6 +680,35 @@ double fn21_darg0(double x, double y);
 // CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
+double fn22(double x) {
+  double values[] = {1, 2, 3};
+  double result = 0;
+  for (double value : values)
+    result += x;
+  return result;
+}
+
+double fn22_darg0(double x);
+// CHECK: double fn22_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_values[3] = {0, 0, 0};
+// CHECK-NEXT:     double values[3] = {1, 2, 3};
+// CHECK-NEXT:     double _d_result = 0;
+// CHECK-NEXT:     double result = 0;
+// CHECK-NEXT:     double (&_d___range1)[3] = _d_values;
+// CHECK-NEXT:     double (&__range1)[3] = values;
+// CHECK-NEXT:     double *_d___begin1 = _d___range1;
+// CHECK-NEXT:     double *__begin1 = __range1;
+// CHECK-NEXT:     double *__end1 = __range1 + {{3|3L}};
+// CHECK-NEXT:     for (; __begin1 != __end1; ++_d___begin1 , ++__begin1) {
+// CHECK-NEXT:         double _d_value = *_d___begin1;
+// CHECK-NEXT:         double value = *__begin1;
+// CHECK-NEXT:         _d_result += _d_x;
+// CHECK-NEXT:         result += x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return _d_result;
+// CHECK-NEXT: }
+
 
 
 #define TEST(fn)\
@@ -760,4 +789,7 @@ int main() {
 
   clad::differentiate(fn21, 0);
   printf("Result is = %.2f\n", fn21_darg0(5, 1)); // CHECK-EXEC: Result is = 10.00
+
+  clad::differentiate(fn22, 0);
+  printf("Result is = %.2f\n", fn22_darg0(2)); // CHECK-EXEC: Result is = 3.00
 }
