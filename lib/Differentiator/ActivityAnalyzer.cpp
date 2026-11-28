@@ -16,6 +16,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/SaveAndRestore.h"
 
 #include <cstddef>
 #include <memory>
@@ -211,6 +212,10 @@ bool VariedAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
             (N->getType()->isArrayType() || N->getType()->isPointerType()))
           m_ReachedThrough[RootVD].insert(N);
     }
+  } else if (BinOp->isComparisonOp()) {
+    llvm::SaveAndRestore<bool> SaveVaried(m_Varied, false);
+    TraverseStmt(L);
+    TraverseStmt(R);
   } else if (opCode == BO_Add || opCode == BO_Sub || opCode == BO_Mul ||
              opCode == BO_Div) {
     TraverseStmt(L);

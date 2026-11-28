@@ -3169,6 +3169,138 @@ double fn56(const double* x) {
 //CHECK:         i--;
 //CHECK-NEXT:         a = -x[i];
 
+double whileCondition(double x) {
+  double a[4] = {x, x * x, 2 * x, 0.};
+  double s = 0, t;
+  int i = 0;
+  while ((t = a[i])) {
+    s += t * x;
+    ++i;
+  }
+  return s;
+}
+// CHECK: void whileCondition_grad(double x, double *_d_x) {
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_a[4] = {0};
+// CHECK-NEXT:     double a[4] = {x, x * x, 2 * x, 0.};
+// CHECK-NEXT:     double _d_s = 0., _d_t = 0.;
+// CHECK-NEXT:     double s = 0, t;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     for (;;) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             clad::push(_t1, t);
+// CHECK-NEXT:             if (!(t = a[i]))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         s += t * x;
+// CHECK-NEXT:         ++i;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_s += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 t = clad::pop(_t1);
+// CHECK-NEXT:                 double _r_d0 = _d_t;
+// CHECK-NEXT:                 _d_t = 0.;
+// CHECK-NEXT:                 _d_a[i] += _r_d0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_t += _d_s * x;
+// CHECK-NEXT:             *_d_x += t * _d_s;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_a[0];
+// CHECK-NEXT:         *_d_x += _d_a[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_a[1];
+// CHECK-NEXT:         *_d_x += 2 * _d_a[2];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double whileConditionVariable(double x) {
+  double a[4] = {x, x * x, 2 * x, 0.};
+  double s = 0;
+  int i = 0;
+  while (double t = a[i]) {
+    s += t * x;
+    ++i;
+  }
+  return s;
+}
+double nestedCondition(double x) {
+  double a[4] = {x, x * x, 2 * x, 0.};
+  double s = 0, t;
+  int j = 0;
+  while (j < 2) {
+    int i = 0;
+    while ((t = a[i])) { s += t * x; ++i; }
+    ++j;
+  }
+  return s;
+}
+double controlCondition(double x) {
+  double a[4] = {x, x * x, 2 * x, 0.};
+  double s = 0, t;
+  int i = 0;
+  while ((t = a[i])) {
+    ++i;
+    if (i == 2) continue;
+    s += t * x;
+    if (i == 3) break;
+  }
+  return s;
+}
+double plainWhile(double x) {
+  double s = 0;
+  int i = 0, n = 3;
+  while (i < n) { s += x * x; ++i; }
+  return s;
+}
+
+double whileComparison(double x) {
+  double a[4] = {x, x * x, 2 * x, 0.};
+  double s = 0, t;
+  int i = 0;
+  while ((t = a[i]) != 0.) {
+    s += t * x;
+    ++i;
+  }
+  return s;
+}
+
+double whileDecrement(double x) {
+  double t = 3., s = 0.;
+  while (--t > 0.)
+    s += t * x;
+  return s;
+}
+
+double whileElement(double x) {
+  double t[1] = {0.}, s = 0.;
+  int i = 0;
+  while ((t[0] = x * (3 - i++)) != 0.)
+    s += t[0] * x;
+  return s;
+}
+
+double whileIntegerConditionVariable(double x) {
+  double a[4] = {x, x * x, 2 * x, 0.};
+  double s = 0, t;
+  int i = 0;
+  while (int active = ((t = a[i]) != 0.)) {
+    s += t * x;
+    ++i;
+  }
+  return s;
+}
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3314,4 +3446,13 @@ int main() {
   double x56[3] = {0.5, 1.5, 1.2}, d56[3] = {0};
   clad::gradient(fn56).execute(x56, d56);
   printf("{%.2f, %.2f, %.2f}\n", d56[0], d56[1], d56[2]); // CHECK-EXEC: {0.01, -279.10, -139.48}
+  TEST(whileCondition, 1.5); // CHECK-EXEC: {15.75}
+  TEST(whileConditionVariable, 1.5); // CHECK-EXEC: {15.75}
+  TEST(nestedCondition, 1.5); // CHECK-EXEC: {31.50}
+  TEST(controlCondition, 1.5); // CHECK-EXEC: {9.00}
+  TEST(plainWhile, 1.5); // CHECK-EXEC: {9.00}
+  TEST(whileComparison, 1.5); // CHECK-EXEC: {15.75}
+  TEST(whileDecrement, 1.5); // CHECK-EXEC: {3.00}
+  TEST(whileElement, 1.5); // CHECK-EXEC: {18.00}
+  TEST(whileIntegerConditionVariable, 1.5); // CHECK-EXEC: {15.75}
 }

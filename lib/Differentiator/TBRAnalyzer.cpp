@@ -475,6 +475,11 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // If we're in the non-linear marking mode, mark the LHS
     // (assignments act as references to the LHS).
     setIsRequired(L);
+  } else if (BinOp->isComparisonOp()) {
+    setMode(/*mode=*/0);
+    TraverseStmt(L);
+    TraverseStmt(R);
+    resetMode();
   } else if (opCode == BO_Comma) {
     setMode(/*mode=*/0);
     TraverseStmt(L);
@@ -483,7 +488,7 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     TraverseStmt(R);
   }
   // else {
-  // FIXME: add logic/bitwise/comparison operators
+  // FIXME: add logic/bitwise operators
   // }
   return false;
 }
