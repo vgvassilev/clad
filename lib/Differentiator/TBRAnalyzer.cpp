@@ -280,8 +280,11 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
         // We have to set it's loop pass counter to 0 (it might be 3
         // from the previous outer loop pass).
         m_BlockPassCounter[succ->getBlockID()] = 0;
-        // Remove VarsData left after the previous pass.
-        varsData->clear();
+        // Remove VarsData left after the previous pass. A do-while's back
+        // edge also goes to a lower ID but must keep the previous
+        // iteration's data, like the back edges of other loops.
+        if (!isa_and_nonnull<DoStmt>(block.getLoopTarget()))
+          varsData->clear();
       }
     }
 

@@ -370,6 +370,59 @@ double memberSubscript(double a) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double doWhileLocal(double x) {
+  double a[3] = {x, x * x, 2 * x};
+  double s = 0;
+  int i = 0;
+  do {
+    double t = a[i];
+    s += t * x;
+    ++i;
+  } while (i < 3);
+  return s;
+}
+
+//CHECK: void doWhileLocal_grad(double x, double *_d_x) {
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double _d_t = 0.;
+//CHECK-NEXT:     double t = 0.;
+//CHECK-NEXT:     double _d_a[3] = {0};
+//CHECK-NEXT:     double a[3] = {x, x * x, 2 * x};
+//CHECK-NEXT:     double _d_s = 0.;
+//CHECK-NEXT:     double s = 0;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
+//CHECK-NEXT:     do {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, t) , t = a[i];
+//CHECK-NEXT:         s += t * x;
+//CHECK-NEXT:         ++i;
+//CHECK-NEXT:     } while (i < 3);
+//CHECK-NEXT:     _d_s += 1;
+//CHECK-NEXT:     do {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             --i;
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 _d_t += _d_s * x;
+//CHECK-NEXT:                 *_d_x += t * _d_s;
+//CHECK-NEXT:             }
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 _d_a[i] += _d_t;
+//CHECK-NEXT:                 _d_t = 0.;
+//CHECK-NEXT:                 t = clad::pop(_t1);
+//CHECK-NEXT:             }
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _t0--;
+//CHECK-NEXT:     } while (_t0);
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_a[0];
+//CHECK-NEXT:         *_d_x += _d_a[1] * x;
+//CHECK-NEXT:         *_d_x += x * _d_a[1];
+//CHECK-NEXT:         *_d_x += 2 * _d_a[2];
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -384,6 +437,22 @@ double memberSubscript(double a) {
   printf("{%.2f, %.2f}\n", result[0], result[1]); \
 }
 
+double doWhileStartingWithWhile(double x) {
+  double a[3] = {x, x * x, 2 * x};
+  double u = 0, s = 0;
+  int i = 0, j = 0;
+  do {
+    while (j < 2) {
+      u = a[i];
+      ++j;
+    }
+    s += u * x;
+    j = 0;
+    ++i;
+  } while (i < 3);
+  return s;
+}
+
 int main() {
   double result[2] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -395,4 +464,6 @@ int main() {
   TEST(f7, 2); // CHECK-EXEC: {7.00}
   TEST(f8, 2); // CHECK-EXEC: {5.00}
   TEST(memberSubscript, 2); // CHECK-EXEC: {17.00}
+  TEST(doWhileLocal, 2); // CHECK-EXEC: {24.00}
+  TEST(doWhileStartingWithWhile, 2); // CHECK-EXEC: {24.00}
 }
